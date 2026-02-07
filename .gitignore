@@ -1,0 +1,91 @@
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+node_modules
+
+*.db*
+
+*.gz
+
+tmp
+
+dist
+
+# Logs
+logs/
+**/logs/
+
+# Storage directory - keep structure but ignore runtime files
+storage/*.db
+storage/*.sqlite*
+storage/backups/
+storage/caddy/
+storage/dev_bdgr_s/
+
+# Environment variables
+.env
+
+# Binaries
+/bin/
+*.exe
+*.exe~
+
+# Database files
+*.sqlite
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+
+e2e/playwright-report
+e2e/test-results
+e2e/screenshots
+e2e/screenshot-*.png
+
+# Go build cache
+.gocache/
+.gopath/
+
+# GeoIP database (download from MaxMind)
+internal-storage/GeoLite2-City.mmdb
+storage/GeoLite2-City.mmdb
+
+# TypeScript build info
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Built binaries
+/logbuddy
+/fizzlog
+/manager
+/seed
+
+# Test artifacts
+test-results/
+e2e/debug-screenshot.png
+
+# Git worktrees
+.worktrees/
