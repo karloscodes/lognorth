@@ -25,6 +25,7 @@ type Config struct {
 	Environment string
 	PrivateKey  string
 	StoragePath string
+	Domain      string
 }
 
 var (
@@ -45,6 +46,7 @@ func GetConfig() *Config {
 			Environment: env,
 			PrivateKey:  privateKey,
 			StoragePath: storagePath,
+			Domain:      os.Getenv("LOGNORTH_DOMAIN"),
 		}
 	})
 	return cfg
@@ -198,6 +200,17 @@ func (c *Config) GetLogMaxAgeDays() int {
 	return 30
 }
 
+
+// GetBaseURL returns the base URL for links in notifications
+func (c *Config) GetBaseURL() string {
+	if c.Domain != "" {
+		return "https://" + c.Domain
+	}
+	if c.IsDevelopment() {
+		return "http://localhost:3000"
+	}
+	return ""
+}
 
 // Reset clears the cached configuration; intended for tests
 func Reset() {

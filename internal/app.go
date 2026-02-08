@@ -215,6 +215,7 @@ func MountRoutes(server *cartridge.Server) {
 	// Settings
 	server.Get("/settings", lbhttp.SettingsPageAction, protectedConfig)
 	server.Post("/settings", lbhttp.UpdateSettingsAction, protectedConfig)
+	server.Post("/settings/test", lbhttp.TestNotificationAction, protectedConfig)
 	server.Post("/settings/test-smtp", lbhttp.TestSMTPAction, protectedConfig)
 }
 

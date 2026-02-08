@@ -1,0 +1,275 @@
+package events
+
+import (
+	"os"
+	"testing"
+	"time"
+
+	"github.com/karloscodes/cartridge/sqlite"
+	"gorm.io/gorm"
+)
+
+func setupTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	dbPath := "test_" + t.Name() + ".db"
+	t.Cleanup(func() {
+		os.Remove(dbPath)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	})
+
+	manager := sqlite.NewManager(sqlite.Config{Path: dbPath, EnableWAL: true})
+	db, err := manager.Connect()
+	if err != nil {
+		t.Fatalf("Failed to connect: %v", err)
+	}
+
+	if err := AutoMigrate(db); err != nil {
+		t.Fatalf("Failed to migrate: %v", err)
+	}
+
+	return db
+}
+
+func TestDeriveIsError(t *testing.T) {
+	t.Run("error field present", func(t *testing.T) {
+		ctx := &EventContext{Error: "something broke"}
+
+		if !DeriveIsError(ctx) {
+			t.Error("should be error when error field is set")
+		}
+	})
+
+	t.Run("status 500", func(t *testing.T) {
+		ctx := &EventContext{Status: 500}
+
+		if !DeriveIsError(ctx) {
+			t.Error("should be error when status >= 500")
+		}
+	})
+
+	t.Run("status 503", func(t *testing.T) {
+		ctx := &EventContext{Status: 503}
+
+		if !DeriveIsError(ctx) {
+			t.Error("should be error when status is 503")
+		}
+	})
+
+	t.Run("status 404 is not error", func(t *testing.T) {
+		ctx := &EventContext{Status: 404}
+
+		if DeriveIsError(ctx) {
+			t.Error("404 should not be considered an error")
+		}
+	})
+
+	t.Run("status 200 is not error", func(t *testing.T) {
+		ctx := &EventContext{Status: 200}
+
+		if DeriveIsError(ctx) {
+			t.Error("200 should not be considered an error")
+		}
+	})
+
+	t.Run("empty context is not error", func(t *testing.T) {
+		ctx := &EventContext{}
+
+		if DeriveIsError(ctx) {
+			t.Error("empty context should not be considered an error")
+		}
+	})
+
+	t.Run("error takes precedence over status", func(t *testing.T) {
+		ctx := &EventContext{Error: "error", Status: 200}
+
+		if !DeriveIsError(ctx) {
+			t.Error("should be error when error field is set, regardless of status")
+		}
+	})
+}
+
+func TestEventContext_GetSet(t *testing.T) {
+	event := &Event{}
+	ctx := &EventContext{
+		Method: "POST",
+		Path:   "/api/orders",
+		Status: 201,
+		Error:  "",
+	}
+
+	err := event.SetContext(ctx)
+
+	if err != nil {
+		t.Fatalf("SetContext failed: %v", err)
+	}
+	if event.Context == "" {
+		t.Error("Context should be set")
+	}
+
+	parsed, err := event.GetContext()
+
+	if err != nil {
+		t.Fatalf("GetContext failed: %v", err)
+	}
+	if parsed.Method != "POST" {
+		t.Errorf("expected Method 'POST', got %s", parsed.Method)
+	}
+	if parsed.Path != "/api/orders" {
+		t.Errorf("expected Path '/api/orders', got %s", parsed.Path)
+	}
+	if parsed.Status != 201 {
+		t.Errorf("expected Status 201, got %d", parsed.Status)
+	}
+}
+
+func TestEventContext_EmptyContext(t *testing.T) {
+	event := &Event{Context: ""}
+
+	ctx, err := event.GetContext()
+
+	if err != nil {
+		t.Fatalf("GetContext failed on empty: %v", err)
+	}
+	if ctx == nil {
+		t.Error("should return empty context, not nil")
+	}
+}
+
+func TestCreate(t *testing.T) {
+	db := setupTestDB(t)
+
+	event := &Event{
+		APIKeyID:   1,
+		Message:    "GET /api/users → 200",
+		TraceID:    "req-123",
+		DurationMS: 45,
+		IsError:    false,
+	}
+
+	err := Create(db, event)
+
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if event.ID == 0 {
+		t.Error("expected ID to be set")
+	}
+	if event.Timestamp.IsZero() {
+		t.Error("expected Timestamp to be set")
+	}
+}
+
+func TestCreate_WithTimestamp(t *testing.T) {
+	db := setupTestDB(t)
+	customTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
+
+	event := &Event{
+		APIKeyID:   1,
+		Message:    "Custom timestamp",
+		Timestamp:  customTime,
+	}
+
+	Create(db, event)
+
+	if !event.Timestamp.Equal(customTime) {
+		t.Error("should preserve custom timestamp")
+	}
+}
+
+func TestList_Filters(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Create test events
+	Create(db, &Event{APIKeyID: 1, Message: "success", IsError: false})
+	Create(db, &Event{APIKeyID: 1, Message: "error", IsError: true})
+	Create(db, &Event{APIKeyID: 2, Message: "other app", IsError: false})
+
+	t.Run("filter by api key", func(t *testing.T) {
+		events, total, _ := List(db, ListFilters{APIKeyID: 1})
+
+		if total != 2 {
+			t.Errorf("expected 2 events for api key 1, got %d", total)
+		}
+		if len(events) != 2 {
+			t.Errorf("expected 2 events, got %d", len(events))
+		}
+	})
+
+	t.Run("filter errors only", func(t *testing.T) {
+		isError := true
+		events, total, _ := List(db, ListFilters{IsError: &isError})
+
+		if total != 1 {
+			t.Errorf("expected 1 error, got %d", total)
+		}
+		if len(events) != 1 || events[0].Message != "error" {
+			t.Error("should return only error events")
+		}
+	})
+
+	t.Run("search", func(t *testing.T) {
+		events, total, _ := List(db, ListFilters{Search: "other"})
+
+		if total != 1 {
+			t.Errorf("expected 1 match, got %d", total)
+		}
+		if len(events) != 1 || events[0].Message != "other app" {
+			t.Error("should find matching event")
+		}
+	})
+}
+
+func TestDeleteOlderThan(t *testing.T) {
+	db := setupTestDB(t)
+
+	// Create old and new events
+	oldEvent := &Event{
+		APIKeyID:  1,
+		Message:   "old",
+		Timestamp: time.Now().Add(-48 * time.Hour),
+	}
+	newEvent := &Event{
+		APIKeyID:  1,
+		Message:   "new",
+		Timestamp: time.Now(),
+	}
+	db.Create(oldEvent)
+	db.Create(newEvent)
+
+	deleted, err := DeleteOlderThan(db, 24*time.Hour)
+
+	if err != nil {
+		t.Fatalf("DeleteOlderThan failed: %v", err)
+	}
+	if deleted != 1 {
+		t.Errorf("expected 1 deleted, got %d", deleted)
+	}
+
+	var remaining []Event
+	db.Find(&remaining)
+	if len(remaining) != 1 || remaining[0].Message != "new" {
+		t.Error("should keep only new event")
+	}
+}
+
+func TestGetStats(t *testing.T) {
+	db := setupTestDB(t)
+
+	Create(db, &Event{APIKeyID: 1, Message: "success", IsError: false})
+	Create(db, &Event{APIKeyID: 1, Message: "error1", IsError: true})
+	Create(db, &Event{APIKeyID: 1, Message: "error2", IsError: true})
+
+	stats := GetStats(db, 1)
+
+	if stats.Total != 3 {
+		t.Errorf("expected total 3, got %d", stats.Total)
+	}
+	if stats.Errors != 2 {
+		t.Errorf("expected errors 2, got %d", stats.Errors)
+	}
+	if stats.LastSeen == nil {
+		t.Error("expected LastSeen to be set")
+	}
+}

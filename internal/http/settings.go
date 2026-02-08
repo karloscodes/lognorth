@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
+	"lognorth/internal/config"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
 )
@@ -14,13 +15,17 @@ import (
 // SettingsPageAction handles GET /settings
 func SettingsPageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
+	cfg := config.GetConfig()
 
 	s, err := settings.Get(db)
 	if err != nil {
 		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
 	}
 
-	section := ctx.Ctx.Query("section", "notifications")
+	// Auto-populate base URL from config if not set
+	if s.BaseURL == "" {
+		s.BaseURL = cfg.GetBaseURL()
+	}
 
 	// Get current user's email for default notification recipient
 	var userEmail string
@@ -33,25 +38,28 @@ func SettingsPageAction(ctx *cartridge.Context) error {
 	return RenderPage(ctx.Ctx, "Settings", Props{
 		"settings":    s,
 		"hasPassword": s.HasPassword(),
-		"section":     section,
 		"userEmail":   userEmail,
 	})
 }
 
 // UpdateSettingsInput represents the settings update request
 type UpdateSettingsInput struct {
+	// Channel: "ntfy" or "email"
+	NotifyChannel string `json:"notify_channel"`
+
+	// ntfy settings
+	NtfyURL string `json:"ntfy_url"`
+
+	// Email/SMTP settings
 	SMTPHost     string `json:"smtp_host"`
 	SMTPPort     int    `json:"smtp_port"`
 	SMTPUsername string `json:"smtp_username"`
 	SMTPPassword string `json:"smtp_password"`
 	SMTPFrom     string `json:"smtp_from"`
+	NotifyEmail  string `json:"notify_email"`
 
-	NotifyNewErrors   bool   `json:"notify_new_errors"`
-	NotifyRegressions bool   `json:"notify_regressions"`
-	NotifySpikes      bool   `json:"notify_spikes"`
-	SpikeThreshold    int    `json:"spike_threshold"`
-	NotifyEmail       string `json:"notify_email"`
-	BaseURL           string `json:"base_url"`
+	// General
+	BaseURL string `json:"base_url"`
 }
 
 // UpdateSettingsAction handles POST /settings
@@ -63,34 +71,29 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "invalid input"})
 	}
 
-	// Get existing settings
 	s, err := settings.Get(db)
 	if err != nil {
 		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
 	}
 
-	// Update fields
+	// Update channel
+	s.NotifyChannel = input.NotifyChannel
+
+	// Update ntfy
+	s.NtfyURL = input.NtfyURL
+
+	// Update SMTP
 	s.SMTPHost = input.SMTPHost
 	s.SMTPPort = input.SMTPPort
 	s.SMTPUsername = input.SMTPUsername
 	s.SMTPFrom = input.SMTPFrom
+	s.NotifyEmail = input.NotifyEmail
+	s.BaseURL = input.BaseURL
 
-	// Only update password if provided (non-empty)
+	// Only update password if provided
 	if input.SMTPPassword != "" {
 		s.SMTPPassword = input.SMTPPassword
 	}
-
-	// Update notification settings
-	s.NotifyNewErrors = input.NotifyNewErrors
-	s.NotifyRegressions = input.NotifyRegressions
-	s.NotifySpikes = input.NotifySpikes
-	if input.SpikeThreshold > 0 {
-		s.SpikeThreshold = input.SpikeThreshold
-	} else {
-		s.SpikeThreshold = 10 // Default 10%
-	}
-	s.NotifyEmail = input.NotifyEmail
-	s.BaseURL = input.BaseURL
 
 	if err := settings.Update(db, s); err != nil {
 		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to save settings"})
@@ -99,7 +102,28 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 	return ctx.Ctx.JSON(fiber.Map{"success": true})
 }
 
-// TestSMTPAction handles POST /settings/test-smtp
+// TestNotificationAction handles POST /settings/test
+func TestNotificationAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	s, err := settings.Get(db)
+	if err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
+	}
+
+	if !s.CanNotify() {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "notifications not configured"})
+	}
+
+	err = s.SendNotification("LogNorth Test", "This is a test notification. If you received this, notifications are working.")
+	if err != nil {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return ctx.Ctx.JSON(fiber.Map{"success": true, "message": "Test notification sent"})
+}
+
+// TestSMTPAction handles POST /settings/test-smtp (legacy, redirects to TestNotificationAction)
 func TestSMTPAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
@@ -108,11 +132,10 @@ func TestSMTPAction(ctx *cartridge.Context) error {
 		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
 	}
 
-	if !s.IsConfigured() {
+	if !s.IsEmailConfigured() {
 		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "SMTP not configured"})
 	}
 
-	// Try to connect to SMTP server
 	addr := fmt.Sprintf("%s:%d", s.SMTPHost, s.SMTPPort)
 
 	var auth smtp.Auth
@@ -120,7 +143,6 @@ func TestSMTPAction(ctx *cartridge.Context) error {
 		auth = smtp.PlainAuth("", s.SMTPUsername, s.SMTPPassword, s.SMTPHost)
 	}
 
-	// Send test email to the from address
 	to := []string{s.SMTPFrom}
 	msg := []byte("Subject: LogNorth Test Email\r\n\r\nThis is a test email from LogNorth. If you received this, SMTP is configured correctly.")
 

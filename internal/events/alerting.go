@@ -146,10 +146,8 @@ func (e *AlertEngine) CheckNewErrorOrRegression(ctx map[string]any, apiKeyID uin
 	result := e.db.Where("error_hash = ?", hash).First(&seen)
 
 	if result.Error == gorm.ErrRecordNotFound {
-		// NEW ERROR
-		if e.settings.NotifyNewErrors {
-			e.sendAlert(alertNewError, appName, errorMsg, hash, 0, 0, 0)
-		}
+		// NEW ERROR - always alert
+		e.sendAlert(alertNewError, appName, errorMsg, hash, 0, 0, 0)
 		e.db.Create(&IssueSeen{
 			ErrorHash:        hash,
 			SeenAt:           now,
@@ -159,8 +157,8 @@ func (e *AlertEngine) CheckNewErrorOrRegression(ctx map[string]any, apiKeyID uin
 		return
 	}
 
-	// Check REGRESSION
-	if e.settings.NotifyRegressions && IsRegression(seen.LastOccurrenceAt) {
+	// Check REGRESSION - always alert if quiet period passed
+	if IsRegression(seen.LastOccurrenceAt) {
 		quietPeriod := time.Since(seen.LastOccurrenceAt)
 		e.sendAlert(alertRegression, appName, errorMsg, hash, 0, 0, quietPeriod)
 		seen.LastNotifiedAt = now
@@ -172,16 +170,11 @@ func (e *AlertEngine) CheckNewErrorOrRegression(ctx map[string]any, apiKeyID uin
 
 // CheckSpikes detects spikes and recoveries, sends grouped alerts
 func (e *AlertEngine) CheckSpikes() {
-	if !e.CanNotify() || !e.settings.NotifySpikes {
+	if !e.CanNotify() {
 		return
 	}
 
-	threshold := e.settings.SpikeThreshold
-	if threshold <= 0 {
-		threshold = DefaultSpikeThreshold
-	}
-
-	spikes, recoveries := e.detectSpikeChanges(threshold)
+	spikes, recoveries := e.detectSpikeChanges(DefaultSpikeThreshold)
 
 	if len(spikes) > 0 {
 		e.sendGroupedSpikeAlert(spikes)
