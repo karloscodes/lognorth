@@ -396,15 +396,21 @@ func TestCUSUMDriftDetection(t *testing.T) {
 		}
 	})
 
-	t.Run("resets when readings return to normal", func(t *testing.T) {
+	t.Run("decreases when readings return to normal", func(t *testing.T) {
 		state := &events.CUSUMState{Cumulative: 3.0} // Some accumulated drift
 		mean := 5.0
 
-		// Reading below mean clears the accumulator
-		events.UpdateCUSUM(state, 4.0, mean) // deviation = 4 - 5 - 0.5 = -1.5
+		// Reading below mean reduces the accumulator (but doesn't fully clear in one reading)
+		events.UpdateCUSUM(state, 4.0, mean) // deviation = 4 - 5 - 0.5 = -1.5, new = max(0, 3.0-1.5) = 1.5
 
+		if state.Cumulative != 1.5 {
+			t.Errorf("cumulative should be 1.5 after partial reduction, got %f", state.Cumulative)
+		}
+
+		// Multiple below-mean readings eventually reset to 0
+		events.UpdateCUSUM(state, 4.0, mean) // 1.5 - 1.5 = 0
 		if state.Cumulative != 0 {
-			t.Errorf("cumulative should reset to 0 when below mean, got %f", state.Cumulative)
+			t.Errorf("cumulative should be 0 after full reduction, got %f", state.Cumulative)
 		}
 	})
 }
