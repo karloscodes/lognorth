@@ -92,3 +92,7 @@ e2e/debug-screenshot.png
 
 # Private keys
 storage/.private_key
+
+# Playwright
+.playwright-mcp/
+cookies.txt
