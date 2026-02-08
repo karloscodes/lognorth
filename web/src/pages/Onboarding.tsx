@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
 interface Flash {
-  error?: string
-  success?: string
+  type?: 'error' | 'success'
+  message?: string
 }
 
 interface Props {
@@ -31,9 +31,9 @@ export default function Onboarding({ step, email, flash }: Props) {
           <div className={`w-3 h-3 rounded-full ${step === 'password' ? 'bg-black' : 'bg-black/20'}`} />
         </div>
 
-        {flash?.error && (
+        {flash?.type === 'error' && flash.message && (
           <div className="bg-red-500/10 border-2 border-red-500/20 text-red-600 px-4 py-3 text-sm font-medium mb-6">
-            {flash.error}
+            {flash.message}
           </div>
         )}
 
@@ -65,7 +65,7 @@ export default function Onboarding({ step, email, flash }: Props) {
               <button
                 type="submit"
                 disabled={!emailValue}
-                className="w-full py-3 bg-black text-white font-semibold hover:bg-black/80 disabled:opacity-50 transition-colors"
+                className="w-full py-3 bg-black text-white font-semibold hover:bg-black/80 disabled:bg-black/30 disabled:cursor-not-allowed transition-colors"
               >
                 Continue
               </button>
@@ -119,10 +119,16 @@ export default function Onboarding({ step, email, flash }: Props) {
               <button
                 type="submit"
                 disabled={password.length < 8 || password !== confirmPassword}
-                className="w-full py-3 bg-black text-white font-semibold hover:bg-black/80 disabled:opacity-50 transition-colors"
+                className="w-full py-3 bg-black text-white font-semibold hover:bg-black/80 disabled:bg-black/30 disabled:cursor-not-allowed transition-colors"
               >
                 Create account
               </button>
+              {password.length > 0 && password.length < 8 && (
+                <p className="text-xs text-black/50 text-center mt-2">Password must be at least 8 characters</p>
+              )}
+              {password.length >= 8 && confirmPassword.length > 0 && password !== confirmPassword && (
+                <p className="text-xs text-black/50 text-center mt-2">Passwords don't match</p>
+              )}
             </form>
           </>
         )}

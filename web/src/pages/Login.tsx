@@ -1,8 +1,8 @@
 import { useState } from 'react'
 
 interface Flash {
-  error?: string
-  success?: string
+  type?: 'error' | 'success'
+  message?: string
 }
 
 interface Props {
@@ -23,15 +23,15 @@ export default function Login({ flash }: Props) {
         </div>
 
         <form action="/login" method="POST" className="space-y-5">
-          {flash?.error && (
+          {flash?.type === 'error' && flash.message && (
             <div className="bg-red-500/10 border-2 border-red-500/20 text-red-600 px-4 py-3 text-sm font-medium">
-              {flash.error}
+              {flash.message}
             </div>
           )}
 
-          {flash?.success && (
+          {flash?.type === 'success' && flash.message && (
             <div className="bg-green-500/10 border-2 border-green-500/20 text-green-700 px-4 py-3 text-sm font-medium">
-              {flash.success}
+              {flash.message}
             </div>
           )}
 

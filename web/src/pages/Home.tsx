@@ -56,7 +56,7 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
 
         {activeIssues.length === 0 ? (
           <div className="py-12 text-center border-2 border-dashed border-black/10">
-            <p className="text-black/60 font-medium">Nothing broke today</p>
+            <p className="text-black/60 font-medium">All quiet. You'll be alerted when something breaks.</p>
           </div>
         ) : (
           <div className="border border-black/10 divide-y divide-black/5">

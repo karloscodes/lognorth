@@ -128,10 +128,22 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                       ) : app.last_seen ? (
                         <span>No activity today</span>
                       ) : (
-                        <span>Waiting for data</span>
+                        <span className="text-black/50">No events yet</span>
                       )}
                     </div>
                   </a>
+
+                  {/* Show setup instructions if no data yet */}
+                  {!app.last_seen && !isShowingKey && (
+                    <div className="mt-3 pt-3 border-t border-black/10">
+                      <p className="text-xs text-black/60 mb-2">Send your first event:</p>
+                      <code className="block bg-black/[0.03] p-2 text-xs font-mono text-black/80 break-all">
+                        curl -X POST {window.location.origin}/api/v1/events \<br />
+                        &nbsp;&nbsp;-H "X-API-Key: {app.key_prefix}..." \<br />
+                        &nbsp;&nbsp;-d '{`{"message":"Hello"}`}'
+                      </code>
+                    </div>
+                  )}
 
                   {/* Show key section */}
                   {isShowingKey ? (

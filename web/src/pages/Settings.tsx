@@ -88,7 +88,7 @@ export default function Settings({ settings, hasPassword = false, section = 'not
   const isEmailConfigured = form.smtp_host && form.smtp_port && form.smtp_from && form.notify_email
 
   const sections = [
-    { id: 'notifications', label: 'Notifications' },
+    { id: 'notifications', label: 'Alerts' },
     { id: 'email', label: 'Email' },
   ]
 
@@ -119,7 +119,7 @@ export default function Settings({ settings, hasPassword = false, section = 'not
         <div className="flex-1 max-w-md">
           {section === 'notifications' && (
             <>
-              <h1 className="text-2xl font-bold text-black mb-2">Notifications</h1>
+              <h1 className="text-2xl font-bold text-black mb-2">Alerts</h1>
               <p className="text-black/80 mb-8">Get emailed when things break.</p>
 
               <div className="space-y-6">
@@ -193,7 +193,7 @@ export default function Settings({ settings, hasPassword = false, section = 'not
                     </div>
                   ) : (
                     <p className="text-sm text-black/80">
-                      <a href="/settings?section=email" className="underline hover:text-black">Set up email</a> to receive notifications.
+                      <a href="/settings?section=email" className="underline hover:text-black">Set up email</a> to receive alerts.
                     </p>
                   )}
                 </div>
@@ -225,8 +225,8 @@ export default function Settings({ settings, hasPassword = false, section = 'not
 
           {section === 'email' && (
             <>
-              <h1 className="text-2xl font-bold text-black mb-2">Email</h1>
-              <p className="text-black/80 mb-8">Send notifications via email.</p>
+              <h1 className="text-2xl font-bold text-black mb-2">Email (SMTP)</h1>
+              <p className="text-black/80 mb-8">Configure your mail server for alerts.</p>
 
               <div className="space-y-5">
                 <div>

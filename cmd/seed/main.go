@@ -14,6 +14,7 @@ import (
 	"lognorth/internal/database"
 	"lognorth/internal/events"
 	"lognorth/internal/settings"
+	"lognorth/internal/users"
 )
 
 var httpPaths = []string{
@@ -86,10 +87,23 @@ func main() {
 
 	db := dbManager.GetConnection()
 
+	// Create default user if none exists
+	userCount, _ := users.Count(db)
+	if userCount == 0 {
+		if err := users.CreateUser(db, "admin@localhost", "password"); err != nil {
+			log.Printf("Failed to create default user: %v", err)
+		} else {
+			fmt.Println("Created default user:")
+			fmt.Println("  Email: admin@localhost")
+			fmt.Println("  Password: password")
+			fmt.Println()
+		}
+	}
+
 	// Check if already seeded
 	existingKeys, _ := apikeys.List(db)
 	if len(existingKeys) > 0 {
-		fmt.Println("Database already has data. Run 'rm storage/lognorth.db' first to reseed.")
+		fmt.Println("Database already has API keys. Run 'rm storage/lognorth-development.db' first to fully reseed.")
 		return
 	}
 

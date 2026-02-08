@@ -51,7 +51,7 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
 
         {issues.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-black/40">No errors yet. That's good.</p>
+            <p className="text-black/40">No issues. Errors will appear here, grouped by message.</p>
           </div>
         ) : (
           <div className="space-y-10">

@@ -144,7 +144,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
                         : 'text-black/80 hover:text-black'
                     }`}
                   >
-                    Log
+                    Logs
                   </Link>
                   <Link
                     href={`/apps/${appId}/endpoints`}
