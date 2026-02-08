@@ -29,7 +29,7 @@ interface Props {
   applications?: Application[]
 }
 
-export default function Endpoints({ endpoints, alertStatuses, appId, appName, applications }: Props) {
+export default function Endpoints({ endpoints = [], alertStatuses, appId, appName, applications }: Props) {
   const problemCount = endpoints.filter(e => e.error_rate > 0).length
   const totalRequests = endpoints.reduce((sum, e) => sum + e.total, 0)
   const totalErrors = endpoints.reduce((sum, e) => sum + e.errors, 0)

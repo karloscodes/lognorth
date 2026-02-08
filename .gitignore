@@ -89,3 +89,6 @@ e2e/debug-screenshot.png
 
 # Git worktrees
 .worktrees/
+
+# Private keys
+storage/.private_key
