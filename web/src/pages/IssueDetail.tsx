@@ -28,7 +28,8 @@ export default function IssueDetailPage({ issue, appId, appName, applications }:
   const showAppName = !appId // Show app name when viewing globally
 
   // Get unique apps affected by this issue
-  const affectedAppIds = [...new Set(issue.entries.map(e => e.api_key_id))]
+  const entries = issue.entries || []
+  const affectedAppIds = [...new Set(entries.map(e => e.api_key_id))]
   const affectedApps = affectedAppIds.map(id => appNameById.get(id)).filter(Boolean)
 
   return (
@@ -87,7 +88,7 @@ export default function IssueDetailPage({ issue, appId, appName, applications }:
         )}
 
         {/* Error Timeline */}
-        <ErrorTimeline entries={issue.entries} />
+        <ErrorTimeline entries={entries} />
       </div>
 
       {/* Occurrences */}
@@ -98,7 +99,7 @@ export default function IssueDetailPage({ issue, appId, appName, applications }:
         </h2>
 
         <div className="border border-black/10 rounded-sm divide-y divide-black/5">
-          {issue.entries.slice(0, 50).map((entry) => (
+          {entries.slice(0, 50).map((entry) => (
             <LogRow
               key={entry.id}
               entry={entry}
@@ -108,9 +109,9 @@ export default function IssueDetailPage({ issue, appId, appName, applications }:
           ))}
         </div>
 
-        {issue.entries.length > 50 && (
+        {entries.length > 50 && (
           <p className="text-sm text-black/50 mt-4 text-center">
-            Showing 50 of {issue.entries.length} occurrences
+            Showing 50 of {entries.length} occurrences
           </p>
         )}
       </div>

@@ -12,7 +12,7 @@ interface Props {
   applications?: Application[]
 }
 
-export default function Trace({ traceId, entries, appId, appName, applications }: Props) {
+export default function Trace({ traceId, entries = [], appId, appName, applications }: Props) {
   const hasError = entries.some(e => e.is_error)
   const totalDuration = entries.reduce((sum, e) => sum + e.duration_ms, 0)
   const startTime = entries.length > 0 ? new Date(entries[0].timestamp) : null
