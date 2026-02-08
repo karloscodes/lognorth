@@ -1,14 +1,14 @@
 #!/bin/bash
 set -e
 
-# Fusionaly Pro Release Script
+# LogNorth Release Script
 # Usage: ./release.sh v1.0.0
 
 VERSION=$1
 
 if [ -z "$VERSION" ]; then
     echo "Usage: ./release.sh <version>"
-    echo "Example: ./release.sh v1.0.1"
+    echo "Example: ./release.sh v0.1.0"
     exit 1
 fi
 
@@ -18,7 +18,7 @@ if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     exit 1
 fi
 
-echo "=== Fusionaly Pro Release: $VERSION ==="
+echo "=== LogNorth Release: $VERSION ==="
 
 # Check for uncommitted changes
 if [ -n "$(git status --porcelain)" ]; then
@@ -41,7 +41,7 @@ fi
 # Run tests
 echo ""
 echo "=== Running Tests ==="
-make test-all
+make test
 
 # Build to verify compilation
 echo ""
@@ -61,8 +61,8 @@ echo "Pushed tag to origin"
 echo ""
 echo "=== Release Complete ==="
 echo ""
-echo "GitHub Actions will now build and publish the release."
-echo "Monitor at: https://github.com/karloscodes/fusionaly-pro/actions"
+echo "GitHub Actions will now build and publish:"
+echo "  - Binary: lognorth-linux-amd64"
+echo "  - Docker: karloscodes/lognorth:${VERSION#v}"
 echo ""
-echo "To test GoReleaser locally (current platform only):"
-echo "  goreleaser build --snapshot --clean --single-target"
+echo "Monitor at: https://github.com/karloscodes/lognorth/actions"
