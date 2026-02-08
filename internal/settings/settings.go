@@ -2,10 +2,21 @@
 package settings
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/smtp"
+	"os"
+	"time"
 
 	"gorm.io/gorm"
+)
+
+const (
+	RelayURL     = "https://lognorth.com/.netlify/functions/alert-relay"
+	RelayTimeout = 10 * time.Second
 )
 
 // Settings stores application configuration
@@ -83,16 +94,36 @@ func (s *Settings) IsConfigured() bool {
 }
 
 // CanNotify returns true if notifications are enabled and configured
+// Works with either SMTP or relay (license key from env)
 func (s *Settings) CanNotify() bool {
-	return s.IsConfigured() && s.NotifyEmail != "" && (s.NotifyNewErrors || s.NotifyRegressions || s.NotifySpikes)
+	hasEmail := s.NotifyEmail != ""
+	hasAlerts := s.NotifyNewErrors || s.NotifyRegressions || s.NotifySpikes
+	canSend := s.IsConfigured() || s.canUseRelay()
+	return hasEmail && hasAlerts && canSend
 }
 
-// SendEmail sends an email using the configured SMTP settings
+// canUseRelay returns true if relay can be used (license key set)
+func (s *Settings) canUseRelay() bool {
+	return os.Getenv("LOGNORTH_PRIVATE_KEY") != ""
+}
+
+// SendEmail sends an email using SMTP if configured, otherwise uses relay
 func (s *Settings) SendEmail(subject, body string) error {
-	if !s.IsConfigured() || s.NotifyEmail == "" {
-		return fmt.Errorf("SMTP not configured")
+	if s.NotifyEmail == "" {
+		return fmt.Errorf("no notification email configured")
 	}
 
+	// Prefer SMTP if configured
+	if s.IsConfigured() {
+		return s.sendViaSMTP(subject, body)
+	}
+
+	// Fall back to relay
+	return s.sendViaRelay(subject, body)
+}
+
+// sendViaSMTP sends email via configured SMTP server
+func (s *Settings) sendViaSMTP(subject, body string) error {
 	addr := fmt.Sprintf("%s:%d", s.SMTPHost, s.SMTPPort)
 
 	var auth smtp.Auth
@@ -105,4 +136,42 @@ func (s *Settings) SendEmail(subject, body string) error {
 		s.SMTPFrom, s.NotifyEmail, subject, body)
 
 	return smtp.SendMail(addr, auth, s.SMTPFrom, to, []byte(msg))
+}
+
+// sendViaRelay sends email via lognorth.com relay
+func (s *Settings) sendViaRelay(subject, body string) error {
+	licenseKey := os.Getenv("LOGNORTH_PRIVATE_KEY")
+	if licenseKey == "" {
+		return fmt.Errorf("no license key configured for relay")
+	}
+
+	payload := map[string]string{
+		"license_key": licenseKey,
+		"to_email":    s.NotifyEmail,
+		"subject":     subject,
+		"body":        body,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal relay payload: %w", err)
+	}
+
+	client := &http.Client{Timeout: RelayTimeout}
+	resp, err := client.Post(RelayURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("relay request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 429 {
+		return fmt.Errorf("daily relay limit reached - configure SMTP in Settings")
+	}
+
+	if resp.StatusCode != 200 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("relay failed (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
 }

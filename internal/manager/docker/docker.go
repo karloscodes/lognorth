@@ -78,15 +78,24 @@ func (d *Docker) Deploy(conf *config.Config) error {
 	data := conf.GetData()
 	dataDir := data.InstallDir
 
-	// Create directories
-	for _, dir := range []string{
+	// Create directories with proper ownership (UID 10001 = lognorth user in container)
+	appDirs := []string{
 		filepath.Join(dataDir, "storage"),
 		filepath.Join(dataDir, "logs"),
+	}
+	caddyDirs := []string{
 		filepath.Join(dataDir, "caddy"),
 		filepath.Join(dataDir, "caddy", "config"),
-	} {
+	}
+	for _, dir := range append(appDirs, caddyDirs...) {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("create dir %s: %w", dir, err)
+		}
+	}
+	// Set ownership for app directories to lognorth user (UID 10001)
+	for _, dir := range appDirs {
+		if err := os.Chown(dir, 10001, 10001); err != nil {
+			d.logger.Warn("Could not set ownership on %s: %v", dir, err)
 		}
 	}
 
