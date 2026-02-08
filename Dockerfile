@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 RUN apk add --no-cache build-base musl-dev git nodejs npm
 
@@ -25,8 +25,7 @@ COPY web/index.html web/vite.config.ts web/tsconfig*.json web/postcss.config.js 
 
 # Build binaries and web assets
 RUN mkdir -p dist && \
-  CGO_ENABLED=1 go build -o dist/logbuddy-server cmd/logbuddy/main.go && \
-  CGO_ENABLED=1 go build -o dist/lbctl cmd/lbctl/main.go && \
+  CGO_ENABLED=1 go build -o dist/lognorth cmd/lognorth/main.go && \
   cd web && npm run build
 
 # Final stage
@@ -36,17 +35,16 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates tzdata sqlite curl && \
   mkdir -p /app/logs /app/storage /app/web/dist
 
-COPY --from=builder /app/dist/logbuddy-server /app/logbuddy-server
-COPY --from=builder /app/dist/lbctl /app/lbctl
+COPY --from=builder /app/dist/lognorth /app/lognorth
 COPY --from=builder /app/web/dist /app/web/dist
 
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 
-RUN chmod +x /app/entrypoint.sh /app/logbuddy-server /app/lbctl
+RUN chmod +x /app/entrypoint.sh /app/lognorth
 
-ENV LOGBUDDY_ENV=production \
-  LOGBUDDY_STORAGE_PATH=/app/storage \
-  LOGBUDDY_PORT=8080
+ENV LOGNORTH_ENV=production \
+  LOGNORTH_STORAGE_PATH=/app/storage \
+  LOGNORTH_PORT=8080
 
 EXPOSE 8080
 
