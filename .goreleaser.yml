@@ -1,0 +1,86 @@
+version: 2
+
+project_name: fusionaly-pro
+
+before:
+  hooks:
+    - go mod tidy
+
+# Manager builds as standalone binaries (no CGO needed)
+# Server and fnctl are built inside Docker (CGO/SQLite)
+builds:
+  - id: fusionaly-manager
+    main: ./cmd/manager
+    binary: fusionaly
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.currentManagerVersion={{.Version}}
+
+archives:
+  - id: manager-binaries
+    formats:
+      - binary
+    name_template: "{{ .Binary }}-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+# Docker images built separately in GitHub Actions workflow
+# GoReleaser extra_files doesn't handle submodules well
+
+release:
+  github:
+    owner: karloscodes
+    name: fusionaly-pro
+  prerelease: auto
+  mode: replace
+  header: |
+    ## Fusionaly Pro {{ .Tag }}
+
+    Privacy-focused web analytics with AI-powered insights.
+
+    ### Installation
+
+    Download and run:
+    ```bash
+    curl -L https://github.com/karloscodes/fusionaly-pro/releases/download/{{ .Tag }}/fusionaly-linux-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') -o fusionaly
+    chmod +x fusionaly
+    sudo ./fusionaly install
+    ```
+
+    ### Docker
+
+    ```bash
+    docker pull karloscodes/fusionaly-pro:{{ .Version }}
+    ```
+  footer: |
+    ---
+
+    **Full Changelog**: https://github.com/karloscodes/fusionaly-pro/compare/{{ .PreviousTag }}...{{ .Tag }}

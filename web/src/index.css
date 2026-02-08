@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary uses pure white - rely on black/* opacity for subtle backgrounds */
+    --secondary: 0 0% 100%;
+    --secondary-foreground: 0 0% 0%;
+
+    /* Muted uses pure white - rely on black/* opacity for subtle backgrounds */
+    --muted: 0 0% 100%;
+    --muted-foreground: 0 0% 0%; /* Use text-black/60 instead of this */
+
+    --accent: 156 100% 42%; /* #00D678 - use for icons, borders, badges only */
+    --accent-foreground: 0 0% 100%; /* white text on accent backgrounds */
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders use black - apply opacity via Tailwind (border-black/10) */
+    --border: 0 0% 0%;
+    --input: 0 0% 0%;
+    --ring: 0 0% 0%;
+
+    --radius: 0;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    overflow-y: scroll; /* Prevent layout shift from scrollbar */
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

@@ -1,0 +1,55 @@
+package http
+
+import (
+	"github.com/karloscodes/cartridge"
+
+	"lognorth/internal/apikeys"
+	"lognorth/internal/events"
+)
+
+// AppWithStats represents an app with its statistics
+type AppWithStats struct {
+	ID    uint     `json:"id"`
+	Name  string   `json:"name"`
+	Stats AppStats `json:"stats"`
+}
+
+// AppStats holds per-app statistics
+type AppStats struct {
+	Total  int64 `json:"total"`
+	Errors int64 `json:"errors"`
+}
+
+// HomePageAction handles GET /
+func HomePageAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	if !apikeys.HasAny(db) {
+		return ctx.Ctx.Redirect("/apps")
+	}
+
+	// Get applications with stats
+	keys, _ := apikeys.List(db)
+	apps := make([]AppWithStats, 0, len(keys))
+	for _, k := range keys {
+		if k.Active {
+			stats := events.GetStats(db, k.ID)
+			apps = append(apps, AppWithStats{
+				ID:   k.ID,
+				Name: k.Name,
+				Stats: AppStats{
+					Total:  stats.Total,
+					Errors: stats.Errors,
+				},
+			})
+		}
+	}
+
+	// Get recent issues across all apps (for dashboard focus on errors)
+	recentIssues, _ := events.ListIssuesWithState(db, 0, 10)
+
+	return RenderPage(ctx.Ctx, "Home", Props{
+		"applications":  apps,
+		"recentIssues":  recentIssues,
+	})
+}

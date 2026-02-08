@@ -1,0 +1,4 @@
+[submodule "oss"]
+	path = oss
+	url = ../fusionaly-oss
+	branch = main

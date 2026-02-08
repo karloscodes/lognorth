@@ -1,0 +1,283 @@
+// Package events provides the core event model for LogNorth
+package events
+
+import (
+	"encoding/json"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+// Event represents a log event captured by LogNorth
+// See docs/EVENT_MODEL.md for the full specification
+type Event struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	APIKeyID   uint      `gorm:"index:idx_apikey_timestamp" json:"api_key_id"`
+	Timestamp  time.Time `gorm:"index:idx_apikey_timestamp" json:"timestamp"`
+	Message    string    `gorm:"size:1000" json:"message"`
+	TraceID    string    `gorm:"index;size:100" json:"trace_id"`
+	DurationMS int       `json:"duration_ms"`
+	IsError    bool      `gorm:"index" json:"is_error"`
+	Context    string    `gorm:"type:text" json:"context"` // JSON with all metadata
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// TableName specifies the table name
+func (Event) TableName() string {
+	return "events"
+}
+
+// AutoMigrate creates the events table if it doesn't exist
+func AutoMigrate(db *gorm.DB) error {
+	return db.AutoMigrate(&Event{})
+}
+
+// EventContext represents the parsed Context field
+type EventContext struct {
+	// HTTP request fields
+	Method string `json:"method,omitempty"`
+	Path   string `json:"path,omitempty"`
+	Status int    `json:"status,omitempty"`
+
+	// Job fields
+	Job string `json:"job,omitempty"`
+
+	// Common fields
+	Error     string            `json:"error,omitempty"`
+	User      string            `json:"user,omitempty"`
+	IP        string            `json:"ip,omitempty"`
+	UserAgent string            `json:"user_agent,omitempty"`
+	Headers   map[string]string `json:"headers,omitempty"`
+	Body      string            `json:"body,omitempty"`
+
+	// Error grouping fields (SDK-extracted)
+	ErrorType     string `json:"error_type,omitempty"`
+	ErrorLocation string `json:"error_location,omitempty"`
+
+	// Custom fields (anything else)
+	Extra map[string]any `json:"extra,omitempty"`
+}
+
+// ToMap converts EventContext to a map for hashError
+func (c *EventContext) ToMap() map[string]any {
+	m := make(map[string]any)
+	if c.Error != "" {
+		m["error"] = c.Error
+	}
+	if c.ErrorType != "" {
+		m["error_type"] = c.ErrorType
+	}
+	if c.ErrorLocation != "" {
+		m["error_location"] = c.ErrorLocation
+	}
+	return m
+}
+
+// GetContext parses and returns the event context
+func (e *Event) GetContext() (*EventContext, error) {
+	if e.Context == "" {
+		return &EventContext{}, nil
+	}
+	var ctx EventContext
+	if err := json.Unmarshal([]byte(e.Context), &ctx); err != nil {
+		return nil, err
+	}
+	return &ctx, nil
+}
+
+// SetContext serializes and sets the event context
+func (e *Event) SetContext(ctx *EventContext) error {
+	bytes, err := json.Marshal(ctx)
+	if err != nil {
+		return err
+	}
+	e.Context = string(bytes)
+	return nil
+}
+
+// DeriveIsError determines if this event is an error based on context
+func DeriveIsError(ctx *EventContext) bool {
+	if ctx.Error != "" {
+		return true
+	}
+	if ctx.Status >= 500 {
+		return true
+	}
+	return false
+}
+
+// Create inserts a new event
+func Create(db *gorm.DB, event *Event) error {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
+	return db.Create(event).Error
+}
+
+// FindByID retrieves an event by ID
+func FindByID(db *gorm.DB, id uint) (*Event, error) {
+	var event Event
+	if err := db.First(&event, id).Error; err != nil {
+		return nil, err
+	}
+	return &event, nil
+}
+
+// FindByTraceID retrieves all events with the same trace ID
+func FindByTraceID(db *gorm.DB, traceID string) ([]Event, error) {
+	var events []Event
+	if err := db.Where("trace_id = ?", traceID).Order("timestamp ASC").Find(&events).Error; err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+// ListFilters defines filtering options for listing events
+type ListFilters struct {
+	APIKeyID  uint
+	IsError   *bool // nil = all, true = errors only, false = success only
+	Search    string
+	StartTime time.Time
+	EndTime   time.Time
+	Limit     int
+	Offset    int
+}
+
+// List retrieves events with optional filters
+func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
+	query := db.Model(&Event{})
+
+	if filters.APIKeyID > 0 {
+		query = query.Where("api_key_id = ?", filters.APIKeyID)
+	}
+	if filters.IsError != nil {
+		query = query.Where("is_error = ?", *filters.IsError)
+	}
+	if !filters.StartTime.IsZero() {
+		query = query.Where("timestamp >= ?", filters.StartTime)
+	}
+	if !filters.EndTime.IsZero() {
+		query = query.Where("timestamp <= ?", filters.EndTime)
+	}
+	if filters.Search != "" {
+		search := "%" + filters.Search + "%"
+		query = query.Where("message LIKE ? OR context LIKE ? OR trace_id LIKE ?", search, search, search)
+	}
+
+	// Get total count before pagination
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Apply pagination
+	if filters.Limit > 0 {
+		query = query.Limit(filters.Limit)
+	} else {
+		query = query.Limit(50)
+	}
+	if filters.Offset > 0 {
+		query = query.Offset(filters.Offset)
+	}
+
+	var events []Event
+	if err := query.Order("timestamp DESC").Find(&events).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return events, total, nil
+}
+
+// DeleteOlderThan removes events older than the specified duration
+func DeleteOlderThan(db *gorm.DB, duration time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-duration)
+	result := db.Where("timestamp < ?", cutoff).Delete(&Event{})
+	return result.RowsAffected, result.Error
+}
+
+// Stats holds event count statistics
+type Stats struct {
+	Errors     int64      `json:"errors"`
+	Total      int64      `json:"total"`
+	TodayTotal int64      `json:"today_total"`
+	LastSeen   *time.Time `json:"last_seen"`
+}
+
+// EndpointStats holds per-endpoint health metrics
+type EndpointStats struct {
+	Path      string  `json:"path"`
+	Total     int64   `json:"total"`
+	Errors    int64   `json:"errors"`
+	ErrorRate float64 `json:"error_rate"`
+	AvgDuration int   `json:"avg_duration"`
+}
+
+// GetEndpointStats returns health metrics grouped by endpoint
+func GetEndpointStats(db *gorm.DB, apiKeyID uint, limit int) ([]EndpointStats, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	query := `
+		SELECT
+			json_extract(context, '$.path') as path,
+			COUNT(*) as total,
+			SUM(CASE WHEN is_error THEN 1 ELSE 0 END) as errors,
+			ROUND(100.0 * SUM(CASE WHEN is_error THEN 1 ELSE 0 END) / COUNT(*), 1) as error_rate,
+			CAST(AVG(duration_ms) AS INTEGER) as avg_duration
+		FROM events
+		WHERE json_extract(context, '$.path') IS NOT NULL
+			AND json_extract(context, '$.path') != ''
+	`
+	args := []any{}
+
+	if apiKeyID > 0 {
+		query += " AND api_key_id = ?"
+		args = append(args, apiKeyID)
+	}
+
+	query += `
+		GROUP BY path
+		ORDER BY error_rate DESC, total DESC
+		LIMIT ?
+	`
+	args = append(args, limit)
+
+	var stats []EndpointStats
+	if err := db.Raw(query, args...).Scan(&stats).Error; err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
+// GetStats returns event counts
+func GetStats(db *gorm.DB, apiKeyID uint) Stats {
+	var stats Stats
+
+	errQ := db.Model(&Event{}).Where("is_error = ?", true)
+	totalQ := db.Model(&Event{})
+	todayQ := db.Model(&Event{}).Where("timestamp >= ?", time.Now().Truncate(24*time.Hour))
+
+	if apiKeyID > 0 {
+		errQ = errQ.Where("api_key_id = ?", apiKeyID)
+		totalQ = totalQ.Where("api_key_id = ?", apiKeyID)
+		todayQ = todayQ.Where("api_key_id = ?", apiKeyID)
+	}
+
+	errQ.Count(&stats.Errors)
+	totalQ.Count(&stats.Total)
+	todayQ.Count(&stats.TodayTotal)
+
+	// Get last event timestamp
+	var lastEvent Event
+	lastQ := db.Model(&Event{}).Order("timestamp DESC").Limit(1)
+	if apiKeyID > 0 {
+		lastQ = lastQ.Where("api_key_id = ?", apiKeyID)
+	}
+	if lastQ.First(&lastEvent).Error == nil {
+		stats.LastSeen = &lastEvent.Timestamp
+	}
+
+	return stats
+}
