@@ -56,7 +56,10 @@ docker build --tag "$DOCKER_IMAGE:test" .
 echo ""
 echo "=== Smoke Testing Container ==="
 CONTAINER_NAME="lognorth-release-test-$$"
-docker run -d --name "$CONTAINER_NAME" -p 3333:8080 "$DOCKER_IMAGE:test"
+TEST_PRIVATE_KEY=$(openssl rand -hex 32)
+docker run -d --name "$CONTAINER_NAME" -p 3333:8080 \
+  -e LOGNORTH_PRIVATE_KEY="$TEST_PRIVATE_KEY" \
+  "$DOCKER_IMAGE:test"
 
 cleanup() {
     echo "Cleaning up test container..."
