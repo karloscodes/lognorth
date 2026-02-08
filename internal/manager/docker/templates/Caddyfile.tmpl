@@ -1,0 +1,16 @@
+{{.Domain}} {
+    reverse_proxy lognorth-app:8080
+
+    log {
+        output file /data/logs/caddy.log
+        format json
+    }
+
+    encode gzip
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}
