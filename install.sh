@@ -156,19 +156,10 @@ run_installer() {
     }
 
     echo ""
-    echo -e "${GREEN}LogNorth installed successfully!${NC}"
+    echo -e "${GREEN}LogNorth installed to $BINARY_PATH${NC}"
     echo ""
-    echo "Run 'lognorth install' to set up LogNorth on this server."
+    echo "Run 'lognorth' to start the server."
     echo ""
-
-    # Auto-run install if interactive
-    if [ -t 0 ]; then
-        read -p "Run installation now? [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            exec "$BINARY_PATH" install
-        fi
-    fi
 }
 
 # Handle piped execution (curl | sudo bash)
