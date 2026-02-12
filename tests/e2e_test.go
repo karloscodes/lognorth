@@ -41,6 +41,9 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	if err := events.AutoMigrate(db); err != nil {
 		t.Fatalf("Failed to migrate events: %v", err)
 	}
+	if err := events.AutoMigrateIngested(db); err != nil {
+		t.Fatalf("Failed to migrate ingested_events: %v", err)
+	}
 	if err := events.AutoMigrateIssues(db); err != nil {
 		t.Fatalf("Failed to migrate issues: %v", err)
 	}
@@ -389,5 +392,180 @@ func TestIssuesGrouping(t *testing.T) {
 		t.Error("Expected database issue")
 	} else if dbIssue.Count != 2 {
 		t.Errorf("Expected database issue count 2, got %d", dbIssue.Count)
+	}
+}
+
+func TestCompleteSystemFlow(t *testing.T) {
+	db := setupTestDB(t)
+
+	_, fullKey, _ := apikeys.Create(db, "Test App")
+
+	// Set up minimal app with real ingestion handler
+	app := fiber.New()
+	app.Post("/api/v1/events", func(c *fiber.Ctx) error {
+		authHeader := c.Get("Authorization")
+		if authHeader == "" {
+			return c.Status(401).JSON(fiber.Map{"error": "API key required"})
+		}
+		apiKey := authHeader[7:]
+
+		validatedKey, err := apikeys.Validate(db, apiKey)
+		if err != nil {
+			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
+		}
+
+		var req struct {
+			Message    string         `json:"message"`
+			TraceID    string         `json:"trace_id"`
+			DurationMS int            `json:"duration_ms"`
+			Context    map[string]any `json:"context"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
+		}
+
+		isError := false
+		if req.Context != nil {
+			if _, ok := req.Context["error"]; ok {
+				isError = true
+			}
+			if status, ok := req.Context["status"].(float64); ok && status >= 500 {
+				isError = true
+			}
+		}
+
+		contextJSON, _ := json.Marshal(req.Context)
+		ingested := &events.IngestedEvent{
+			APIKeyID:   validatedKey.ID,
+			Message:    req.Message,
+			TraceID:    req.TraceID,
+			DurationMS: req.DurationMS,
+			IsError:    isError,
+			Context:    string(contextJSON),
+		}
+
+		if err := events.CreateIngested(db, ingested); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to create event"})
+		}
+
+		return c.Status(201).JSON(fiber.Map{"created": 1})
+	})
+
+	// Send success event
+	successBody := []byte(`{
+		"message": "GET /api/users → 200",
+		"trace_id": "req-success-1",
+		"duration_ms": 45,
+		"context": {
+			"method": "GET",
+			"path": "/api/users",
+			"status": 200
+		}
+	}`)
+	req := httptest.NewRequest("POST", "/api/v1/events", bytes.NewReader(successBody))
+	req.Header.Set("Authorization", "Bearer "+fullKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Success request failed: %v", err)
+	}
+	if resp.StatusCode != 201 {
+		t.Fatalf("Expected status 201 for success event, got %d", resp.StatusCode)
+	}
+
+	// Send error event
+	errorBody := []byte(`{
+		"message": "POST /api/checkout → 500",
+		"trace_id": "req-error-1",
+		"duration_ms": 150,
+		"context": {
+			"method": "POST",
+			"path": "/api/checkout",
+			"status": 500,
+			"error": "Payment failed: card declined"
+		}
+	}`)
+	req = httptest.NewRequest("POST", "/api/v1/events", bytes.NewReader(errorBody))
+	req.Header.Set("Authorization", "Bearer "+fullKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err = app.Test(req)
+	if err != nil {
+		t.Fatalf("Error request failed: %v", err)
+	}
+	if resp.StatusCode != 201 {
+		t.Fatalf("Expected status 201 for error event, got %d", resp.StatusCode)
+	}
+
+	// Verify events are in ingested_events table (unprocessed)
+	unprocessedCount, err := events.CountUnprocessed(db)
+	if err != nil {
+		t.Fatalf("Failed to count unprocessed: %v", err)
+	}
+	if unprocessedCount != 2 {
+		t.Errorf("Expected 2 unprocessed events, got %d", unprocessedCount)
+	}
+
+	// Verify events table is empty (not processed yet)
+	eventList, total, _ := events.List(db, events.ListFilters{Limit: 10})
+	if total != 0 {
+		t.Errorf("Expected 0 processed events before job runs, got %d", total)
+	}
+
+	// Run the event processor job manually
+	ingested, _ := events.GetUnprocessed(db, 100)
+	var processedIDs []uint
+	for _, ie := range ingested {
+		event := &events.Event{
+			APIKeyID:   ie.APIKeyID,
+			Message:    ie.Message,
+			TraceID:    ie.TraceID,
+			DurationMS: ie.DurationMS,
+			IsError:    ie.IsError,
+			Context:    ie.Context,
+			Timestamp:  ie.Timestamp,
+		}
+		if err := events.Create(db, event); err != nil {
+			t.Fatalf("Failed to create processed event: %v", err)
+		}
+		processedIDs = append(processedIDs, ie.ID)
+	}
+	if err := events.MarkProcessed(db, processedIDs); err != nil {
+		t.Fatalf("Failed to mark as processed: %v", err)
+	}
+
+	// Verify events are now in events table
+	eventList, total, _ = events.List(db, events.ListFilters{Limit: 10})
+	if total != 2 {
+		t.Errorf("Expected 2 processed events, got %d", total)
+	}
+
+	// Verify error vs non-error
+	var errorCount, successCount int
+	for _, e := range eventList {
+		if e.IsError {
+			errorCount++
+		} else {
+			successCount++
+		}
+	}
+	if errorCount != 1 {
+		t.Errorf("Expected 1 error event, got %d", errorCount)
+	}
+	if successCount != 1 {
+		t.Errorf("Expected 1 success event, got %d", successCount)
+	}
+
+	// Verify issues grouping (only error should create issue)
+	issues, err := events.ListIssuesWithState(db, 0, 10)
+	if err != nil {
+		t.Fatalf("Failed to list issues: %v", err)
+	}
+	if len(issues) != 1 {
+		t.Errorf("Expected 1 issue, got %d", len(issues))
+	}
+	if len(issues) > 0 && issues[0].Error != "Payment failed: card declined" {
+		t.Errorf("Expected issue 'Payment failed: card declined', got '%s'", issues[0].Error)
 	}
 }

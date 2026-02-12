@@ -1,0 +1,65 @@
+name: Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # Fast: Go tests only (no SDK compatibility)
+  # Always runs, even on forks
+  go-tests:
+    name: Go Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Run Go tests
+        run: make test
+
+  # Complete: All tests including SDK compatibility
+  # Only runs on main repo (SDKs might be private)
+  full-tests:
+    name: Full Test Suite (with SDKs)
+    runs-on: ubuntu-latest
+    if: github.repository == 'karloscodes/lognorth'
+    defaults:
+      run:
+        working-directory: lognorth
+    steps:
+      - name: Checkout LogNorth
+        uses: actions/checkout@v4
+        with:
+          path: lognorth
+
+      - name: Checkout TypeScript SDK
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: karloscodes/lognorth-sdk-ts
+          path: lognorth-sdk-ts
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Checkout Go SDK
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: karloscodes/lognorth-sdk-go
+          path: lognorth-sdk-go
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run all tests
+        run: make test-all

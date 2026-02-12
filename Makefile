@@ -63,6 +63,18 @@ dev-server:
 test:
 	go test ./...
 
+# Run SDK compatibility tests (TypeScript + Go)
+test-sdk:
+	./scripts/test-sdk-compatibility.sh
+
+# Run all tests (Go unit tests + SDK compatibility)
+test-all:
+	@echo "Running Go unit tests..."
+	@go test ./...
+	@echo ""
+	@echo "Running SDK compatibility tests..."
+	@./scripts/test-sdk-compatibility.sh
+
 # Seed database with sample data
 seed:
 	go run cmd/seed/main.go
