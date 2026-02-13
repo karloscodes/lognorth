@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	github.com/gofiber/fiber/v2 v2.52.10
 	github.com/karloscodes/cartridge v0.0.0-20260203074132-6f3533e1c37b
-	github.com/karloscodes/matcha v0.0.0
+	github.com/karloscodes/matcha v0.0.0-20260212180113-1e9c29ed67b7
 	github.com/valyala/fasthttp v1.68.0
 	gorm.io/gorm v1.31.0
 )
@@ -46,5 +46,3 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gorm.io/driver/sqlite v1.6.0 // indirect
 )
-
-replace github.com/karloscodes/matcha => /Users/karloscodes/Code/self-ctl
