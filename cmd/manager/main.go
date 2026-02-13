@@ -12,11 +12,13 @@ var currentVersion string = "dev"
 
 func main() {
 	m := matcha.New(matcha.Config{
-		Name:        "lognorth",
-		AppImage:    "karloscodes/lognorth:latest",
-		BlueGreen:   true,
-		CronUpdates: true,
-		Backups:     true,
+		Name:           "lognorth",
+		AppImage:       "karloscodes/lognorth:latest",
+		BlueGreen:      true,
+		CronUpdates:    true,
+		Backups:        true,
+		ManagerRepo:    "karloscodes/lognorth",
+		ManagerVersion: currentVersion,
 	})
 
 	if len(os.Args) < 2 {
