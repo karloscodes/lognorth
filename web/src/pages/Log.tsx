@@ -72,50 +72,84 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
     return (
       <a
         href={href}
-        className="flex items-center gap-2 py-2 px-3 transition-colors hover:bg-black/[0.03] text-sm"
+        className="flex items-center gap-3 py-2 px-3 transition-colors hover:bg-black/[0.03] text-sm"
       >
-        <div className={`p-1 rounded ${config.colors}`}>
-          <Icon className="w-3 h-3" />
-        </div>
-        {ctx.status && (
-          <span className={`font-mono font-medium ${statusColor(ctx.status)}`}>{ctx.status}</span>
-        )}
-        <span className="text-black/70">{entry.duration_ms}ms</span>
-        <span className="text-black/70 text-xs ml-auto">
+        <span className={`font-mono text-xs font-medium ${statusColor(ctx.status)}`}>
+          {ctx.status || '—'}
+        </span>
+        <span className="text-black/50 text-xs">{entry.duration_ms}ms</span>
+        <span className="text-black/40 text-xs ml-auto">
           {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
         </span>
       </a>
     )
   }
 
+  // Pro two-line layout: scannable, clean, informative
+  const isError = entry.is_error
+  const hasPath = ctx.path || ctx.job
+
   return (
     <a
       href={href}
-      className="flex items-center gap-3 py-3 px-4 transition-colors hover:bg-black/[0.02]"
+      className={`block py-4 px-5 transition-colors hover:bg-black/[0.02] ${isError ? 'border-l-2 border-l-red-500' : ''}`}
     >
-      <div className={`p-2 rounded flex items-center justify-center ${config.colors}`}>
-        <Icon className="w-4 h-4" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          {ctx.method && (
-            <span className={`font-mono text-sm font-semibold ${methodColor(ctx.method)}`}>
-              {ctx.method}
+      {/* Line 1: Timestamp + Method/Job + Path */}
+      <div className="flex items-center gap-3">
+        {/* Timestamp - always visible, muted */}
+        <span className="text-xs text-black/40 tabular-nums w-20 shrink-0">
+          {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
+        </span>
+
+        {/* Method badge or Job badge */}
+        {ctx.method ? (
+          <span className={`font-mono text-xs font-semibold px-1.5 py-0.5 rounded ${methodColor(ctx.method)} bg-black/[0.04]`}>
+            {ctx.method}
+          </span>
+        ) : ctx.job ? (
+          <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded text-purple-700 bg-purple-50">
+            {ctx.job}
+          </span>
+        ) : null}
+
+        {/* Path - the main content */}
+        {ctx.path && (
+          <span className="font-mono text-sm text-black font-medium truncate">
+            {ctx.path}
+          </span>
+        )}
+
+        {/* Right side: Status + Duration */}
+        <div className="flex items-center gap-3 ml-auto shrink-0">
+          {ctx.status && (
+            <span className={`font-mono text-sm font-semibold ${
+              ctx.status >= 500 ? 'text-red-600' :
+              ctx.status >= 400 ? 'text-amber-600' :
+              'text-black/40'
+            }`}>
+              {ctx.status}
             </span>
           )}
-          {ctx.status && (
-            <span className={`font-mono text-sm ${statusColor(ctx.status)}`}>{ctx.status}</span>
-          )}
-          {ctx.job && (
-            <span className="font-mono text-sm font-semibold text-purple-600">{ctx.job}</span>
-          )}
-          <span className="text-xs text-black/70">
-            {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
+          <span className="font-mono text-xs text-black/40 tabular-nums">
+            {entry.duration_ms}ms
           </span>
         </div>
-        <p className="font-mono text-sm text-black truncate mt-0.5">{entry.message || '(no message)'}</p>
       </div>
-      <span className="font-mono text-xs text-black/70 shrink-0">{entry.duration_ms}ms</span>
+
+      {/* Line 2: Message or Error - only if meaningful */}
+      {(isError && ctx.error) || (!hasPath && entry.message) ? (
+        <div className="mt-2 pl-[92px]">
+          {isError && ctx.error ? (
+            <p className="text-sm text-red-600 truncate">
+              {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
+            </p>
+          ) : (
+            <p className="text-sm text-black/60 truncate">
+              {entry.message}
+            </p>
+          )}
+        </div>
+      ) : null}
     </a>
   )
 }
@@ -123,66 +157,96 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
 function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
   const [expanded, setExpanded] = useState(false)
   const { mainEntry, entries } = group
-  const config = getConfig(mainEntry.is_error)
-  const Icon = config.icon
   const href = appId ? `/apps/${appId}/log/${mainEntry.id}` : `/log/${mainEntry.id}`
   const hasMultiple = entries.length > 1
   const totalDuration = entries.reduce((sum, e) => sum + e.duration_ms, 0)
   const ctx = parseContext(mainEntry.context)
+  const isError = mainEntry.is_error
+  const hasPath = ctx.path || ctx.job
 
   return (
     <div className="border-b border-black/10 last:border-b-0">
-      <div className="flex items-center">
+      <div className={`flex items-stretch ${isError ? 'border-l-2 border-l-red-500' : ''}`}>
         {hasMultiple && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="p-3 hover:bg-black/[0.02] transition-colors"
+            className="px-3 hover:bg-black/[0.02] transition-colors flex items-center"
           >
-            <ChevronRight className={`w-4 h-4 text-black/70 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+            <ChevronRight className={`w-4 h-4 text-black/40 transition-transform ${expanded ? 'rotate-90' : ''}`} />
           </button>
         )}
         <a
           href={href}
-          className={`flex-1 flex items-center gap-3 py-3 pr-4 transition-colors hover:bg-black/[0.02] ${hasMultiple ? '' : 'pl-4'}`}
+          className={`flex-1 block py-4 pr-5 transition-colors hover:bg-black/[0.02] ${hasMultiple ? '' : 'pl-5'}`}
         >
-          <div className={`p-2 rounded flex items-center justify-center ${config.colors}`}>
-            <Icon className="w-4 h-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              {ctx.method && (
-                <span className={`font-mono text-sm font-semibold ${methodColor(ctx.method)}`}>
-                  {ctx.method}
-                </span>
-              )}
+          {/* Line 1: Timestamp + Method/Job + Path */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-black/40 tabular-nums w-20 shrink-0">
+              {formatDistanceToNow(new Date(mainEntry.timestamp), { addSuffix: true })}
+            </span>
+
+            {ctx.method ? (
+              <span className={`font-mono text-xs font-semibold px-1.5 py-0.5 rounded ${methodColor(ctx.method)} bg-black/[0.04]`}>
+                {ctx.method}
+              </span>
+            ) : ctx.job ? (
+              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded text-purple-700 bg-purple-50">
+                {ctx.job}
+              </span>
+            ) : null}
+
+            {ctx.path && (
+              <span className="font-mono text-sm text-black font-medium truncate">
+                {ctx.path}
+              </span>
+            )}
+
+            {hasMultiple && (
+              <span className="text-xs text-black/50 font-medium">
+                ×{entries.length}
+              </span>
+            )}
+
+            <div className="flex items-center gap-3 ml-auto shrink-0">
               {ctx.status && (
-                <span className={`font-mono text-sm ${statusColor(ctx.status)}`}>{ctx.status}</span>
-              )}
-              {ctx.job && (
-                <span className="font-mono text-sm font-semibold text-purple-600">{ctx.job}</span>
-              )}
-              {hasMultiple && (
-                <span className="text-xs bg-black/10 text-black/70 px-1.5 py-0.5 rounded font-medium">
-                  {entries.length} events
+                <span className={`font-mono text-sm font-semibold ${
+                  ctx.status >= 500 ? 'text-red-600' :
+                  ctx.status >= 400 ? 'text-amber-600' :
+                  'text-black/40'
+                }`}>
+                  {ctx.status}
                 </span>
               )}
-              <span className="text-xs text-black/70">
-                {formatDistanceToNow(new Date(mainEntry.timestamp), { addSuffix: true })}
+              <span className="font-mono text-xs text-black/40 tabular-nums">
+                {totalDuration}ms
               </span>
             </div>
-            <p className="font-mono text-sm text-black truncate mt-0.5">{mainEntry.message}</p>
           </div>
-          <span className="font-mono text-xs text-black/70 shrink-0">{totalDuration}ms</span>
+
+          {/* Line 2: Error message if applicable */}
+          {(isError && ctx.error) || (!hasPath && mainEntry.message) ? (
+            <div className="mt-2 pl-[92px]">
+              {isError && ctx.error ? (
+                <p className="text-sm text-red-600 truncate">
+                  {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
+                </p>
+              ) : (
+                <p className="text-sm text-black/60 truncate">
+                  {mainEntry.message}
+                </p>
+              )}
+            </div>
+          ) : null}
         </a>
       </div>
 
       {expanded && hasMultiple && (
-        <div className="bg-black/[0.02] border-t border-black/5">
+        <div className="bg-black/[0.015] border-t border-black/5">
           {entries.map((entry, idx) => (
             <div key={entry.id} className="flex items-stretch">
-              <div className="w-10 flex flex-col items-center py-2">
-                <div className={`w-2 h-2 rounded-full ${idx === entries.length - 1 ? 'bg-black' : 'bg-black/30'}`} />
-                {idx < entries.length - 1 && <div className="w-px flex-1 bg-black/20 mt-1" />}
+              <div className="w-8 flex flex-col items-center py-2">
+                <div className={`w-1.5 h-1.5 rounded-full ${idx === entries.length - 1 ? 'bg-black' : 'bg-black/20'}`} />
+                {idx < entries.length - 1 && <div className="w-px flex-1 bg-black/10 mt-1" />}
               </div>
               <div className="flex-1">
                 <LogRow entry={entry} appId={appId} compact />
@@ -292,92 +356,95 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
 
   return (
     <Layout currentPath="/log" appId={appId} appName={appName} applications={applications}>
-      {/* Page Title */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold text-black">Log</h2>
-          {liveEnabled && (
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-red-600">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              Live
-            </span>
-          )}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-black">Logs</h1>
+            {liveEnabled && (
+              <span className="flex items-center gap-1.5 px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                Live
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-black/50 mt-1">
+            {liveEnabled ? 'Streaming new entries' : `${pagination.total.toLocaleString()} entries`}
+            {hasFilters && !liveEnabled && ' (filtered)'}
+          </p>
         </div>
-        <p className="text-sm text-black/70 mt-1">
-          {liveEnabled ? 'Streaming new entries' : `${pagination.total.toLocaleString()} entries`}
-          {hasFilters && !liveEnabled && ' (filtered)'}
-        </p>
+
+        {/* Live toggle */}
+        {appId && (
+          <button
+            onClick={() => toggleLive(!liveEnabled)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+              liveEnabled
+                ? 'bg-red-100 text-red-700 border border-red-200'
+                : 'bg-white text-black/60 border border-black/10 hover:border-black/20'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${liveEnabled ? 'bg-red-500 animate-pulse' : 'bg-black/20'}`} />
+            {liveEnabled ? 'Stop' : 'Live'}
+          </button>
+        )}
       </div>
 
       {/* Filters Bar */}
-      <div className="flex items-center justify-between gap-6 mb-6 pb-6 border-b border-black/10">
-        <div className="flex items-center gap-4">
-          {/* Error Filter - ToggleGroup */}
-          <ToggleGroup type="single" value={errorFilter} onValueChange={handleErrorFilter} disabled={liveEnabled}>
-            <ToggleGroupItem value="all" aria-label="All">All</ToggleGroupItem>
-            <ToggleGroupItem value="success" aria-label="Success">Success</ToggleGroupItem>
-            <ToggleGroupItem value="errors" aria-label="Errors">Errors</ToggleGroupItem>
-          </ToggleGroup>
+      <div className="flex items-center gap-4 mb-6 p-4 bg-white rounded-xl border border-black/10">
+        {/* Error Filter - ToggleGroup */}
+        <ToggleGroup type="single" value={errorFilter} onValueChange={handleErrorFilter} disabled={liveEnabled}>
+          <ToggleGroupItem value="all" aria-label="All">All</ToggleGroupItem>
+          <ToggleGroupItem value="success" aria-label="Success">Success</ToggleGroupItem>
+          <ToggleGroupItem value="errors" aria-label="Errors">Errors</ToggleGroupItem>
+        </ToggleGroup>
 
-          <div className="h-5 w-px bg-black/10" />
+        <div className="h-5 w-px bg-black/10" />
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
-            <Input
-              type="text"
-              placeholder="Search logs..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
-              className="w-56 pl-8"
-              disabled={liveEnabled}
-            />
-          </div>
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} disabled={liveEnabled}>
-              Clear
-            </Button>
-          )}
+        {/* Search */}
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" />
+          <Input
+            type="text"
+            placeholder="Search logs..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+            className="pl-9 bg-black/[0.02] border-0"
+            disabled={liveEnabled}
+          />
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Group by trace */}
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${groupEnabled ? 'bg-black/5' : ''}`}>
-            <span className={`text-sm ${groupEnabled ? 'font-medium text-black' : 'text-black/60'}`}>
-              Group
-            </span>
-            <Switch
-              checked={groupEnabled}
-              onCheckedChange={toggleGrouping}
-              disabled={liveEnabled}
-            />
-          </div>
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} disabled={liveEnabled}>
+            Clear
+          </Button>
+        )}
 
-          {/* Live */}
-          {appId && (
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${liveEnabled ? 'bg-red-50 border border-red-200' : ''}`}>
-              {liveEnabled && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
-              <span className={`text-sm ${liveEnabled ? 'font-medium text-red-600' : 'text-black/60'}`}>
-                Live
-              </span>
-              <Switch
-                checked={liveEnabled}
-                onCheckedChange={toggleLive}
-              />
-            </div>
-          )}
-        </div>
+        <div className="flex-1" />
+
+        {/* Group by trace */}
+        <button
+          onClick={() => !liveEnabled && toggleGrouping(!groupEnabled)}
+          disabled={liveEnabled}
+          className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+            groupEnabled
+              ? 'bg-black text-white'
+              : 'text-black/50 hover:text-black hover:bg-black/[0.03]'
+          } ${liveEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          Group by trace
+        </button>
       </div>
 
       {/* Log List */}
       {entries.length === 0 ? (
-        <div className="py-20 text-center">
-          <Inbox className="w-12 h-12 text-black/30 mx-auto mb-4" />
-          <p className="text-lg text-black/70 mb-2">
+        <div className="bg-white rounded-xl border border-black/10 py-16 text-center">
+          <Inbox className="w-10 h-10 text-black/20 mx-auto mb-4" />
+          <p className="font-semibold text-black mb-1">
             {hasFilters ? 'Nothing matches' : 'No log entries yet'}
           </p>
-          <p className="text-sm text-black/70 max-w-sm mx-auto">
+          <p className="text-sm text-black/50">
             {hasFilters
               ? 'Try adjusting your filters or search terms.'
               : 'Log entries from your app will show up here.'}
@@ -389,55 +456,55 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           )}
         </div>
       ) : groupEnabled ? (
-        <div className="border border-black/10 rounded-sm">
+        <div className="bg-white rounded-xl border border-black/10 overflow-hidden">
           {logGroups.map((group) => (
             <GroupedLog key={group.traceId} group={group} appId={appId} />
           ))}
         </div>
       ) : (
-        <div className="border border-black/10 rounded-sm divide-y divide-black/5">
+        <div className="bg-white rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden">
           {entries.filter(e => e && e.id).map((entry) => (
             <LogRow key={entry.id} entry={entry} appId={appId} />
           ))}
         </div>
       )}
 
-      {/* Pagination - hidden in live mode */}
+      {/* Pagination */}
       {!liveEnabled && pagination.total > pagination.limit && (
-        <div className="flex justify-between items-center mt-8 pt-6 border-t border-black/10">
-          <p className="text-sm text-black/70">
+        <div className="flex justify-between items-center mt-6 py-4">
+          <p className="text-sm text-black/50">
             {pagination.offset + 1}–{Math.min(pagination.offset + pagination.limit, pagination.total)} of {pagination.total.toLocaleString()}
           </p>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-black/70">
-              Page {currentPage} of {totalPages}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const params = new URLSearchParams(window.location.search)
+                params.set('offset', Math.max(0, pagination.offset - pagination.limit).toString())
+                router.visit(`${basePath}?${params.toString()}`)
+              }}
+              disabled={pagination.offset === 0}
+              className="rounded-lg"
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-black/40 px-2">
+              {currentPage} / {totalPages}
             </span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const params = new URLSearchParams(window.location.search)
-                  params.set('offset', Math.max(0, pagination.offset - pagination.limit).toString())
-                  router.visit(`${basePath}?${params.toString()}`)
-                }}
-                disabled={pagination.offset === 0}
-              >
-                Prev
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const params = new URLSearchParams(window.location.search)
-                  params.set('offset', (pagination.offset + pagination.limit).toString())
-                  router.visit(`${basePath}?${params.toString()}`)
-                }}
-                disabled={pagination.offset + pagination.limit >= pagination.total}
-              >
-                Next
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const params = new URLSearchParams(window.location.search)
+                params.set('offset', (pagination.offset + pagination.limit).toString())
+                router.visit(`${basePath}?${params.toString()}`)
+              }}
+              disabled={pagination.offset + pagination.limit >= pagination.total}
+              className="rounded-lg"
+            >
+              Next
+            </Button>
           </div>
         </div>
       )}

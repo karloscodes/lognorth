@@ -106,101 +106,120 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
     return currentPath.startsWith(path)
   }
 
-  const navLinkClass = (path: string) =>
-    `relative py-4 text-sm font-semibold transition-colors ${
-      isActive(path) ? 'text-black' : 'text-black/80 hover:text-black'
-    }`
+  // Get current app stats for nav indicator
+  const currentApp = applications?.find(a => a.id === appId)
+  const hasErrors = currentApp?.stats?.errors && currentApp.stats.errors > 0
 
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
       <nav className="border-b border-black/10 sticky top-0 bg-white z-50">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="flex h-14 items-center gap-8">
-            <Link href="/" className="mr-2">
+        <div className="max-w-6xl mx-auto px-8">
+          <div className="flex h-16 items-center gap-10">
+            <Link href="/" className="flex items-center gap-3">
               <LogNorthLogo />
             </Link>
 
             {isAppScoped ? (
               <>
+                <div className="h-6 w-px bg-black/10" />
+
                 <AppSelector appId={appId} appName={appName} applications={applications} />
 
-                <div className="flex items-center gap-1">
+                <nav className="flex items-center gap-1 bg-black/[0.03] rounded-lg p-1">
                   <Link
                     href={`/apps/${appId}/issues`}
-                    className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${
                       currentPath?.includes('/issues')
-                        ? 'bg-black text-white'
-                        : 'text-black/80 hover:text-black'
+                        ? 'bg-white text-black shadow-sm'
+                        : 'text-black/60 hover:text-black'
                     }`}
                   >
                     Issues
+                    {hasErrors && currentPath?.includes('/issues') && (
+                      <span className="w-2 h-2 rounded-full bg-red-500" />
+                    )}
                   </Link>
                   <Link
                     href={`/apps/${appId}/log`}
-                    className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
                       currentPath?.includes('/log')
-                        ? 'bg-black text-white'
-                        : 'text-black/80 hover:text-black'
+                        ? 'bg-white text-black shadow-sm'
+                        : 'text-black/60 hover:text-black'
                     }`}
                   >
                     Logs
                   </Link>
                   <Link
                     href={`/apps/${appId}/endpoints`}
-                    className={`px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
                       currentPath?.includes('/endpoints')
-                        ? 'bg-black text-white'
-                        : 'text-black/80 hover:text-black'
+                        ? 'bg-white text-black shadow-sm'
+                        : 'text-black/60 hover:text-black'
                     }`}
                   >
                     Endpoints
                   </Link>
-                </div>
+                </nav>
               </>
             ) : (
-              <>
-                <Link href="/" className={navLinkClass('/')}>
-                  Home
-                  {currentPath === '/' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
+              <nav className="flex items-center gap-1 bg-black/[0.03] rounded-lg p-1">
+                <Link
+                  href="/"
+                  className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                    currentPath === '/'
+                      ? 'bg-white text-black shadow-sm'
+                      : 'text-black/60 hover:text-black'
+                  }`}
+                >
+                  Overview
                 </Link>
-                <Link href="/issues" className={navLinkClass('/issues')}>
-                  Issues
-                  {currentPath === '/issues' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
+                <Link
+                  href="/issues"
+                  className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                    currentPath === '/issues'
+                      ? 'bg-white text-black shadow-sm'
+                      : 'text-black/60 hover:text-black'
+                  }`}
+                >
+                  All Issues
                 </Link>
-              </>
+              </nav>
             )}
 
             <div className="flex-1" />
 
-            <Link href="/apps" className={navLinkClass('/apps')}>
-              Apps
-              {isActive('/apps') && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black" />}
-            </Link>
+            <div className="flex items-center gap-6">
+              <Link
+                href="/apps"
+                className={`text-sm font-semibold transition-colors ${
+                  isActive('/apps') ? 'text-black' : 'text-black/60 hover:text-black'
+                }`}
+              >
+                Apps
+              </Link>
 
-            <Link
-              href="/settings"
-              className={`text-sm font-semibold transition-colors ${
-                isActive('/settings') ? 'text-black' : 'text-black/80 hover:text-black'
-              }`}
-            >
-              Settings
-            </Link>
+              <Link
+                href="/settings"
+                className={`text-sm font-semibold transition-colors ${
+                  isActive('/settings') ? 'text-black' : 'text-black/60 hover:text-black'
+                }`}
+              >
+                Settings
+              </Link>
 
-            <LogoutButton />
+              <div className="h-5 w-px bg-black/10" />
+
+              <LogoutButton />
+            </div>
           </div>
         </div>
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-8 py-10">
         {children}
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-black/10 mt-16">
-        <div className="max-w-5xl mx-auto px-6 py-4" />
-      </footer>
     </div>
   )
 }

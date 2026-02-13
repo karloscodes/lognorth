@@ -1,4 +1,6 @@
-import { AlertTriangle, CheckCircle, Activity, TrendingUp } from 'lucide-react'
+import { useState } from 'react'
+import { AlertTriangle, CheckCircle, Activity, TrendingUp, ChevronDown } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 import { Layout } from '@/components/layout'
 import type { Application } from '@/lib/shared'
 
@@ -8,6 +10,13 @@ interface EndpointStats {
   errors: number
   error_rate: number
   avg_duration: number
+}
+
+interface RecentError {
+  id: number
+  message: string
+  timestamp: string
+  context?: string
 }
 
 interface AlertStatus {
@@ -27,6 +36,130 @@ interface Props {
   appId: number
   appName: string
   applications?: Application[]
+}
+
+function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: number }) {
+  const [expanded, setExpanded] = useState(false)
+  const [recentErrors, setRecentErrors] = useState<RecentError[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const isHealthy = endpoint.error_rate === 0
+  const isCritical = endpoint.error_rate >= 10
+
+  const handleClick = async () => {
+    if (expanded) {
+      setExpanded(false)
+      return
+    }
+
+    setExpanded(true)
+
+    // Only fetch if we have errors and haven't loaded yet
+    if (endpoint.errors > 0 && recentErrors.length === 0) {
+      setLoading(true)
+      try {
+        const res = await fetch(
+          `/api/v1/events?app_id=${appId}&is_error=true&search=${encodeURIComponent(endpoint.path)}&limit=5`,
+          { credentials: 'same-origin' }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          setRecentErrors(data.events || [])
+        }
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
+
+  return (
+    <div className={`border-b border-black/5 last:border-b-0 ${isCritical ? 'bg-red-500/[0.03]' : ''}`}>
+      <button
+        onClick={handleClick}
+        className="w-full grid grid-cols-12 gap-4 px-5 py-4 text-left hover:bg-black/[0.02] transition-colors"
+      >
+        <div className="col-span-6 flex items-center gap-3">
+          <ChevronDown className={`w-4 h-4 text-black/30 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          {isHealthy ? (
+            <CheckCircle className="w-4 h-4 text-[#00D678] shrink-0" />
+          ) : (
+            <AlertTriangle className={`w-4 h-4 shrink-0 ${isCritical ? 'text-red-500' : 'text-amber-500'}`} />
+          )}
+          <code className="font-mono text-sm text-black truncate">{endpoint.path}</code>
+        </div>
+        <div className="col-span-2 text-right font-mono text-sm text-black/70">
+          {endpoint.total.toLocaleString()}
+        </div>
+        <div className={`col-span-2 text-right font-mono text-sm font-semibold ${
+          isHealthy ? 'text-black/40' : isCritical ? 'text-red-600' : 'text-amber-600'
+        }`}>
+          {endpoint.error_rate}%
+        </div>
+        <div className="col-span-2 text-right font-mono text-sm text-black/70">
+          {endpoint.avg_duration}ms
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-5 pb-4 pt-1 border-t border-black/5 bg-black/[0.01]">
+          <div className="pl-11 space-y-3">
+            {/* Stats summary */}
+            <div className="flex gap-6 text-sm">
+              <div>
+                <span className="text-black/50">Total requests</span>
+                <span className="ml-2 font-semibold text-black">{endpoint.total.toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-black/50">Errors</span>
+                <span className="ml-2 font-semibold text-red-600">{endpoint.errors.toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-black/50">Avg response</span>
+                <span className="ml-2 font-semibold text-black">{endpoint.avg_duration}ms</span>
+              </div>
+            </div>
+
+            {/* Recent errors */}
+            {endpoint.errors > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-black/50 uppercase tracking-wide mb-2">Recent errors</p>
+                {loading ? (
+                  <p className="text-sm text-black/40">Loading...</p>
+                ) : recentErrors.length > 0 ? (
+                  <div className="space-y-2">
+                    {recentErrors.map((err) => (
+                      <a
+                        key={err.id}
+                        href={`/apps/${appId}/log/${err.id}`}
+                        className="block p-3 bg-white border border-black/10 hover:border-black/20 transition-colors"
+                      >
+                        <p className="text-sm text-red-600 truncate">{err.message}</p>
+                        <p className="text-xs text-black/40 mt-1">
+                          {formatDistanceToNow(new Date(err.timestamp), { addSuffix: true })}
+                        </p>
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-black/40">No recent errors found</p>
+                )}
+              </div>
+            )}
+
+            {/* View all link */}
+            <a
+              href={`/apps/${appId}/log?search=${encodeURIComponent(endpoint.path)}`}
+              className="inline-block text-sm font-semibold text-black/50 hover:text-black"
+            >
+              View all requests →
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function Endpoints({ endpoints: endpointsProp, alertStatuses, appId, appName, applications }: Props) {
@@ -147,39 +280,9 @@ export default function Endpoints({ endpoints: endpointsProp, alertStatuses, app
           </div>
 
           {/* Data rows */}
-          {endpoints.map((endpoint) => {
-            const isHealthy = endpoint.error_rate === 0
-            const isCritical = endpoint.error_rate >= 10
-
-            return (
-              <div
-                key={endpoint.path}
-                className={`grid grid-cols-12 gap-4 px-5 py-4 border-b border-black/5 last:border-b-0 ${
-                  isCritical ? 'bg-red-500/[0.03]' : ''
-                }`}
-              >
-                <div className="col-span-6 flex items-center gap-3">
-                  {isHealthy ? (
-                    <CheckCircle className="w-4 h-4 text-[#00D678] shrink-0" />
-                  ) : (
-                    <AlertTriangle className={`w-4 h-4 shrink-0 ${isCritical ? 'text-red-500' : 'text-amber-500'}`} />
-                  )}
-                  <code className="font-mono text-sm text-black truncate">{endpoint.path}</code>
-                </div>
-                <div className="col-span-2 text-right font-mono text-sm text-black/70">
-                  {endpoint.total.toLocaleString()}
-                </div>
-                <div className={`col-span-2 text-right font-mono text-sm font-semibold ${
-                  isHealthy ? 'text-black/40' : isCritical ? 'text-red-600' : 'text-amber-600'
-                }`}>
-                  {endpoint.error_rate}%
-                </div>
-                <div className="col-span-2 text-right font-mono text-sm text-black/70">
-                  {endpoint.avg_duration}ms
-                </div>
-              </div>
-            )
-          })}
+          {endpoints.map((endpoint) => (
+            <EndpointRow key={endpoint.path} endpoint={endpoint} appId={appId} />
+          ))}
         </div>
       )}
     </Layout>
