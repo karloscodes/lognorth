@@ -61,7 +61,7 @@ jobs:
       - name: Check health endpoint
         run: |
           for i in {1..12}; do
-            if curl -sf http://localhost:3000/_health; then
+            if curl -sf http://localhost/_health; then
               echo "Health check passed"
               exit 0
             fi
@@ -69,7 +69,7 @@ jobs:
             sleep 5
           done
           echo "Health check failed"
-          docker logs $(docker ps -q --filter name=lognorth) || true
+          docker logs lognorth-app-1 || true
           exit 1
 
       - name: Collect logs on failure
@@ -77,11 +77,10 @@ jobs:
         run: |
           echo "=== Docker containers ==="
           docker ps -a
-          echo "=== Container logs ==="
-          for c in $(docker ps -aq); do
-            echo "--- Logs for $c ---"
-            docker logs $c 2>&1 | tail -100 || true
-          done
+          echo "=== App logs ==="
+          docker logs lognorth-app-1 2>&1 | tail -100 || true
+          echo "=== Caddy logs ==="
+          docker logs lognorth-caddy 2>&1 | tail -50 || true
 
   release:
     name: Build and Release

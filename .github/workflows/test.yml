@@ -45,9 +45,10 @@ jobs:
       - name: Verify install
         run: |
           sleep 5
+          docker ps
           docker ps --format '{{.Names}}' | grep -q "lognorth"
           for i in {1..12}; do
-            curl -sf http://localhost:3000/_health && exit 0
+            curl -sf http://localhost/_health && exit 0
             sleep 5
           done
           exit 1
@@ -56,7 +57,8 @@ jobs:
         if: failure()
         run: |
           docker ps -a
-          docker logs $(docker ps -aq --filter name=lognorth) 2>&1 | tail -100 || true
+          docker logs lognorth-app-1 2>&1 | tail -100 || true
+          docker logs lognorth-caddy 2>&1 | tail -50 || true
 
   # Complete: All tests including SDK compatibility
   # Only runs on main repo (SDKs might be private)
