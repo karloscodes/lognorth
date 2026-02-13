@@ -22,6 +22,42 @@ jobs:
       - name: Run Go tests
         run: make test
 
+  # Test that the installer actually works on a fresh Linux system
+  install-test:
+    name: Install Test
+    runs-on: ubuntu-latest
+    if: github.repository == 'karloscodes/lognorth'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build manager
+        run: go build -o bin/lognorth ./cmd/manager
+
+      - name: Run install
+        run: echo -e "localhost\ny\n" | sudo -E ./bin/lognorth install
+        env:
+          ENV: test
+
+      - name: Verify install
+        run: |
+          sleep 5
+          docker ps --format '{{.Names}}' | grep -q "lognorth"
+          for i in {1..12}; do
+            curl -sf http://localhost:3000/_health && exit 0
+            sleep 5
+          done
+          exit 1
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker ps -a
+          docker logs $(docker ps -aq --filter name=lognorth) 2>&1 | tail -100 || true
+
   # Complete: All tests including SDK compatibility
   # Only runs on main repo (SDKs might be private)
   full-tests:
