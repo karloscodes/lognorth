@@ -143,12 +143,16 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
 
-          # Debug: show what GoReleaser produced
-          echo "Contents of dist:"
-          ls -la ./dist/ || true
+          # Prepare binaries with correct names for installer
+          cp ./dist/lognorth_linux_amd64_v1/lognorth ./dist/lognorth-linux-amd64
+          cp ./dist/lognorth_linux_arm64_v8.0/lognorth ./dist/lognorth-linux-arm64
 
-          # GoReleaser already built binaries in ./dist
-          # Upload only the manager binaries and checksums to public repo
+          # Update checksums with new filenames
+          cd ./dist
+          sha256sum lognorth-linux-amd64 lognorth-linux-arm64 > checksums.txt
+          cd ..
+
+          # Upload to public releases repo
           gh release create "v${VERSION}" \
             --repo karloscodes/lognorth-releases \
             --title "LogNorth v${VERSION}" \
