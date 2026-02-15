@@ -13,7 +13,7 @@ var currentVersion string = "dev"
 func main() {
 	m := matcha.New(matcha.Config{
 		Name:           "lognorth",
-		AppImage:       "karloscodes/lognorth:latest",
+		AppImage:       "ghcr.io/karloscodes/lognorth:latest",
 		BlueGreen:      true,
 		CronUpdates:    true,
 		Backups:        true,
