@@ -134,11 +134,15 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
 
+          # Debug: show what GoReleaser produced
+          echo "Contents of dist:"
+          ls -la ./dist/ || true
+
           # GoReleaser already built binaries in ./dist
           # Upload only the manager binaries and checksums to public repo
           gh release create "v${VERSION}" \
             --repo karloscodes/lognorth-releases \
             --title "LogNorth v${VERSION}" \
             --notes "Release v${VERSION}" \
-            ./dist/lognorth-linux-* \
+            ./dist/lognorth-linux-amd64 \
             ./dist/checksums.txt
