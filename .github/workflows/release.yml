@@ -127,3 +127,19 @@ jobs:
           tags: |
             karloscodes/lognorth:${{ steps.version.outputs.VERSION }}
             karloscodes/lognorth:latest
+
+      - name: Publish to public releases repo
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+
+          # Download binaries from private release
+          gh release download "v${VERSION}" --dir ./dist --pattern 'lognorth-*' --pattern 'checksums.txt'
+
+          # Create release on public repo
+          gh release create "v${VERSION}" \
+            --repo karloscodes/lognorth-releases \
+            --title "LogNorth v${VERSION}" \
+            --notes "Release v${VERSION}" \
+            ./dist/*
