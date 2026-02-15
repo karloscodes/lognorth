@@ -17,7 +17,7 @@ func main() {
 		BlueGreen:      true,
 		CronUpdates:    true,
 		Backups:        true,
-		ManagerRepo:    "karloscodes/lognorth",
+		ManagerRepo:    "karloscodes/lognorth-releases",
 		ManagerVersion: currentVersion,
 	})
 
