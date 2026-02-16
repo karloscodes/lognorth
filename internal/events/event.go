@@ -193,8 +193,9 @@ func findErrorFilterByHash(db *gorm.DB, hash string, apiKeyID uint) *errorFilter
 // ListFilters defines filtering options for listing events
 type ListFilters struct {
 	APIKeyID  uint
-	IsError   *bool // nil = all, true = errors only, false = success only
+	IsError   *bool  // nil = all, true = errors only, false = success only
 	ErrorHash string // filter by error hash (grouped issue)
+	TraceID   string // filter by trace ID
 	Search    string
 	StartTime time.Time
 	EndTime   time.Time
@@ -233,6 +234,9 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 			// Hash not found - return no results
 			query = query.Where("1 = 0")
 		}
+	}
+	if filters.TraceID != "" {
+		query = query.Where("trace_id = ?", filters.TraceID)
 	}
 	if filters.Search != "" {
 		search := "%" + filters.Search + "%"

@@ -78,7 +78,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
             </div>
             {entry.trace_id ? (
               <a
-                href={`/trace/${entry.trace_id}`}
+                href={`${logPath}?trace=${entry.trace_id}`}
                 className="inline-flex items-center gap-1.5 text-sm font-mono text-black hover:text-black/70"
               >
                 {entry.trace_id.slice(0, 12)}...
@@ -169,9 +169,9 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
 
       {/* Related Entries */}
       {relatedEntries.length > 1 && (
-        <div className="border-t border-black/10 pt-8">
+        <div id="trace-timeline" className="border-t border-black/10 pt-8">
           <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-4">
-            Timeline ({relatedEntries.length} entries)
+            Trace ({relatedEntries.length} requests)
           </h3>
           <div className="border-2 border-black/10 overflow-hidden">
             {relatedEntries.map((e, idx) => {

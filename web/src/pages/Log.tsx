@@ -14,6 +14,7 @@ interface Filters {
   is_error?: boolean
   search?: string
   error?: string // error hash filter
+  trace?: string // trace ID filter
   start_time?: string
   end_time?: string
 }
@@ -386,7 +387,8 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
   }
 
   const errorHashFilter = filters.error || ''
-  const hasFilters = search || errorFilter !== 'all' || datePreset !== 'all' || errorHashFilter
+  const traceFilter = filters.trace || ''
+  const hasFilters = search || errorFilter !== 'all' || datePreset !== 'all' || errorHashFilter || traceFilter
   const totalPages = Math.ceil(pagination.total / pagination.limit)
   const currentPage = Math.floor(pagination.offset / pagination.limit) + 1
 
@@ -401,6 +403,11 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
               <span className="flex items-center gap-1.5 px-2 py-1 bg-red-600 text-white text-xs font-semibold">
                 <span className="w-1.5 h-1.5 bg-white animate-pulse" />
                 Live
+              </span>
+            )}
+            {traceFilter && (
+              <span className="flex items-center gap-1.5 px-2 py-1 bg-black text-white text-xs font-semibold font-mono">
+                Trace: {traceFilter.slice(0, 8)}...
               </span>
             )}
           </div>

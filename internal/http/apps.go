@@ -74,6 +74,7 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 			"is_error":   filters.IsError,
 			"search":     filters.Search,
 			"error":      filters.ErrorHash,
+			"trace":      filters.TraceID,
 			"start_time": formatTimeOrEmpty(filters.StartTime),
 			"end_time":   formatTimeOrEmpty(filters.EndTime),
 		},
@@ -143,7 +144,7 @@ func AppLogDetailPageAction(ctx *cartridge.Context) error {
 	})
 }
 
-// TracePageAction handles GET /trace/:traceId - redirects to first event's log detail
+// TracePageAction handles GET /trace/:traceId - redirects to logs filtered by trace
 func TracePageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 	traceID := ctx.Ctx.Params("traceId")
@@ -157,10 +158,9 @@ func TracePageAction(ctx *cartridge.Context) error {
 		return ctx.Ctx.Redirect("/")
 	}
 
-	// Redirect to the first event's detail page (trace is shown inline there)
+	// Redirect to logs filtered by this trace
 	appID := entries[0].APIKeyID
-	eventID := entries[0].ID
-	return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(appID), 10) + "/log/" + strconv.FormatUint(uint64(eventID), 10))
+	return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(appID), 10) + "/log?trace=" + traceID)
 }
 
 // EndpointsPageAction handles GET /apps/:id/endpoints
@@ -194,6 +194,7 @@ func parseAppFilters(c *fiber.Ctx, appID uint) events.ListFilters {
 		APIKeyID:  appID,
 		Search:    c.Query("search"),
 		ErrorHash: c.Query("error"),
+		TraceID:   c.Query("trace"),
 		Limit:     50,
 	}
 

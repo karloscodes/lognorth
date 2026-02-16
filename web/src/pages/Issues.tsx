@@ -131,7 +131,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
     >
       {/* Main content */}
       <div className="flex-1 min-w-0">
-        <p className={`leading-snug ${
+        <p className={`font-mono leading-snug ${
           isUnseen
             ? 'font-semibold text-black'
             : stale

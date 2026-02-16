@@ -10,9 +10,7 @@ import Onboarding from './pages/Onboarding'
 import Log from './pages/Log'
 import LogDetail from './pages/LogDetail'
 import Issues from './pages/Issues'
-import IssueDetail from './pages/IssueDetail'
 import Settings from './pages/Settings'
-import Trace from './pages/Trace'
 import Endpoints from './pages/Endpoints'
 
 // Map of page components
@@ -24,9 +22,7 @@ const pages: Record<string, React.ComponentType<any>> = {
   Log,
   LogDetail,
   Issues,
-  IssueDetail,
   Settings,
-  Trace,
   Endpoints,
 }
 
