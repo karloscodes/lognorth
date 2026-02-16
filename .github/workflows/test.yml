@@ -60,6 +60,46 @@ jobs:
           docker logs lognorth-app-1 2>&1 | tail -100 || true
           docker logs lognorth-caddy 2>&1 | tail -50 || true
 
+  # E2E tests with Playwright
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    if: github.repository == 'karloscodes/lognorth'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        run: npx playwright install chromium --with-deps
+
+      - name: Run e2e tests
+        working-directory: e2e
+        run: npx playwright test
+
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/test-results/
+          retention-days: 7
+
   # Complete: All tests including SDK compatibility
   # Only runs on main repo (SDKs might be private)
   full-tests:
