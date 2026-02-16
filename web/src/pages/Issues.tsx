@@ -163,8 +163,8 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
         isUnseen
           ? 'text-red-600'
           : stale
-            ? 'text-black/20'
-            : 'text-black/50'
+            ? 'text-black/30'
+            : 'text-black'
       }`}>
         {issue.count}×
       </span>
