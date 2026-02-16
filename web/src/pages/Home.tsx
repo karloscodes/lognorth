@@ -30,60 +30,83 @@ export default function Home({ applications = [] }: Props) {
     )
   }
 
+  const appsWithErrors = applications.filter(app => (app.stats?.errors || 0) > 0)
+  const healthyApps = applications.filter(app => (app.stats?.errors || 0) === 0)
+
   return (
     <Layout currentPath="/" applications={applications}>
-      {/* Hero Status - THE answer to "do I have a problem?" */}
-      <div className="mb-12 py-8 border-b-2 border-black/5">
+      {/* Header with status */}
+      <div className="flex items-baseline justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-black">Overview</h1>
+          <p className="text-sm text-black/50 mt-1">
+            <span className="font-mono tabular-nums">{applications.length}</span> app{applications.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+
+        {/* Status badge */}
         {totalErrors > 0 ? (
-          <div>
-            <p className="text-6xl font-black text-red-600 tracking-tight">
-              <span className="font-mono tabular-nums">{totalErrors}</span>
-            </p>
-            <p className="text-xl font-semibold text-black mt-2">
-              error{totalErrors !== 1 ? 's' : ''} to fix
-            </p>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono tabular-nums text-4xl font-black text-red-600">
+              {totalErrors}
+            </span>
+            <span className="text-lg font-semibold text-black/60">
+              error{totalErrors !== 1 ? 's' : ''}
+            </span>
           </div>
         ) : (
-          <div>
-            <p className="text-6xl font-black text-[#00D678] tracking-tight">
-              0
-            </p>
-            <p className="text-xl font-semibold text-black mt-2">
-              errors. Nice work.
-            </p>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 bg-[#00D678]" />
+            <span className="text-lg font-semibold text-black/60">All clear</span>
           </div>
         )}
       </div>
 
-      {/* Apps list */}
-      <div className="space-y-3">
-        {applications.map((app) => {
-          const errors = app.stats?.errors || 0
-          const hasErrors = errors > 0
+      {/* Apps with errors first */}
+      {appsWithErrors.length > 0 && (
+        <div className="mb-6">
+          <div className="space-y-2">
+            {appsWithErrors.map((app) => {
+              const errors = app.stats?.errors || 0
+              return (
+                <a
+                  key={app.id}
+                  href={`/apps/${app.id}/issues`}
+                  className="flex items-center justify-between p-4 border-2 border-red-500/30 bg-red-50 hover:border-red-500 transition-all"
+                >
+                  <span className="font-bold text-black">{app.name}</span>
+                  <span className="font-mono tabular-nums text-xl font-black text-red-600">
+                    {errors}
+                  </span>
+                </a>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
-          return (
-            <a
-              key={app.id}
-              href={`/apps/${app.id}/issues`}
-              className={`group flex items-center justify-between p-5 border-2 transition-all ${
-                hasErrors
-                  ? 'border-red-500/30 bg-red-50 hover:border-red-500'
-                  : 'border-black/10 hover:border-black/30 hover:bg-black/[0.01]'
-              }`}
-            >
-              <span className="font-bold text-black text-lg">{app.name}</span>
-
-              {hasErrors ? (
-                <span className="font-mono tabular-nums text-2xl font-black text-red-600">
-                  {errors}
-                </span>
-              ) : (
-                <span className="w-3 h-3 bg-[#00D678]" />
-              )}
-            </a>
-          )
-        })}
-      </div>
+      {/* Healthy apps */}
+      {healthyApps.length > 0 && (
+        <div>
+          {appsWithErrors.length > 0 && (
+            <p className="text-xs font-semibold text-black/40 uppercase tracking-wide mb-3">
+              Healthy
+            </p>
+          )}
+          <div className="space-y-2">
+            {healthyApps.map((app) => (
+              <a
+                key={app.id}
+                href={`/apps/${app.id}/issues`}
+                className="flex items-center justify-between p-4 border border-black/10 hover:border-black/30 hover:bg-black/[0.01] transition-all"
+              >
+                <span className="font-bold text-black">{app.name}</span>
+                <span className="w-2.5 h-2.5 bg-[#00D678]" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-8">
         <a href="/apps" className="text-sm font-semibold text-black/50 hover:text-black transition-colors">
