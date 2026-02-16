@@ -1,13 +1,11 @@
 {
-  "name": "fusionaly-pro-e2e",
-  "version": "1.0.0",
-  "description": "E2E tests for Fusionaly Pro",
+  "name": "lognorth-e2e",
+  "private": true,
   "scripts": {
-    "test": "npx playwright test",
-    "test:ui": "npx playwright test --ui",
-    "test:debug": "npx playwright test --debug"
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.1"
+    "@playwright/test": "^1.58.2"
   }
 }

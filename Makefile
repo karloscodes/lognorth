@@ -85,6 +85,10 @@ seed-events:
 	@if [ -z "$(KEY)" ]; then echo "Usage: make seed-events KEY=<api_key>"; exit 1; fi
 	./scripts/seed_events.sh $(KEY)
 
+# Run e2e tests (requires server to be running)
+test-e2e:
+	cd e2e && npm test
+
 # Clean build artifacts
 clean:
 	rm -rf tmp/
