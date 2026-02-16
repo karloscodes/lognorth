@@ -73,6 +73,7 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 		"filters": fiber.Map{
 			"is_error":   filters.IsError,
 			"search":     filters.Search,
+			"error":      filters.ErrorHash,
 			"start_time": formatTimeOrEmpty(filters.StartTime),
 			"end_time":   formatTimeOrEmpty(filters.EndTime),
 		},
@@ -142,7 +143,7 @@ func AppLogDetailPageAction(ctx *cartridge.Context) error {
 	})
 }
 
-// TracePageAction handles GET /trace/:traceId
+// TracePageAction handles GET /trace/:traceId - redirects to first event's log detail
 func TracePageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 	traceID := ctx.Ctx.Params("traceId")
@@ -151,33 +152,15 @@ func TracePageAction(ctx *cartridge.Context) error {
 		return ctx.Ctx.Redirect("/")
 	}
 
-	// Get applications list
-	keys, _ := apikeys.List(db)
-	apps := make([]Application, 0, len(keys))
-	appNameByID := make(map[uint]string)
-	for _, k := range keys {
-		if k.Active {
-			apps = append(apps, Application{ID: k.ID, Name: k.Name})
-			appNameByID[k.ID] = k.Name
-		}
-	}
-
 	entries, err := events.FindByTraceID(db, traceID)
 	if err != nil || len(entries) == 0 {
 		return ctx.Ctx.Redirect("/")
 	}
 
-	// Get app info from first entry
+	// Redirect to the first event's detail page (trace is shown inline there)
 	appID := entries[0].APIKeyID
-	appName := appNameByID[appID]
-
-	return RenderPage(ctx.Ctx, "Trace", Props{
-		"traceId":      traceID,
-		"entries":      entries,
-		"appId":        appID,
-		"appName":      appName,
-		"applications": apps,
-	})
+	eventID := entries[0].ID
+	return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(appID), 10) + "/log/" + strconv.FormatUint(uint64(eventID), 10))
 }
 
 // EndpointsPageAction handles GET /apps/:id/endpoints
@@ -208,9 +191,10 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 
 func parseAppFilters(c *fiber.Ctx, appID uint) events.ListFilters {
 	filters := events.ListFilters{
-		APIKeyID: appID,
-		Search:   c.Query("search"),
-		Limit:    50,
+		APIKeyID:  appID,
+		Search:    c.Query("search"),
+		ErrorHash: c.Query("error"),
+		Limit:     50,
 	}
 
 	// Parse is_error filter: "true" = errors only, "false" = success only, empty = all

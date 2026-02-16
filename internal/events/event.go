@@ -132,10 +132,69 @@ func FindByTraceID(db *gorm.DB, traceID string) ([]Event, error) {
 	return events, nil
 }
 
+// errorFilterMatch holds the criteria to match events for a specific error hash
+type errorFilterMatch struct {
+	Error         string
+	ErrorType     string
+	ErrorLocation string
+}
+
+// findErrorFilterByHash looks up the error grouping that matches the given hash
+func findErrorFilterByHash(db *gorm.DB, hash string, apiKeyID uint) *errorFilterMatch {
+	query := `
+		SELECT DISTINCT
+			json_extract(context, '$.error') as error,
+			json_extract(context, '$.error_type') as error_type,
+			json_extract(context, '$.error_location') as error_location,
+			api_key_id
+		FROM events
+		WHERE is_error = 1
+			AND (json_extract(context, '$.error') IS NOT NULL AND json_extract(context, '$.error') != ''
+				OR json_extract(context, '$.error_type') IS NOT NULL)
+	`
+	args := []any{}
+	if apiKeyID > 0 {
+		query += " AND api_key_id = ?"
+		args = append(args, apiKeyID)
+	}
+
+	type errorWithApp struct {
+		Error         string `gorm:"column:error"`
+		ErrorType     string `gorm:"column:error_type"`
+		ErrorLocation string `gorm:"column:error_location"`
+		APIKeyID      uint   `gorm:"column:api_key_id"`
+	}
+	var errorRows []errorWithApp
+	if err := db.Raw(query, args...).Scan(&errorRows).Error; err != nil {
+		return nil
+	}
+
+	for _, row := range errorRows {
+		checkAPIKeyID := apiKeyID
+		if apiKeyID == 0 {
+			checkAPIKeyID = row.APIKeyID
+		}
+		ctx := map[string]any{
+			"error":          row.Error,
+			"error_type":     row.ErrorType,
+			"error_location": row.ErrorLocation,
+		}
+		if hashError(ctx, checkAPIKeyID) == hash {
+			return &errorFilterMatch{
+				Error:         row.Error,
+				ErrorType:     row.ErrorType,
+				ErrorLocation: row.ErrorLocation,
+			}
+		}
+	}
+	return nil
+}
+
 // ListFilters defines filtering options for listing events
 type ListFilters struct {
 	APIKeyID  uint
 	IsError   *bool // nil = all, true = errors only, false = success only
+	ErrorHash string // filter by error hash (grouped issue)
 	Search    string
 	StartTime time.Time
 	EndTime   time.Time
@@ -158,6 +217,22 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 	}
 	if !filters.EndTime.IsZero() {
 		query = query.Where("timestamp <= ?", filters.EndTime)
+	}
+	if filters.ErrorHash != "" {
+		// ErrorHash requires looking up which error grouping matches, then filtering by that
+		// This is handled specially - we find the matching error pattern first
+		errorFilter := findErrorFilterByHash(db, filters.ErrorHash, filters.APIKeyID)
+		if errorFilter != nil {
+			if errorFilter.ErrorType != "" {
+				query = query.Where("json_extract(context, '$.error_type') = ? AND COALESCE(json_extract(context, '$.error_location'), '') = ?",
+					errorFilter.ErrorType, errorFilter.ErrorLocation)
+			} else {
+				query = query.Where("json_extract(context, '$.error') = ?", errorFilter.Error)
+			}
+		} else {
+			// Hash not found - return no results
+			query = query.Where("1 = 0")
+		}
 	}
 	if filters.Search != "" {
 		search := "%" + filters.Search + "%"

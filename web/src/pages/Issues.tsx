@@ -12,7 +12,11 @@ interface Props {
 }
 
 export default function Issues({ issues = [], appId, appName, applications }: Props) {
-  const issuePath = (hash: string) => appId ? `/apps/${appId}/issues/${hash}` : `/issues/${hash}`
+  // Click issue → go to Logs filtered by that error
+  const issuePath = (issue: Issue) => {
+    const base = appId ? `/apps/${appId}/log` : `/apps/${issue.api_key_id}/log`
+    return `${base}?error=${issue.hash}&is_error=true`
+  }
   const activeIssues = issues.filter((i) => i.active)
   const staleIssues = issues.filter((i) => !i.active)
   const hasUnseen = issues.some((i) => i.unseen)
@@ -78,7 +82,7 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
                   <IssueRow
                     key={issue.hash}
                     issue={issue}
-                    issuePath={issuePath(issue.hash)}
+                    issuePath={issuePath(issue)}
                     appName={showAppName ? appNameById.get(issue.api_key_id) : undefined}
                   />
                 ))}
@@ -101,7 +105,7 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
                   <IssueRow
                     key={issue.hash}
                     issue={issue}
-                    issuePath={issuePath(issue.hash)}
+                    issuePath={issuePath(issue)}
                     appName={showAppName ? appNameById.get(issue.api_key_id) : undefined}
                     stale
                   />

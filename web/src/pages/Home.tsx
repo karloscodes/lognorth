@@ -95,7 +95,7 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
                 </a>
                 {topIssue && (
                   <a
-                    href={`/apps/${app.id}/issues/${topIssue.hash}`}
+                    href={`/apps/${app.id}/log?error=${topIssue.hash}&is_error=true`}
                     className="block px-4 pb-4 -mt-1"
                   >
                     <p className="text-sm text-red-700 truncate">

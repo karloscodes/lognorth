@@ -13,6 +13,7 @@ import type { Application, LogEntry } from '@/lib/shared'
 interface Filters {
   is_error?: boolean
   search?: string
+  error?: string // error hash filter
   start_time?: string
   end_time?: string
 }
@@ -384,7 +385,8 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
     router.visit(basePath)
   }
 
-  const hasFilters = search || errorFilter !== 'all' || datePreset !== 'all'
+  const errorHashFilter = filters.error || ''
+  const hasFilters = search || errorFilter !== 'all' || datePreset !== 'all' || errorHashFilter
   const totalPages = Math.ceil(pagination.total / pagination.limit)
   const currentPage = Math.floor(pagination.offset / pagination.limit) + 1
 

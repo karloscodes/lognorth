@@ -1,6 +1,8 @@
 package http
 
 import (
+	"strconv"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
@@ -46,73 +48,42 @@ func IssuesAPIAction(ctx *cartridge.Context) error {
 	})
 }
 
-// IssueDetailPageAction handles GET /issues/:hash
+// IssueDetailPageAction handles GET /issues/:hash - redirects to filtered logs
 func IssueDetailPageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 	hash := ctx.Ctx.Params("hash")
 
 	if hash == "" {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Ctx.Redirect("/issues")
 	}
 
-	// Get applications list
-	keys, _ := apikeys.List(db)
-	apps := make([]Application, 0, len(keys))
-	appNameByID := make(map[uint]string)
-	for _, k := range keys {
-		if k.Active {
-			apps = append(apps, Application{ID: k.ID, Name: k.Name})
-			appNameByID[k.ID] = k.Name
-		}
-	}
-
+	// Find which app this issue belongs to
 	issue, err := events.GetIssueByHash(db, hash, 0)
 	if err != nil || issue == nil {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Ctx.Redirect("/issues")
 	}
 
-	// Mark as seen when viewing
+	// Mark as seen
 	events.MarkIssueSeen(db, hash)
 
-	// Get app name for the issue
-	appName := appNameByID[issue.APIKeyID]
-
-	return RenderPage(ctx.Ctx, "IssueDetail", Props{
-		"applications": apps,
-		"issue":        issue,
-		"appId":        issue.APIKeyID,
-		"appName":      appName,
-	})
+	// Redirect to logs filtered by this error
+	return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(issue.APIKeyID), 10) + "/log?error=" + hash + "&is_error=true")
 }
 
-// AppIssueDetailPageAction handles GET /apps/:id/issues/:hash
+// AppIssueDetailPageAction handles GET /apps/:id/issues/:hash - redirects to filtered logs
 func AppIssueDetailPageAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
 	hash := ctx.Ctx.Params("hash")
-
-	app, apps, err := getAppFromURL(ctx)
-	if err != nil {
-		return ctx.Ctx.Redirect("/")
-	}
+	appID := ctx.Ctx.Params("id")
 
 	if hash == "" {
-		return ctx.Ctx.Redirect("/apps/" + ctx.Ctx.Params("id") + "/issues")
+		return ctx.Ctx.Redirect("/apps/" + appID + "/issues")
 	}
 
-	issue, err := events.GetIssueByHash(db, hash, app.ID)
-	if err != nil || issue == nil {
-		return ctx.Ctx.Redirect("/apps/" + ctx.Ctx.Params("id") + "/issues")
-	}
+	// Mark as seen
+	events.MarkIssueSeen(ctx.DB(), hash)
 
-	// Mark as seen when viewing
-	events.MarkIssueSeen(db, hash)
-
-	return RenderPage(ctx.Ctx, "IssueDetail", Props{
-		"appId":        app.ID,
-		"appName":      app.Name,
-		"applications": apps,
-		"issue":        issue,
-	})
+	// Redirect to logs filtered by this error
+	return ctx.Ctx.Redirect("/apps/" + appID + "/log?error=" + hash + "&is_error=true")
 }
 
 // MarkIssueSeenAction handles POST /issues/:hash/seen (kept for API use)
