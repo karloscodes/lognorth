@@ -71,7 +71,7 @@ export default function Home({ applications = [] }: Props) {
                   : 'border-black/10 hover:border-black/30 hover:bg-black/[0.01]'
               }`}
             >
-              <span className="font-bold text-black text-lg group-hover:underline">{app.name}</span>
+              <span className="font-bold text-black text-lg">{app.name}</span>
 
               {hasErrors ? (
                 <span className="font-mono tabular-nums text-2xl font-black text-red-600">

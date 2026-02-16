@@ -82,11 +82,32 @@ func EventsPageAction(ctx *cartridge.Context) error {
 
 ## Styling Rules
 
-**Terminal-inspired. Sharp edges. Black, white, red. Nothing soft.**
+**Black, white, and red. Sharp edges. Confident typography. Human voice.**
 
 ### Design Philosophy
 
-This is a developer tool, not a consumer app. Hard edges = confidence. No rounded corners, no soft shadows, no friendly curves. Think terminal meets Swiss poster design.
+Small company energy. Not enterprise software. This is a tool made by developers for developers. Opinionated, confident, no hedging. Think 37signals meets Swiss poster design.
+
+### Voice & Copy
+
+Write like you talk. No jargon. No corporate speak.
+
+| Don't | Do |
+|-------|-----|
+| "No log entries found" | "Quiet so far" |
+| "0 issues detected" | "No issues. Enjoy your day." |
+| "X occurrences" | "X times" |
+| "Streaming data" | "Watching for requests" |
+| "Affected Endpoints" | "Where it happened" |
+| "entries" | "requests" |
+
+**Tagline:** "Error tracking you own."
+
+**Empty states should have personality:**
+- "Quiet so far" (no data yet)
+- "Nothing here" (filtered to empty)
+- "Enjoy your day." (no issues)
+- "Nice work." (all clear)
 
 ### No Gray, Ever
 
@@ -103,94 +124,102 @@ NEVER use `gray-*` Tailwind classes. Use `black/*` opacity for all neutral tones
 
 NEVER use `rounded-*` classes larger than `rounded-sm`. Hard edges only.
 
-| Don't | Do |
-|-------|-----|
-| `rounded-lg` | `rounded-sm` or nothing |
-| `rounded-xl` | `rounded-sm` or nothing |
-| `rounded-full` (on containers) | `rounded-sm` |
-| `rounded-md` | `rounded-sm` or nothing |
-
 Exception: `rounded-full` is OK for small status dots only.
-
-### Navigation
-
-No pill toggles. Use underline-based navigation:
-
-```tsx
-// Active nav link
-className="font-semibold text-black border-b-2 border-black"
-
-// Inactive nav link
-className="font-medium text-black/60 hover:text-black"
-```
-
-Keep nav simple: one pattern, not three. No background pills, no toggle groups for primary nav.
 
 ### Typography
 
 | Element | Class |
 |---------|-------|
+| Logo | `text-2xl font-black tracking-tight` |
+| Hero numbers | `text-6xl font-black` - the answer to "do I have a problem?" |
 | Page titles | `text-2xl font-bold text-black` |
-| Section headers | `text-lg font-bold text-black uppercase tracking-wide` |
-| Important numbers | `text-xl font-bold` or larger - numbers should POP |
-| Body text | `text-black font-medium` |
-| Secondary text | `text-black/60` |
+| Section headers | `text-sm font-bold text-black/50 uppercase tracking-wide` |
+| Important counts | `text-xl font-black font-mono tabular-nums` |
+| Body text | `text-black` or `font-medium text-black` |
+| Secondary text | `text-black/50` or `text-black/60` |
 | Code/paths | `font-mono text-sm` |
 
 **Rules:**
-- Numbers that matter (error counts, occurrence counts) should be BIG and BOLD
-- Use `font-mono` liberally - paths, methods, trace IDs, durations
-- Uppercase + tracking for section labels (e.g., "ERROR", "ENDPOINT")
+- Numbers that matter use `font-mono tabular-nums` for alignment
+- Hero status (Home page) is massive - 6xl font-black
+- Count badges (38×, 124×) are font-black, not subtle
+- Use `font-semibold` liberally on nav, buttons, labels
 
 ### Colors
 
 - **Black** - Primary text, borders, buttons
 - **White** - Backgrounds
-- **Red** (`text-red-600`, `bg-red-600`) - Errors only. Make them impossible to miss.
-- **Green dot** (`bg-green-500`) - Success/active status dots only
+- **Red** (`text-red-600`, `border-red-500`) - Errors. Make them impossible to miss.
+- **Green** (`#00D678`) - Success states, active indicators (dots, borders)
 
 No other colors. No blue links. No yellow warnings. Binary: error or not.
+
+### Navigation
+
+Underline-based for primary nav:
+
+```tsx
+// Active
+className="font-semibold text-black border-b-2 border-black"
+
+// Inactive
+className="font-semibold text-black/50 hover:text-black"
+```
+
+Toggle groups are OK for filters (All/Success/Errors, Today/7d/30d/All).
 
 ### Buttons
 
 ```tsx
-// Primary - sharp corners
+// Primary
 className="bg-black text-white font-semibold px-4 py-2 hover:bg-black/80"
 
-// Secondary - sharp corners
-className="border border-black/20 font-semibold px-4 py-2 hover:bg-black/[0.02]"
-```
-
-### Forms
-
-```tsx
-// Input - sharp corners
-className="border border-black/20 focus:ring-1 focus:ring-black focus:border-black"
-
-// Label
-className="text-sm font-semibold text-black uppercase tracking-wide"
+// Secondary
+className="border border-black/20 font-semibold px-4 py-2 hover:border-black/40"
 ```
 
 ### Cards & Containers
 
 ```tsx
-// Card - sharp corners, visible border
-className="border border-black/10 bg-white"
+// Default card
+className="border border-black/10 bg-white hover:border-black/30 transition-all"
 
-// NO shadows, NO rounded corners, NO subtle backgrounds
+// Card with errors
+className="border-2 border-red-500/30 bg-red-50 hover:border-red-500"
+
+// Active/healthy card
+className="border-2 border-[#00D678]/40 border-l-4 border-l-[#00D678]"
 ```
+
+Cards should have visible hover states - borders get bolder.
 
 ### Error States
 
-Errors should be impossible to miss:
+Errors demand attention:
 
 ```tsx
-// Error row/card
-className="border-l-4 border-l-red-600 bg-red-50"
+// Error row - red left border
+className="border-l-2 border-l-red-500"
 
-// Error count badge
-className="bg-red-600 text-white font-bold px-2 py-1 text-lg"
+// Error count - bold and black (or red if unseen)
+className="font-mono text-xl font-black tabular-nums text-black"
+
+// Unseen error count
+className="font-mono text-xl font-black tabular-nums text-red-600"
 ```
+
+### Page Subtitles
+
+Consistent pattern for counts:
+
+```tsx
+<span className="font-mono tabular-nums">{count}</span> request{count !== 1 ? 's' : ''}
+```
+
+Examples:
+- "10 unique errors"
+- "5,000 requests"
+- "9 endpoints · 3,553 requests · 379 errors"
 
 ## Strong Requirements
 
