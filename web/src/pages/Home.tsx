@@ -1,12 +1,22 @@
+import { formatDistanceToNow } from 'date-fns'
 import { Layout } from '@/components/layout'
-import type { Application } from '@/lib/shared'
+import type { Application, Issue } from '@/lib/shared'
 
 interface Props {
   applications?: Application[]
+  recentIssues?: Issue[]
 }
 
-export default function Home({ applications = [] }: Props) {
+export default function Home({ applications = [], recentIssues = [] }: Props) {
   const totalErrors = applications.reduce((sum, app) => sum + (app.stats?.errors || 0), 0)
+
+  // Build lookup: app_id -> most recent issue
+  const topIssueByApp = new Map<number, Issue>()
+  for (const issue of recentIssues) {
+    if (!topIssueByApp.has(issue.api_key_id)) {
+      topIssueByApp.set(issue.api_key_id, issue)
+    }
+  }
 
   // No apps yet - onboarding
   if (applications.length === 0) {
@@ -62,34 +72,52 @@ export default function Home({ applications = [] }: Props) {
         )}
       </div>
 
-      {/* Apps with errors first */}
+      {/* Apps with errors - show top error inline */}
       {appsWithErrors.length > 0 && (
-        <div className="mb-6">
-          <div className="space-y-2">
-            {appsWithErrors.map((app) => {
-              const errors = app.stats?.errors || 0
-              return (
+        <div className="mb-6 space-y-3">
+          {appsWithErrors.map((app) => {
+            const errors = app.stats?.errors || 0
+            const topIssue = topIssueByApp.get(app.id)
+
+            return (
+              <div
+                key={app.id}
+                className="border-2 border-red-500/30 bg-red-50 hover:border-red-500 transition-all"
+              >
                 <a
-                  key={app.id}
                   href={`/apps/${app.id}/issues`}
-                  className="flex items-center justify-between p-4 border-2 border-red-500/30 bg-red-50 hover:border-red-500 transition-all"
+                  className="flex items-center justify-between p-4"
                 >
-                  <span className="font-bold text-black">{app.name}</span>
-                  <span className="font-mono tabular-nums text-xl font-black text-red-600">
+                  <span className="font-bold text-black text-lg">{app.name}</span>
+                  <span className="font-mono tabular-nums text-2xl font-black text-red-600">
                     {errors}
                   </span>
                 </a>
-              )
-            })}
-          </div>
+                {topIssue && (
+                  <a
+                    href={`/apps/${app.id}/issues/${topIssue.hash}`}
+                    className="block px-4 pb-4 -mt-1"
+                  >
+                    <p className="text-sm text-red-700 truncate">
+                      {topIssue.error}
+                    </p>
+                    <p className="text-xs text-black/40 mt-1">
+                      {formatDistanceToNow(new Date(topIssue.last_seen), { addSuffix: true })}
+                      {topIssue.count > 1 && <> · <span className="font-mono tabular-nums">{topIssue.count}</span>×</>}
+                    </p>
+                  </a>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
-      {/* Healthy apps */}
+      {/* Healthy apps - compact */}
       {healthyApps.length > 0 && (
         <div>
           {appsWithErrors.length > 0 && (
-            <p className="text-xs font-semibold text-black/40 uppercase tracking-wide mb-3">
+            <p className="text-xs font-semibold text-black/30 uppercase tracking-wide mb-3">
               Healthy
             </p>
           )}
@@ -98,10 +126,10 @@ export default function Home({ applications = [] }: Props) {
               <a
                 key={app.id}
                 href={`/apps/${app.id}/issues`}
-                className="flex items-center justify-between p-4 border border-black/10 hover:border-black/30 hover:bg-black/[0.01] transition-all"
+                className="flex items-center justify-between p-4 border border-black/10 hover:border-black/20 transition-all"
               >
-                <span className="font-bold text-black">{app.name}</span>
-                <span className="w-2.5 h-2.5 bg-[#00D678]" />
+                <span className="font-semibold text-black/70">{app.name}</span>
+                <span className="w-2 h-2 bg-[#00D678]" />
               </a>
             ))}
           </div>
