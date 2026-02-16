@@ -124,10 +124,10 @@ export default function Setup({ apiKeys = [], flash }: Props) {
             return (
               <div
                 key={app.id}
-                className={`bg-white border overflow-hidden group ${
+                className={`bg-white border-2 overflow-hidden group transition-all ${
                   isActive
-                    ? 'border-[#00D678]/30 border-l-4 border-l-[#00D678]'
-                    : 'border-black/10'
+                    ? 'border-[#00D678]/40 border-l-4 border-l-[#00D678] hover:border-[#00D678]/60'
+                    : 'border-black/10 hover:border-black/30'
                 }`}
               >
                 {/* Main row */}

@@ -32,21 +32,25 @@ export default function Home({ applications = [] }: Props) {
 
   return (
     <Layout currentPath="/" applications={applications}>
-      {/* Status */}
-      <div className="mb-10">
+      {/* Hero Status - THE answer to "do I have a problem?" */}
+      <div className="mb-12 py-8 border-b-2 border-black/5">
         {totalErrors > 0 ? (
           <div>
-            <p className="text-3xl font-bold text-red-600">
-              <span className="font-mono tabular-nums">{totalErrors}</span> errors
+            <p className="text-6xl font-black text-red-600 tracking-tight">
+              <span className="font-mono tabular-nums">{totalErrors}</span>
             </p>
-            <p className="text-sm text-black/50 mt-1">Time to fix something.</p>
+            <p className="text-xl font-semibold text-black mt-2">
+              error{totalErrors !== 1 ? 's' : ''} to fix
+            </p>
           </div>
         ) : (
           <div>
-            <p className="text-3xl font-bold text-[#00D678]">
-              All clear
+            <p className="text-6xl font-black text-[#00D678] tracking-tight">
+              0
             </p>
-            <p className="text-sm text-black/50 mt-1">Nice work.</p>
+            <p className="text-xl font-semibold text-black mt-2">
+              errors. Nice work.
+            </p>
           </div>
         )}
       </div>
@@ -55,21 +59,22 @@ export default function Home({ applications = [] }: Props) {
       <div className="space-y-3">
         {applications.map((app) => {
           const errors = app.stats?.errors || 0
+          const hasErrors = errors > 0
 
           return (
             <a
               key={app.id}
               href={`/apps/${app.id}/issues`}
-              className={`flex items-center justify-between p-5 border-2 transition-colors ${
-                errors > 0
-                  ? 'border-red-200 bg-red-50 hover:border-red-300'
-                  : 'border-black/10 hover:border-black/20'
+              className={`group flex items-center justify-between p-5 border-2 transition-all ${
+                hasErrors
+                  ? 'border-red-500/30 bg-red-50 hover:border-red-500'
+                  : 'border-black/10 hover:border-black/30 hover:bg-black/[0.01]'
               }`}
             >
-              <span className="font-bold text-black text-lg">{app.name}</span>
+              <span className="font-bold text-black text-lg group-hover:underline">{app.name}</span>
 
-              {errors > 0 ? (
-                <span className="font-mono tabular-nums text-lg font-bold text-red-600">
+              {hasErrors ? (
+                <span className="font-mono tabular-nums text-2xl font-black text-red-600">
                   {errors}
                 </span>
               ) : (
@@ -81,7 +86,7 @@ export default function Home({ applications = [] }: Props) {
       </div>
 
       <div className="mt-8">
-        <a href="/apps" className="text-sm font-semibold text-black/50 hover:text-black">
+        <a href="/apps" className="text-sm font-semibold text-black/50 hover:text-black transition-colors">
           + Add app
         </a>
       </div>

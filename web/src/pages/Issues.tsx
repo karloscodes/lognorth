@@ -159,12 +159,12 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
       </div>
 
       {/* Count badge - BIG and BOLD */}
-      <span className={`font-mono text-lg font-bold tabular-nums ${
+      <span className={`font-mono text-xl font-black tabular-nums ${
         isUnseen
           ? 'text-red-600'
           : stale
             ? 'text-black/20'
-            : 'text-black/40'
+            : 'text-black/50'
       }`}>
         {issue.count}×
       </span>
