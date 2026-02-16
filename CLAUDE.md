@@ -82,7 +82,11 @@ func EventsPageAction(ctx *cartridge.Context) error {
 
 ## Styling Rules
 
-**Color palette: Black, White, and ONE accent color. No gray.**
+**Terminal-inspired. Sharp edges. Black, white, red. Nothing soft.**
+
+### Design Philosophy
+
+This is a developer tool, not a consumer app. Hard edges = confidence. No rounded corners, no soft shadows, no friendly curves. Think terminal meets Swiss poster design.
 
 ### No Gray, Ever
 
@@ -95,51 +99,97 @@ NEVER use `gray-*` Tailwind classes. Use `black/*` opacity for all neutral tones
 | `border-gray-200` | `border-black/10` |
 | `text-gray-400` | `text-black/40` |
 
-### Bold, Confident Typography (Stripe-style)
+### No Rounded Corners
 
-Text must be readable and confident. Weak text looks uncertain.
+NEVER use `rounded-*` classes larger than `rounded-sm`. Hard edges only.
 
-| Element | Class | Example |
-|---------|-------|---------|
-| Page titles | `text-2xl font-bold text-black` | "Email (SMTP)" |
-| Section headers | `text-xl font-bold text-black` | "Active Issues" |
-| Card titles | `text-lg font-semibold text-black` | App names |
-| Labels | `text-sm font-semibold text-black` | Form labels |
-| Body text | `text-black` or `font-medium text-black` | Primary content |
-| Secondary text | `text-black/80` | Helper text, timestamps |
-| Placeholder | `placeholder:text-black/40` | Input hints |
+| Don't | Do |
+|-------|-----|
+| `rounded-lg` | `rounded-sm` or nothing |
+| `rounded-xl` | `rounded-sm` or nothing |
+| `rounded-full` (on containers) | `rounded-sm` |
+| `rounded-md` | `rounded-sm` or nothing |
+
+Exception: `rounded-full` is OK for small status dots only.
+
+### Navigation
+
+No pill toggles. Use underline-based navigation:
+
+```tsx
+// Active nav link
+className="font-semibold text-black border-b-2 border-black"
+
+// Inactive nav link
+className="font-medium text-black/60 hover:text-black"
+```
+
+Keep nav simple: one pattern, not three. No background pills, no toggle groups for primary nav.
+
+### Typography
+
+| Element | Class |
+|---------|-------|
+| Page titles | `text-2xl font-bold text-black` |
+| Section headers | `text-lg font-bold text-black uppercase tracking-wide` |
+| Important numbers | `text-xl font-bold` or larger - numbers should POP |
+| Body text | `text-black font-medium` |
+| Secondary text | `text-black/60` |
+| Code/paths | `font-mono text-sm` |
 
 **Rules:**
-- Never use `text-black/70` or lighter for readable content - minimum is `text-black/80`
-- Use `font-semibold` or `font-bold` liberally - confident beats subtle
-- Buttons always `font-semibold`
-- All nav links and interactive text should be `font-semibold`
-- Cards use `border-2 border-black/10` not subtle backgrounds
+- Numbers that matter (error counts, occurrence counts) should be BIG and BOLD
+- Use `font-mono` liberally - paths, methods, trace IDs, durations
+- Uppercase + tracking for section labels (e.g., "ERROR", "ENDPOINT")
 
-### Accent Color
+### Colors
 
-- `#00D678` (green) - Success states, active indicators (dots only, not text)
-- Red (`text-red-600`, `bg-red-500`) - Errors, destructive actions
-- Never use accent colors for body text - only for icons, dots, badges
+- **Black** - Primary text, borders, buttons
+- **White** - Backgrounds
+- **Red** (`text-red-600`, `bg-red-600`) - Errors only. Make them impossible to miss.
+- **Green dot** (`bg-green-500`) - Success/active status dots only
+
+No other colors. No blue links. No yellow warnings. Binary: error or not.
 
 ### Buttons
 
 ```tsx
-// Primary
-className="bg-black text-white font-medium hover:bg-black/80"
+// Primary - sharp corners
+className="bg-black text-white font-semibold px-4 py-2 hover:bg-black/80"
 
-// Secondary
-className="border border-black/20 font-medium hover:bg-black/[0.02]"
+// Secondary - sharp corners
+className="border border-black/20 font-semibold px-4 py-2 hover:bg-black/[0.02]"
 ```
 
 ### Forms
 
 ```tsx
-// Input
-className="border border-black/20 focus:ring-1 focus:ring-black"
+// Input - sharp corners
+className="border border-black/20 focus:ring-1 focus:ring-black focus:border-black"
 
 // Label
-className="text-sm font-semibold text-black"
+className="text-sm font-semibold text-black uppercase tracking-wide"
+```
+
+### Cards & Containers
+
+```tsx
+// Card - sharp corners, visible border
+className="border border-black/10 bg-white"
+
+// NO shadows, NO rounded corners, NO subtle backgrounds
+```
+
+### Error States
+
+Errors should be impossible to miss:
+
+```tsx
+// Error row/card
+className="border-l-4 border-l-red-600 bg-red-50"
+
+// Error count badge
+className="bg-red-600 text-white font-bold px-2 py-1 text-lg"
 ```
 
 ## Strong Requirements

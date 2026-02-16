@@ -86,7 +86,7 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
 
   return (
     <Layout currentPath="/settings">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-lg">
         <h1 className="text-2xl font-bold text-black mb-2">Notifications</h1>
         <p className="text-black/50 text-sm mb-8">Know the moment something breaks.</p>
 

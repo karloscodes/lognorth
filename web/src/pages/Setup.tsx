@@ -83,7 +83,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
 
   return (
     <Layout currentPath="/apps">
-      <div className="max-w-3xl mx-auto">
+      <div>
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-black">Apps</h1>

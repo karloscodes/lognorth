@@ -54,7 +54,7 @@ export default function IssueDetailPage({ issue, appId, appName, applications }:
                 </>
               )}
               <span>
-                <strong className="text-black">{issue.count}</strong> occurrences
+                <strong className="text-black">{issue.count}</strong> times
               </span>
               <span className="text-black/20">·</span>
               <span>
@@ -72,7 +72,7 @@ export default function IssueDetailPage({ issue, appId, appName, applications }:
         {issue.paths?.length > 0 && (
           <div className="mt-4">
             <h3 className="text-xs font-semibold text-black/50 uppercase tracking-wide mb-2">
-              Affected Endpoints
+              Where it happened
             </h3>
             <div className="flex flex-wrap gap-2">
               {issue.paths?.map((path, i) => (
@@ -95,7 +95,7 @@ export default function IssueDetailPage({ issue, appId, appName, applications }:
       <div>
         <h2 className="text-sm font-semibold text-black/50 uppercase tracking-wide mb-4 flex items-center gap-2">
           <Clock className="w-4 h-4" />
-          Recent Occurrences
+          History
         </h2>
 
         <div className="border border-black/10 rounded-sm divide-y divide-black/5">
@@ -189,7 +189,7 @@ function ErrorTimeline({ entries }: { entries: LogEntry[] }) {
   return (
     <div className="mt-6">
       <h3 className="text-xs font-semibold text-black/50 uppercase tracking-wide mb-3">
-        Error Timeline
+        When it happened
       </h3>
       <div className="flex items-end gap-2">
         {days.map(([day, count]) => {

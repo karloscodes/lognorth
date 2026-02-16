@@ -404,9 +404,9 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           </div>
           <p className="text-sm text-black/50 mt-1">
             {liveEnabled ? (
-              'Streaming'
+              'Watching for requests'
             ) : (
-              <><span className="font-mono tabular-nums">{pagination.total.toLocaleString()}</span> entr{pagination.total !== 1 ? 'ies' : 'y'}{hasFilters && ' (filtered)'}</>
+              <><span className="font-mono tabular-nums">{pagination.total.toLocaleString()}</span> request{pagination.total !== 1 ? 's' : ''}{hasFilters && ' (filtered)'}</>
             )}
           </p>
         </div>
@@ -490,7 +490,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
         <div className="bg-white border border-black/10 py-16 text-center">
           <Inbox className="w-10 h-10 text-black/20 mx-auto mb-4" />
           <p className="font-semibold text-black mb-1">
-            {hasFilters ? 'No matches' : 'Quiet so far'}
+            {hasFilters ? 'Nothing here' : 'Quiet so far'}
           </p>
           <p className="text-sm text-black/50">
             {hasFilters
