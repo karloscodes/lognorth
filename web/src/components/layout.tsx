@@ -17,7 +17,7 @@ interface LayoutProps {
 }
 
 const LogNorthLogo = () => (
-  <span className="text-2xl font-bold tracking-tight">
+  <span className="text-2xl font-black tracking-tight">
     LogNorth
   </span>
 )
@@ -47,7 +47,7 @@ function AppSelector({ appId, appName, applications }: { appId: number; appName:
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-2 px-3 py-1.5 border border-black/20 hover:border-black/40 transition-colors text-sm font-semibold">
+        <button className="flex items-center gap-2 px-3 py-1.5 border border-black/20 hover:border-black transition-colors text-sm font-semibold">
           {appName}
           <ChevronDown className="w-4 h-4 opacity-50" />
         </button>
@@ -58,7 +58,7 @@ function AppSelector({ appId, appName, applications }: { appId: number; appName:
             <button
               key={app.id}
               onClick={() => handleSelect(app.id)}
-              className={`flex items-center gap-2 px-3 py-2 text-sm text-left rounded-sm transition-colors ${
+              className={`flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
                 app.id === appId
                   ? 'bg-black text-white'
                   : 'hover:bg-black/[0.05]'
@@ -71,7 +71,7 @@ function AppSelector({ appId, appName, applications }: { appId: number; appName:
           <div className="h-px bg-black/10 my-1" />
           <button
             onClick={() => handleSelect(null)}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-left rounded-sm hover:bg-black/[0.05] text-black/70"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-black/[0.02] text-black/50"
           >
             <ArrowLeft className="w-4 h-4" />
             All apps
@@ -90,7 +90,7 @@ function LogoutButton() {
   return (
     <button
       onClick={handleLogout}
-      className="text-sm font-semibold text-black/80 hover:text-black transition-colors"
+      className="text-sm font-semibold text-black/50 hover:text-black transition-colors"
     >
       Logout
     </button>
@@ -126,36 +126,36 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
 
                 <AppSelector appId={appId} appName={appName} applications={applications} />
 
-                <nav className="flex items-center gap-1 bg-black/[0.03] rounded-lg p-1">
+                <nav className="flex items-center gap-6">
                   <Link
                     href={`/apps/${appId}/issues`}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                    className={`flex items-center gap-2 py-5 text-sm font-semibold border-b-2 transition-colors ${
                       currentPath?.includes('/issues')
-                        ? 'bg-white text-black shadow-sm'
-                        : 'text-black/60 hover:text-black'
+                        ? 'border-black text-black'
+                        : 'border-transparent text-black/50 hover:text-black'
                     }`}
                   >
                     Issues
-                    {hasErrors && currentPath?.includes('/issues') && (
+                    {hasErrors && (
                       <span className="w-2 h-2 rounded-full bg-red-500" />
                     )}
                   </Link>
                   <Link
                     href={`/apps/${appId}/log`}
-                    className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                    className={`py-5 text-sm font-semibold border-b-2 transition-colors ${
                       currentPath?.includes('/log')
-                        ? 'bg-white text-black shadow-sm'
-                        : 'text-black/60 hover:text-black'
+                        ? 'border-black text-black'
+                        : 'border-transparent text-black/50 hover:text-black'
                     }`}
                   >
                     Logs
                   </Link>
                   <Link
                     href={`/apps/${appId}/endpoints`}
-                    className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                    className={`py-5 text-sm font-semibold border-b-2 transition-colors ${
                       currentPath?.includes('/endpoints')
-                        ? 'bg-white text-black shadow-sm'
-                        : 'text-black/60 hover:text-black'
+                        ? 'border-black text-black'
+                        : 'border-transparent text-black/50 hover:text-black'
                     }`}
                   >
                     Endpoints
@@ -163,26 +163,26 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
                 </nav>
               </>
             ) : (
-              <nav className="flex items-center gap-1 bg-black/[0.03] rounded-lg p-1">
+              <nav className="flex items-center gap-6">
                 <Link
                   href="/"
-                  className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                  className={`py-5 text-sm font-semibold border-b-2 transition-colors ${
                     currentPath === '/'
-                      ? 'bg-white text-black shadow-sm'
-                      : 'text-black/60 hover:text-black'
+                      ? 'border-black text-black'
+                      : 'border-transparent text-black/50 hover:text-black'
                   }`}
                 >
                   Overview
                 </Link>
                 <Link
                   href="/issues"
-                  className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+                  className={`py-5 text-sm font-semibold border-b-2 transition-colors ${
                     currentPath === '/issues'
-                      ? 'bg-white text-black shadow-sm'
-                      : 'text-black/60 hover:text-black'
+                      ? 'border-black text-black'
+                      : 'border-transparent text-black/50 hover:text-black'
                   }`}
                 >
-                  All Issues
+                  Issues
                 </Link>
               </nav>
             )}
@@ -193,7 +193,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
               <Link
                 href="/apps"
                 className={`text-sm font-semibold transition-colors ${
-                  isActive('/apps') ? 'text-black' : 'text-black/60 hover:text-black'
+                  isActive('/apps') ? 'text-black' : 'text-black/50 hover:text-black'
                 }`}
               >
                 Apps
@@ -202,7 +202,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
               <Link
                 href="/settings"
                 className={`text-sm font-semibold transition-colors ${
-                  isActive('/settings') ? 'text-black' : 'text-black/60 hover:text-black'
+                  isActive('/settings') ? 'text-black' : 'text-black/50 hover:text-black'
                 }`}
               >
                 Settings

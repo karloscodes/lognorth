@@ -35,17 +35,20 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
         <div>
           <h1 className="text-2xl font-bold text-black">Issues</h1>
           <p className="text-sm text-black/50 mt-1">
-            {issues.length === 0
-              ? 'Errors grouped by message'
-              : `${issues.length} unique error${issues.length !== 1 ? 's' : ''}${
-                  unseenCount > 0 ? ` · ${unseenCount} new` : ''
-                }`}
+            {issues.length === 0 ? (
+              'Errors grouped by message'
+            ) : (
+              <>
+                <span className="font-mono tabular-nums">{issues.length}</span> unique error{issues.length !== 1 ? 's' : ''}
+                {unseenCount > 0 && <> · <span className="font-mono tabular-nums">{unseenCount}</span> new</>}
+              </>
+            )}
           </p>
         </div>
         {hasUnseen && (
           <button
             onClick={markAllSeen}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-black/70 hover:text-black bg-white border border-black/10 hover:border-black/20 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-black/70 hover:text-black bg-white border border-black/10 hover:border-black/20 transition-colors"
           >
             <Check className="w-4 h-4" />
             Mark all seen
@@ -54,9 +57,9 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
       </div>
 
       {issues.length === 0 ? (
-        <div className="border-2 border-dashed border-black/10 rounded-xl py-16 text-center">
+        <div className="border border-black/10 py-16 text-center">
           <p className="font-semibold text-black mb-1">No issues</p>
-          <p className="text-sm text-black/50">Errors will appear here, grouped by message.</p>
+          <p className="text-sm text-black/50">Enjoy your day.</p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -65,12 +68,12 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-2 h-2 rounded-full bg-red-500" />
-                <h2 className="text-sm font-semibold text-black/50 uppercase tracking-wider">
+                <h2 className="text-sm font-bold text-black/50 uppercase tracking-wide">
                   Active
                 </h2>
                 <span className="text-xs text-black/30">Last 24 hours</span>
               </div>
-              <div className="bg-white rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden">
+              <div className="bg-white border border-black/10 divide-y divide-black/5 overflow-hidden">
                 {activeIssues.map((issue) => (
                   <IssueRow
                     key={issue.hash}
@@ -88,12 +91,12 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <Clock className="w-3.5 h-3.5 text-black/30" />
-                <h2 className="text-sm font-semibold text-black/30 uppercase tracking-wider">
+                <h2 className="text-sm font-bold text-black/30 uppercase tracking-wide">
                   Stale
                 </h2>
                 <span className="text-xs text-black/20">No recent occurrences</span>
               </div>
-              <div className="bg-white rounded-xl border border-black/5 divide-y divide-black/5 overflow-hidden opacity-60 hover:opacity-100 transition-opacity">
+              <div className="bg-white border border-black/5 divide-y divide-black/5 overflow-hidden opacity-60 hover:opacity-100 transition-opacity">
                 {staleIssues.map((issue) => (
                   <IssueRow
                     key={issue.hash}
@@ -119,7 +122,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
     <a
       href={issuePath}
       className={`flex items-start gap-4 p-5 transition-colors hover:bg-black/[0.02] ${
-        isUnseen ? 'border-l-2 border-l-red-500 bg-red-50/50 pl-[18px]' : ''
+        isUnseen ? 'border-l-4 border-l-red-600 bg-red-50/50 pl-[16px]' : ''
       }`}
     >
       {/* Main content */}
@@ -136,7 +139,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
         <div className="flex items-center gap-2 mt-2 text-xs text-black/40">
           {appName && (
             <>
-              <span className="bg-black/5 text-black/60 px-1.5 py-0.5 rounded font-medium">
+              <span className="bg-black/5 text-black/60 px-1.5 py-0.5 font-medium">
                 {appName}
               </span>
               <span>·</span>
@@ -155,13 +158,13 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
         </div>
       </div>
 
-      {/* Count badge */}
-      <span className={`font-mono text-sm font-bold tabular-nums px-2 py-1 rounded ${
+      {/* Count badge - BIG and BOLD */}
+      <span className={`font-mono text-lg font-bold tabular-nums ${
         isUnseen
-          ? 'bg-red-100 text-red-700'
+          ? 'text-red-600'
           : stale
             ? 'text-black/20'
-            : 'bg-black/5 text-black/50'
+            : 'text-black/40'
       }`}>
         {issue.count}×
       </span>

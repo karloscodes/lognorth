@@ -25,8 +25,8 @@ export default function Trace({ traceId, entries = [], appId, appName, applicati
           <Hash className="w-5 h-5 text-black/40" />
           <h1 className="text-xl font-bold text-black font-mono">{traceId}</h1>
           {hasError && (
-            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">
-              Error
+            <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-semibold">
+              ERROR
             </span>
           )}
         </div>
@@ -39,7 +39,7 @@ export default function Trace({ traceId, entries = [], appId, appName, applicati
       </div>
 
       {/* Timeline */}
-      <div className="border-2 border-black/10 rounded-sm overflow-hidden">
+      <div className="border-2 border-black/10 overflow-hidden">
         {entries.map((entry, idx) => {
           const config = getConfig(entry.is_error)
           const Icon = config.icon
@@ -55,7 +55,7 @@ export default function Trace({ traceId, entries = [], appId, appName, applicati
             >
               {/* Step indicator */}
               <div className="flex flex-col items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${config.colors}`}>
+                <div className={`w-8 h-8 flex items-center justify-center ${config.colors}`}>
                   <Icon className="w-4 h-4" />
                 </div>
                 {!isLast && (
@@ -80,10 +80,10 @@ export default function Trace({ traceId, entries = [], appId, appName, applicati
                     <span className="font-mono font-semibold text-purple-600">{ctx.job}</span>
                   )}
                   {isFirst && (
-                    <span className="text-xs bg-black/5 text-black/60 px-1.5 py-0.5 rounded">start</span>
+                    <span className="text-xs bg-black text-white px-1.5 py-0.5 font-semibold">START</span>
                   )}
                   {isLast && entries.length > 1 && (
-                    <span className="text-xs bg-black/5 text-black/60 px-1.5 py-0.5 rounded">end</span>
+                    <span className="text-xs bg-black text-white px-1.5 py-0.5 font-semibold">END</span>
                   )}
                 </div>
                 <p className="text-sm text-black/80 font-mono truncate">{entry.message}</p>

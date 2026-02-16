@@ -18,6 +18,13 @@ type Application struct {
 }
 
 // getAppFromURL extracts app ID from URL and validates it
+func formatTimeOrEmpty(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format(time.RFC3339)
+}
+
 func getAppFromURL(ctx *cartridge.Context) (*apikeys.APIKey, []Application, error) {
 	db := ctx.DB()
 
@@ -64,8 +71,10 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 		"applications": apps,
 		"entries":      entries,
 		"filters": fiber.Map{
-			"is_error": filters.IsError,
-			"search":   filters.Search,
+			"is_error":   filters.IsError,
+			"search":     filters.Search,
+			"start_time": formatTimeOrEmpty(filters.StartTime),
+			"end_time":   formatTimeOrEmpty(filters.EndTime),
 		},
 		"pagination": fiber.Map{
 			"limit":  filters.Limit,

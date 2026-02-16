@@ -37,7 +37,7 @@ export default function IssueDetailPage({ issue, appId, appName, applications }:
       {/* Issue Header */}
       <div className="mb-8">
         <div className="flex items-start gap-3 mb-4">
-          <div className="p-2 rounded bg-red-100 shrink-0 mt-0.5">
+          <div className="p-2 bg-red-100 shrink-0 mt-0.5">
             <AlertTriangle className="w-5 h-5 text-red-700" />
           </div>
           <div className="min-w-0">
@@ -78,7 +78,7 @@ export default function IssueDetailPage({ issue, appId, appName, applications }:
               {issue.paths?.map((path, i) => (
                 <code
                   key={i}
-                  className="bg-black/[0.03] text-black/70 px-2 py-1 text-sm font-mono rounded"
+                  className="bg-black/[0.03] text-black/70 px-2 py-1 text-sm font-mono"
                 >
                   {path}
                 </code>
@@ -129,14 +129,14 @@ function LogRow({ entry, detailPath, appName }: { entry: LogEntry; detailPath: s
       href={detailPath}
       className="flex items-center gap-4 py-3 px-4 hover:bg-black/[0.02] transition-colors"
     >
-      <div className={`p-1.5 rounded ${config.colors}`}>
+      <div className={`p-1.5 ${config.colors}`}>
         <Icon className="w-3.5 h-3.5" />
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm">
           {appName && (
-            <span className="text-xs bg-black/5 text-black/60 px-1.5 py-0.5 rounded font-medium">
+            <span className="text-xs bg-black/5 text-black/60 px-1.5 py-0.5 font-medium">
               {appName}
             </span>
           )}

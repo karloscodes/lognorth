@@ -17,7 +17,7 @@ export default function Home({ applications = [] }: Props) {
             Know when things break.
           </h1>
           <p className="text-black/60 mb-6">
-            Simple error tracking. No configuration spaceship.
+            Your errors. Your server. Your data.
           </p>
           <a
             href="/apps"
@@ -32,16 +32,22 @@ export default function Home({ applications = [] }: Props) {
 
   return (
     <Layout currentPath="/" applications={applications}>
-      {/* Status - one line */}
-      <div className="mb-8">
+      {/* Status */}
+      <div className="mb-10">
         {totalErrors > 0 ? (
-          <p className="text-xl font-bold text-red-600">
-            {totalErrors} error{totalErrors !== 1 ? 's' : ''}
-          </p>
+          <div>
+            <p className="text-3xl font-bold text-red-600">
+              <span className="font-mono tabular-nums">{totalErrors}</span> errors
+            </p>
+            <p className="text-sm text-black/50 mt-1">Time to fix something.</p>
+          </div>
         ) : (
-          <p className="text-xl font-bold text-[#00D678]">
-            No errors
-          </p>
+          <div>
+            <p className="text-3xl font-bold text-[#00D678]">
+              All clear
+            </p>
+            <p className="text-sm text-black/50 mt-1">Nice work.</p>
+          </div>
         )}
       </div>
 
@@ -63,11 +69,11 @@ export default function Home({ applications = [] }: Props) {
               <span className="font-bold text-black text-lg">{app.name}</span>
 
               {errors > 0 ? (
-                <span className="font-mono text-lg font-bold text-red-600">
+                <span className="font-mono tabular-nums text-lg font-bold text-red-600">
                   {errors}
                 </span>
               ) : (
-                <span className="w-3 h-3 rounded-full bg-[#00D678]" />
+                <span className="w-3 h-3 bg-[#00D678]" />
               )}
             </a>
           )

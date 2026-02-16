@@ -21,8 +21,8 @@ export default function Onboarding({ step, email, flash }: Props) {
       <div className="w-full max-w-sm px-6">
         {/* Logo */}
         <div className="text-center mb-8">
-          <span className="text-4xl font-bold tracking-tight">LogNorth</span>
-          <p className="text-sm font-medium text-black/60 mt-2">Smarter logs. Self-hosted.</p>
+          <span className="text-4xl font-black tracking-tight">LogNorth</span>
+          <p className="text-sm font-medium text-black/60 mt-2">Error tracking you own.</p>
         </div>
 
         {/* Progress */}

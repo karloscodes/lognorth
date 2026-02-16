@@ -88,7 +88,7 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
     <Layout currentPath="/settings">
       <div className="max-w-md">
         <h1 className="text-2xl font-bold text-black mb-2">Notifications</h1>
-        <p className="text-black/80 mb-8">Get notified when things break.</p>
+        <p className="text-black/50 text-sm mb-8">Know the moment something breaks.</p>
 
         <div className="space-y-6">
           {/* Channel selector */}
@@ -143,10 +143,8 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
                   placeholder="https://ntfy.sh/your-secret-topic"
                   className="w-full px-3 py-2 border border-black/20 text-sm focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
                 />
-                <p className="text-sm text-black/80 mt-1">
-                  1. Install the <a href="https://ntfy.sh" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">ntfy app</a> on your phone or desktop<br />
-                  2. Subscribe to a topic with a random name (e.g., <code className="text-black/80 bg-black/5 px-1">lognorth-abc123</code>)<br />
-                  3. Paste the full URL here (e.g., <code className="text-black/80 bg-black/5 px-1">https://ntfy.sh/lognorth-abc123</code>)
+                <p className="text-sm text-black/50 mt-2">
+                  Get the free <a href="https://ntfy.sh" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">ntfy app</a>, pick a secret topic name, paste the URL here. Done.
                 </p>
               </div>
 
@@ -276,8 +274,8 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
           <div
             className={`mt-6 p-3 text-sm font-medium ${
               message.type === 'success'
-                ? 'bg-[#00D678]/10 text-black'
-                : 'bg-red-500/10 text-red-600'
+                ? 'bg-[#00D678]/10 text-black border border-[#00D678]/20'
+                : 'bg-red-50 text-red-600 border border-red-200'
             }`}
           >
             {message.text}
@@ -296,9 +294,9 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
             <button
               onClick={handleTest}
               disabled={testing || !canTest}
-              className="px-4 py-2 border-2 border-black/20 text-sm font-semibold text-black/80 hover:border-black/40 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 border border-black/20 text-sm font-semibold text-black/70 hover:border-black/40 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {testing ? 'Sending...' : 'Test notification'}
+              {testing ? 'Testing...' : 'Test notification'}
             </button>
           )}
         </div>

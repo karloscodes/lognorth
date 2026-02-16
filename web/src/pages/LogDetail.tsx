@@ -24,9 +24,9 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
   return (
     <Layout currentPath="/log" appId={appId} appName={appName} applications={applications}>
       {/* Header Card */}
-      <div className="border-2 border-black/10 rounded-sm overflow-hidden mb-8">
+      <div className="border-2 border-black/10 overflow-hidden mb-8">
         <div className="flex items-center gap-4 p-6">
-          <div className={`p-3 rounded ${config.colors}`}>
+          <div className={`p-3 ${config.colors}`}>
             <Icon className="w-6 h-6" />
           </div>
           <div className="flex-1 min-w-0">
@@ -79,10 +79,10 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
             {entry.trace_id ? (
               <a
                 href={`/trace/${entry.trace_id}`}
-                className="inline-flex items-center gap-1.5 text-sm font-mono text-blue-600 hover:text-blue-800 underline underline-offset-2"
+                className="inline-flex items-center gap-1.5 text-sm font-mono text-black hover:text-black/70"
               >
                 {entry.trace_id.slice(0, 12)}...
-                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded no-underline">View trace</span>
+                <span className="text-[10px] bg-black text-white px-1.5 py-0.5 font-semibold">→</span>
               </a>
             ) : (
               <p className="text-sm text-black/80 font-mono truncate">—</p>
@@ -109,7 +109,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {ctx.error && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-red-700 uppercase tracking-wider mb-3">Error</h3>
-          <div className="bg-red-50 border border-red-100 rounded-sm p-4">
+          <div className="bg-red-50 border-2 border-red-200 p-4">
             <pre className="text-sm font-mono whitespace-pre-wrap text-red-800 break-words">
               {ctx.error}
             </pre>
@@ -121,7 +121,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {ctx.user_agent && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-3">User Agent</h3>
-          <p className="text-sm text-black/70 font-mono break-all bg-black/[0.02] p-3 rounded-sm">
+          <p className="text-sm text-black/70 font-mono break-all bg-black/[0.02] p-3">
             {ctx.user_agent}
           </p>
         </div>
@@ -131,7 +131,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {ctx.extra && Object.keys(ctx.extra).length > 0 && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-3">Context</h3>
-          <div className="border border-black/10 rounded-sm divide-y divide-black/5">
+          <div className="border-2 border-black/10 divide-y divide-black/5">
             {Object.entries(ctx.extra).map(([key, value]) => (
               <div key={key} className="flex gap-4 px-4 py-2.5 text-sm">
                 <span className="text-black/70 w-32 shrink-0">{key}</span>
@@ -146,7 +146,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {ctx.headers && Object.keys(ctx.headers).length > 0 && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-3">Headers</h3>
-          <div className="border border-black/10 rounded-sm divide-y divide-black/5">
+          <div className="border-2 border-black/10 divide-y divide-black/5">
             {Object.entries(ctx.headers).map(([key, value]) => (
               <div key={key} className="flex gap-4 px-4 py-2.5 text-sm">
                 <span className="text-black/70 font-mono w-48 shrink-0">{key}</span>
@@ -161,7 +161,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {ctx.body && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-3">Body</h3>
-          <pre className="font-mono text-sm bg-black text-white p-4 overflow-x-auto rounded-sm">
+          <pre className="font-mono text-sm bg-black text-white p-4 overflow-x-auto">
             {ctx.body}
           </pre>
         </div>
@@ -173,7 +173,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
           <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-4">
             Timeline ({relatedEntries.length} entries)
           </h3>
-          <div className="border border-black/10 rounded-sm overflow-hidden">
+          <div className="border-2 border-black/10 overflow-hidden">
             {relatedEntries.map((e, idx) => {
               const eConfig = getConfig(e.is_error)
               const EIcon = eConfig.icon
@@ -191,7 +191,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                   <div className="w-6 h-6 flex items-center justify-center">
                     <span className="text-xs text-black/70 font-mono">{idx + 1}</span>
                   </div>
-                  <div className={`p-1.5 rounded flex items-center justify-center ${eConfig.colors}`}>
+                  <div className={`p-1.5 flex items-center justify-center ${eConfig.colors}`}>
                     <EIcon className="w-3 h-3" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -208,8 +208,8 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                         <span className="font-mono text-sm font-semibold text-purple-600">{eCtx.job}</span>
                       )}
                       {isCurrent && (
-                        <span className="text-xs bg-black text-white px-1.5 py-0.5 rounded-full">
-                          current
+                        <span className="text-xs bg-black text-white px-1.5 py-0.5 font-semibold">
+                          CURRENT
                         </span>
                       )}
                     </div>

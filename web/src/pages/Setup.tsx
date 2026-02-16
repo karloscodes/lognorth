@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Copy, Check, Trash2 } from 'lucide-react'
+import { Copy, Check, Trash2, Key, Activity } from 'lucide-react'
 import { Layout } from '@/components/layout'
 
 interface APIKey {
@@ -46,8 +46,8 @@ export default function Setup({ apiKeys = [], flash }: Props) {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="w-full max-w-sm px-6">
           <div className="text-center mb-8">
-            <span className="text-4xl font-bold tracking-tight">LogNorth</span>
-            <p className="text-sm font-medium text-black/60 mt-2">Smarter logs. Self-hosted.</p>
+            <span className="text-4xl font-black tracking-tight">LogNorth</span>
+            <p className="text-sm font-medium text-black/60 mt-2">Error tracking you own.</p>
           </div>
 
           <h1 className="text-xl font-bold text-black text-center mb-6">Add your first app</h1>
@@ -83,7 +83,15 @@ export default function Setup({ apiKeys = [], flash }: Props) {
 
   return (
     <Layout currentPath="/apps">
-      <div className="max-w-xl">
+      <div className="max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-black">Apps</h1>
+          <p className="text-sm text-black/50 mt-1">
+            <span className="font-mono tabular-nums">{activeApps.length}</span> app{activeApps.length !== 1 ? 's' : ''} configured
+          </p>
+        </div>
+
         {/* New key alert */}
         {flash?.newKey && (
           <section className="mb-8">
@@ -107,108 +115,112 @@ export default function Setup({ apiKeys = [], flash }: Props) {
         )}
 
         {/* Apps grid */}
-        <section className="mb-8">
-          <div className="grid grid-cols-2 gap-4">
-            {activeApps.map((app) => {
-              const isActive = app.last_seen && (Date.now() / 1000 - app.last_seen) < 3600
-              const isShowingKey = showKeyFor === app.id
-              return (
-                <div
-                  key={app.id}
-                  className="group relative border-2 border-black/10 hover:border-black/20 p-5 transition-colors"
-                >
-                  <a href={`/apps/${app.id}/issues`} className="block">
-                    <div className="flex items-start justify-between mb-3">
-                      <span className="text-lg font-semibold text-black">{app.name}</span>
-                      {isActive && <span className="w-2.5 h-2.5 rounded-full bg-[#00D678] mt-1.5" />}
-                    </div>
-                    <div className="text-sm text-black/80">
-                      {app.today_total > 0 ? (
-                        <span>{app.today_total.toLocaleString()} requests today</span>
-                      ) : app.last_seen ? (
-                        <span>No activity today</span>
-                      ) : (
-                        <span className="text-black/50">No events yet</span>
-                      )}
-                    </div>
-                  </a>
+        <div className="grid gap-4">
+          {activeApps.map((app) => {
+            const isActive = app.last_seen && (Date.now() / 1000 - app.last_seen) < 3600
+            const isShowingKey = showKeyFor === app.id
+            const hasData = app.last_seen !== null
 
-                  {/* Show setup instructions if no data yet */}
-                  {!app.last_seen && !isShowingKey && (
-                    <div className="mt-3 pt-3 border-t border-black/10">
-                      <p className="text-xs text-black/60 mb-2">Send your first event:</p>
-                      <code className="block bg-black/[0.03] p-2 text-xs font-mono text-black/80 break-all">
-                        curl -X POST {window.location.origin}/api/v1/events \<br />
-                        &nbsp;&nbsp;-H "X-API-Key: {app.key_prefix}..." \<br />
-                        &nbsp;&nbsp;-d '{`{"message":"Hello"}`}'
-                      </code>
-                    </div>
-                  )}
+            return (
+              <div
+                key={app.id}
+                className={`bg-white border overflow-hidden group ${
+                  isActive
+                    ? 'border-[#00D678]/30 border-l-4 border-l-[#00D678]'
+                    : 'border-black/10'
+                }`}
+              >
+                {/* Main row */}
+                <div className="flex items-center gap-5 p-5">
+                  {/* Status indicator */}
+                  <div className="w-3 h-3 shrink-0">
+                    {isActive ? (
+                      <span className="block w-full h-full rounded-full bg-[#00D678]" />
+                    ) : hasData ? (
+                      <span className="block w-full h-full rounded-full bg-black/20" />
+                    ) : (
+                      <span className="block w-full h-full rounded-full border-2 border-dashed border-black/30" />
+                    )}
+                  </div>
 
-                  {/* Show key section */}
-                  {isShowingKey ? (
-                    <div className="mt-3 pt-3 border-t border-black/10">
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 bg-black/[0.03] p-2 text-xs font-mono break-all select-all text-black">
-                          {app.key}
-                        </code>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(app.key)
-                            setCopiedKey(app.id)
-                            setTimeout(() => setCopiedKey(null), 2000)
-                          }}
-                          className="p-2 border border-black/20 hover:bg-black/[0.02] transition-colors"
-                        >
-                          {copiedKey === app.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4 text-black/70" />}
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowKeyFor(null)}
-                        className="text-xs text-black/60 hover:text-black mt-2"
-                      >
-                        Hide
-                      </button>
+                  {/* App info */}
+                  <div className="flex-1 min-w-0">
+                    <a href={`/apps/${app.id}/issues`} className="block">
+                      <span className="text-lg font-bold text-black hover:underline">{app.name}</span>
+                    </a>
+                    <div className="flex items-center gap-4 mt-1 text-sm text-black/50">
+                      <span className="flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5" />
+                        {app.today_total > 0 ? (
+                          <><span className="font-mono tabular-nums">{app.today_total.toLocaleString()}</span> today</>
+                        ) : hasData ? (
+                          'No activity today'
+                        ) : (
+                          'Waiting for events'
+                        )}
+                      </span>
                     </div>
-                  ) : (
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-3 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setShowKeyFor(app.id)}
-                      className="mt-3 text-xs text-black/60 hover:text-black"
+                      onClick={() => setShowKeyFor(isShowingKey ? null : app.id)}
+                      className="flex items-center gap-1.5 text-sm text-black/50 hover:text-black px-3 py-1.5 border border-black/10 hover:border-black/20 transition-colors"
                     >
-                      Show API key
+                      <Key className="w-3.5 h-3.5" />
+                      {isShowingKey ? 'Hide' : 'API Key'}
                     </button>
-                  )}
-
-                  <form
-                    action={`/apps/api-keys/${app.id}`}
-                    method="POST"
-                    onSubmit={(e) => {
-                      if (!confirm(`Delete "${app.name}"? This will stop tracking for this app.`)) {
-                        e.preventDefault()
-                      }
-                    }}
-                    className="absolute top-3 right-3"
-                  >
-                    <input type="hidden" name="_method" value="DELETE" />
-                    <button
-                      type="submit"
-                      className="p-2 opacity-0 group-hover:opacity-100 text-black/50 hover:text-red-600 transition-all"
-                      title="Delete"
+                    <form
+                      action={`/apps/api-keys/${app.id}`}
+                      method="POST"
+                      onSubmit={(e) => {
+                        if (!confirm(`Delete "${app.name}"? This will stop tracking for this app.`)) {
+                          e.preventDefault()
+                        }
+                      }}
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </form>
+                      <input type="hidden" name="_method" value="DELETE" />
+                      <button
+                        type="submit"
+                        className="p-2 opacity-0 group-hover:opacity-100 text-black/30 hover:text-red-600 hover:bg-red-50 transition-all"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </form>
+                  </div>
                 </div>
-              )
-            })}
 
-            {/* Add app card */}
-            <AddAppCard />
-          </div>
-        </section>
+                {/* API Key display */}
+                {isShowingKey && (
+                  <div className="px-5 pb-5 pt-0">
+                    <div className="flex items-center gap-2 p-3 bg-black/[0.02] border border-black/5">
+                      <code className="flex-1 text-sm font-mono break-all select-all text-black">
+                        {app.key}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(app.key)
+                          setCopiedKey(app.id)
+                          setTimeout(() => setCopiedKey(null), 2000)
+                        }}
+                        className="p-2 bg-white border border-black/20 hover:border-black/40 transition-colors"
+                      >
+                        {copiedKey === app.id ? <Check className="w-4 h-4 text-[#00D678]" /> : <Copy className="w-4 h-4 text-black/70" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Add app card */}
+          <AddAppCard />
+        </div>
       </div>
     </Layout>
   )
@@ -222,44 +234,42 @@ function AddAppCard() {
     return (
       <button
         onClick={() => setShowForm(true)}
-        className="border-2 border-dashed border-black/20 hover:border-black/40 p-5 text-black/70 hover:text-black transition-colors text-left"
+        className="w-full p-5 text-left border-2 border-dashed border-black/10 hover:border-black/30 hover:bg-black/[0.01] transition-colors"
       >
-        <span className="text-lg font-semibold">+ Add app</span>
+        <span className="text-lg font-semibold text-black/40 hover:text-black">+ Add app</span>
       </button>
     )
   }
 
   return (
-    <div className="border-2 border-black/20 p-5">
-      <form action="/apps/api-keys" method="POST">
+    <div className="p-5 border border-black/10 bg-white">
+      <form action="/apps/api-keys" method="POST" className="flex gap-3">
         <input
           type="text"
           name="name"
-          placeholder="App name"
+          placeholder="App name (e.g. Production)"
           value={appName}
           onChange={(e) => setAppName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setShowForm(false)
           }}
           autoFocus
-          className="w-full px-3 py-2 bg-white border border-black/20 text-sm focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40 mb-3"
+          className="flex-1 px-4 py-2.5 bg-white border border-black/20 focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
         />
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={!appName.trim()}
-            className="flex-1 px-3 py-2 bg-black text-white text-sm font-medium hover:bg-black/80 disabled:opacity-40 transition-colors"
-          >
-            Add
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowForm(false)}
-            className="px-3 py-2 text-sm text-black/60 hover:text-black transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
+        <button
+          type="submit"
+          disabled={!appName.trim()}
+          className="px-5 py-2.5 bg-black text-white font-semibold hover:bg-black/80 disabled:opacity-40 transition-colors"
+        >
+          Create
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowForm(false)}
+          className="px-4 py-2.5 text-black/50 hover:text-black transition-colors"
+        >
+          Cancel
+        </button>
       </form>
     </div>
   )

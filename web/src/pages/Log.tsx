@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { router } from '@inertiajs/react'
 import { formatDistanceToNow } from 'date-fns'
-import { Search, Inbox, ChevronRight } from 'lucide-react'
+import { Search, Inbox, ChevronRight, Layers } from 'lucide-react'
 import { Layout } from '@/components/layout'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,8 @@ import type { Application, LogEntry } from '@/lib/shared'
 interface Filters {
   is_error?: boolean
   search?: string
+  start_time?: string
+  end_time?: string
 }
 
 interface Pagination {
@@ -78,78 +80,71 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
           {ctx.status || '—'}
         </span>
         <span className="text-black/50 text-xs">{entry.duration_ms}ms</span>
-        <span className="text-black/40 text-xs ml-auto">
+        <span className="text-black/50 text-xs ml-auto">
           {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
         </span>
       </a>
     )
   }
 
-  // Pro two-line layout: scannable, clean, informative
   const isError = entry.is_error
-  const hasPath = ctx.path || ctx.job
 
   return (
     <a
       href={href}
-      className={`block py-4 px-5 transition-colors hover:bg-black/[0.02] ${isError ? 'border-l-2 border-l-red-500' : ''}`}
+      className={`block py-4 px-5 transition-colors hover:bg-black/[0.02] border-l-2 ${isError ? 'border-l-red-500' : 'border-l-transparent'}`}
     >
-      {/* Line 1: Timestamp + Method/Job + Path */}
       <div className="flex items-center gap-3">
-        {/* Timestamp - always visible, muted */}
-        <span className="text-xs text-black/40 tabular-nums w-20 shrink-0">
+        {/* Timestamp */}
+        <span className="text-xs text-black/50 tabular-nums w-20 shrink-0">
           {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
         </span>
 
-        {/* Method badge or Job badge */}
-        {ctx.method ? (
-          <span className={`font-mono text-xs font-semibold px-1.5 py-0.5 rounded ${methodColor(ctx.method)} bg-black/[0.04]`}>
-            {ctx.method}
-          </span>
-        ) : ctx.job ? (
-          <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded text-purple-700 bg-purple-50">
-            {ctx.job}
-          </span>
-        ) : null}
+        {/* Type badge - fixed width for alignment */}
+        <span className="w-16 shrink-0">
+          {ctx.method ? (
+            <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+              {ctx.method}
+            </span>
+          ) : ctx.job ? (
+            <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+              JOB
+            </span>
+          ) : null}
+        </span>
 
-        {/* Path - the main content */}
-        {ctx.path && (
-          <span className="font-mono text-sm text-black font-medium truncate">
-            {ctx.path}
-          </span>
-        )}
+        {/* Path or Job name */}
+        <span className="font-mono text-sm text-black font-medium truncate flex-1">
+          {ctx.path || ctx.job || entry.message}
+        </span>
 
-        {/* Right side: Status + Duration */}
-        <div className="flex items-center gap-3 ml-auto shrink-0">
-          {ctx.status && (
-            <span className={`font-mono text-sm font-semibold ${
+        {/* Status + Duration */}
+        <div className="flex items-center gap-3 shrink-0">
+          {ctx.status ? (
+            <span className={`font-mono text-sm font-semibold w-10 text-right ${
               ctx.status >= 500 ? 'text-red-600' :
-              ctx.status >= 400 ? 'text-amber-600' :
-              'text-black/40'
+              ctx.status >= 400 ? 'text-black' :
+              'text-black/50'
             }`}>
               {ctx.status}
             </span>
+          ) : (
+            <span className="w-10" />
           )}
-          <span className="font-mono text-xs text-black/40 tabular-nums">
+          <span className="font-mono text-xs text-black/50 tabular-nums w-16 text-right">
             {entry.duration_ms}ms
           </span>
         </div>
       </div>
 
-      {/* Line 2: Message or Error - only if meaningful */}
-      {(isError && ctx.error) || (!hasPath && entry.message) ? (
-        <div className="mt-2 pl-[92px]">
-          {isError && ctx.error ? (
-            <p className="text-sm text-red-600 truncate">
-              {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
-            </p>
-          ) : (
-            <p className="text-sm text-black/60 truncate">
-              {entry.message}
-            </p>
-          )}
+      {/* Error message */}
+      {isError && ctx.error && (
+        <div className="mt-2 pl-[168px]">
+          <p className="text-sm text-red-600 truncate">
+            {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
+          </p>
         </div>
-      ) : null}
+      )}
     </a>
   )
 }
@@ -162,81 +157,79 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
   const totalDuration = entries.reduce((sum, e) => sum + e.duration_ms, 0)
   const ctx = parseContext(mainEntry.context)
   const isError = mainEntry.is_error
-  const hasPath = ctx.path || ctx.job
 
   return (
     <div className="border-b border-black/10 last:border-b-0">
-      <div className={`flex items-stretch ${isError ? 'border-l-2 border-l-red-500' : ''}`}>
+      <div className={`flex items-stretch border-l-2 ${isError ? 'border-l-red-500' : 'border-l-transparent'}`}>
         {hasMultiple && (
           <button
             onClick={() => setExpanded(!expanded)}
             className="px-3 hover:bg-black/[0.02] transition-colors flex items-center"
           >
-            <ChevronRight className={`w-4 h-4 text-black/40 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+            <ChevronRight className={`w-4 h-4 text-black/50 transition-transform ${expanded ? 'rotate-90' : ''}`} />
           </button>
         )}
         <a
           href={href}
           className={`flex-1 block py-4 pr-5 transition-colors hover:bg-black/[0.02] ${hasMultiple ? '' : 'pl-5'}`}
         >
-          {/* Line 1: Timestamp + Method/Job + Path */}
           <div className="flex items-center gap-3">
-            <span className="text-xs text-black/40 tabular-nums w-20 shrink-0">
+            {/* Timestamp */}
+            <span className="text-xs text-black/50 tabular-nums w-20 shrink-0">
               {formatDistanceToNow(new Date(mainEntry.timestamp), { addSuffix: true })}
             </span>
 
-            {ctx.method ? (
-              <span className={`font-mono text-xs font-semibold px-1.5 py-0.5 rounded ${methodColor(ctx.method)} bg-black/[0.04]`}>
-                {ctx.method}
-              </span>
-            ) : ctx.job ? (
-              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded text-purple-700 bg-purple-50">
-                {ctx.job}
-              </span>
-            ) : null}
+            {/* Type badge - fixed width */}
+            <span className="w-16 shrink-0">
+              {ctx.method ? (
+                <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+                  {ctx.method}
+                </span>
+              ) : ctx.job ? (
+                <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+                  JOB
+                </span>
+              ) : null}
+            </span>
 
-            {ctx.path && (
-              <span className="font-mono text-sm text-black font-medium truncate">
-                {ctx.path}
-              </span>
-            )}
+            {/* Path or Job name */}
+            <span className="font-mono text-sm text-black font-medium truncate flex-1">
+              {ctx.path || ctx.job || mainEntry.message}
+            </span>
 
             {hasMultiple && (
-              <span className="text-xs text-black/50 font-medium">
+              <span className="text-xs text-black/50 font-medium shrink-0">
                 ×{entries.length}
               </span>
             )}
 
-            <div className="flex items-center gap-3 ml-auto shrink-0">
-              {ctx.status && (
-                <span className={`font-mono text-sm font-semibold ${
+            {/* Status + Duration */}
+            <div className="flex items-center gap-3 shrink-0">
+              {ctx.status ? (
+                <span className={`font-mono text-sm font-semibold w-10 text-right ${
                   ctx.status >= 500 ? 'text-red-600' :
-                  ctx.status >= 400 ? 'text-amber-600' :
-                  'text-black/40'
+                  ctx.status >= 400 ? 'text-black' :
+                  'text-black/50'
                 }`}>
                   {ctx.status}
                 </span>
+              ) : (
+                <span className="w-10" />
               )}
-              <span className="font-mono text-xs text-black/40 tabular-nums">
+              <span className="font-mono text-xs text-black/50 tabular-nums w-16 text-right">
                 {totalDuration}ms
               </span>
             </div>
           </div>
 
-          {/* Line 2: Error message if applicable */}
-          {(isError && ctx.error) || (!hasPath && mainEntry.message) ? (
-            <div className="mt-2 pl-[92px]">
-              {isError && ctx.error ? (
-                <p className="text-sm text-red-600 truncate">
-                  {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
-                </p>
-              ) : (
-                <p className="text-sm text-black/60 truncate">
-                  {mainEntry.message}
-                </p>
-              )}
+          {/* Error message */}
+          {isError && ctx.error && (
+            <div className="mt-2 pl-[168px]">
+              <p className="text-sm text-red-600 truncate">
+                {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
+              </p>
             </div>
-          ) : null}
+          )}
         </a>
       </div>
 
@@ -259,12 +252,44 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
   )
 }
 
+type DatePreset = 'all' | 'today' | '7d' | '30d'
+
+const getDatePresetFromFilters = (filters: Filters): DatePreset => {
+  if (!filters.start_time) return 'all'
+  const start = new Date(filters.start_time)
+  const now = new Date()
+  const diffDays = Math.round((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays <= 1) return 'today'
+  if (diffDays <= 7) return '7d'
+  if (diffDays <= 30) return '30d'
+  return 'all'
+}
+
+const getStartTimeForPreset = (preset: DatePreset): string | undefined => {
+  if (preset === 'all') return undefined
+  const now = new Date()
+  if (preset === 'today') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    return start.toISOString()
+  }
+  if (preset === '7d') {
+    const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    return start.toISOString()
+  }
+  if (preset === '30d') {
+    const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    return start.toISOString()
+  }
+  return undefined
+}
+
 export default function Log({ entries: initialEntries = [], filters = {}, pagination = { limit: 50, offset: 0, total: 0 }, appId, appName, applications }: Props) {
   const [entries, setEntries] = useState(initialEntries)
   const [search, setSearch] = useState(filters.search || '')
   const [errorFilter, setErrorFilter] = useState<string>(
     filters.is_error === true ? 'errors' : filters.is_error === false ? 'success' : 'all'
   )
+  const [datePreset, setDatePreset] = useState<DatePreset>(() => getDatePresetFromFilters(filters))
   const [groupEnabled, setGroupEnabled] = useState(() => {
     try {
       return localStorage.getItem('log_group_by_trace') === 'true'
@@ -329,12 +354,15 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
     }
   }
 
-  const applyFilters = (newFilters?: { errorFilter?: string }) => {
+  const applyFilters = (newFilters?: { errorFilter?: string; datePreset?: DatePreset }) => {
     const params = new URLSearchParams()
     const filterValue = newFilters?.errorFilter ?? errorFilter
+    const dateValue = newFilters?.datePreset ?? datePreset
     if (search) params.set('search', search)
     if (filterValue === 'errors') params.set('is_error', 'true')
     if (filterValue === 'success') params.set('is_error', 'false')
+    const startTime = getStartTimeForPreset(dateValue)
+    if (startTime) params.set('start_time', startTime)
     router.visit(`${basePath}?${params.toString()}`)
   }
 
@@ -344,13 +372,19 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
     applyFilters({ errorFilter: value })
   }
 
+  const handleDateFilter = (preset: DatePreset) => {
+    setDatePreset(preset)
+    applyFilters({ datePreset: preset })
+  }
+
   const clearFilters = () => {
     setSearch('')
     setErrorFilter('all')
+    setDatePreset('all')
     router.visit(basePath)
   }
 
-  const hasFilters = search || errorFilter !== 'all'
+  const hasFilters = search || errorFilter !== 'all' || datePreset !== 'all'
   const totalPages = Math.ceil(pagination.total / pagination.limit)
   const currentPage = Math.floor(pagination.offset / pagination.limit) + 1
 
@@ -362,15 +396,18 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-black">Logs</h1>
             {liveEnabled && (
-              <span className="flex items-center gap-1.5 px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              <span className="flex items-center gap-1.5 px-2 py-1 bg-red-600 text-white text-xs font-semibold">
+                <span className="w-1.5 h-1.5 bg-white animate-pulse" />
                 Live
               </span>
             )}
           </div>
           <p className="text-sm text-black/50 mt-1">
-            {liveEnabled ? 'Streaming new entries' : `${pagination.total.toLocaleString()} entries`}
-            {hasFilters && !liveEnabled && ' (filtered)'}
+            {liveEnabled ? (
+              'Streaming'
+            ) : (
+              <><span className="font-mono tabular-nums">{pagination.total.toLocaleString()}</span> entr{pagination.total !== 1 ? 'ies' : 'y'}{hasFilters && ' (filtered)'}</>
+            )}
           </p>
         </div>
 
@@ -378,20 +415,20 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
         {appId && (
           <button
             onClick={() => toggleLive(!liveEnabled)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all ${
               liveEnabled
-                ? 'bg-red-100 text-red-700 border border-red-200'
-                : 'bg-white text-black/60 border border-black/10 hover:border-black/20'
+                ? 'bg-red-600 text-white'
+                : 'border border-black/20 text-black/70 hover:border-black/40 hover:text-black'
             }`}
           >
-            <span className={`w-2 h-2 rounded-full ${liveEnabled ? 'bg-red-500 animate-pulse' : 'bg-black/20'}`} />
+            <span className={`w-2 h-2 ${liveEnabled ? 'bg-white animate-pulse' : 'bg-[#00D678]'}`} />
             {liveEnabled ? 'Stop' : 'Live'}
           </button>
         )}
       </div>
 
       {/* Filters Bar */}
-      <div className="flex items-center gap-4 mb-6 p-4 bg-white rounded-xl border border-black/10">
+      <div className="flex items-center gap-4 mb-6 p-4 bg-white border border-black/10">
         {/* Error Filter - ToggleGroup */}
         <ToggleGroup type="single" value={errorFilter} onValueChange={handleErrorFilter} disabled={liveEnabled}>
           <ToggleGroupItem value="all" aria-label="All">All</ToggleGroupItem>
@@ -401,16 +438,26 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
 
         <div className="h-5 w-px bg-black/10" />
 
+        {/* Date Filter */}
+        <ToggleGroup type="single" value={datePreset} onValueChange={(v) => v && handleDateFilter(v as DatePreset)} disabled={liveEnabled}>
+          <ToggleGroupItem value="today" aria-label="Today">Today</ToggleGroupItem>
+          <ToggleGroupItem value="7d" aria-label="7 days">7d</ToggleGroupItem>
+          <ToggleGroupItem value="30d" aria-label="30 days">30d</ToggleGroupItem>
+          <ToggleGroupItem value="all" aria-label="All time">All</ToggleGroupItem>
+        </ToggleGroup>
+
+        <div className="h-5 w-px bg-black/10" />
+
         {/* Search */}
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/30" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
           <Input
             type="text"
             placeholder="Search logs..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
-            className="pl-9 bg-black/[0.02] border-0"
+            className="pl-9 bg-black/[0.02] border-black/10"
             disabled={liveEnabled}
           />
         </div>
@@ -427,27 +474,28 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
         <button
           onClick={() => !liveEnabled && toggleGrouping(!groupEnabled)}
           disabled={liveEnabled}
-          className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+          className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold transition-all ${
             groupEnabled
               ? 'bg-black text-white'
-              : 'text-black/50 hover:text-black hover:bg-black/[0.03]'
+              : 'text-black/50 hover:text-black hover:bg-black/[0.02]'
           } ${liveEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          Group by trace
+          <Layers className="w-4 h-4" />
+          Group
         </button>
       </div>
 
       {/* Log List */}
       {entries.length === 0 ? (
-        <div className="bg-white rounded-xl border border-black/10 py-16 text-center">
+        <div className="bg-white border border-black/10 py-16 text-center">
           <Inbox className="w-10 h-10 text-black/20 mx-auto mb-4" />
           <p className="font-semibold text-black mb-1">
-            {hasFilters ? 'Nothing matches' : 'No log entries yet'}
+            {hasFilters ? 'No matches' : 'Quiet so far'}
           </p>
           <p className="text-sm text-black/50">
             {hasFilters
-              ? 'Try adjusting your filters or search terms.'
-              : 'Log entries from your app will show up here.'}
+              ? 'Try different filters.'
+              : 'Requests will show up here once your app sends them.'}
           </p>
           {hasFilters && (
             <Button variant="link" onClick={clearFilters} className="mt-4">
@@ -456,13 +504,13 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           )}
         </div>
       ) : groupEnabled ? (
-        <div className="bg-white rounded-xl border border-black/10 overflow-hidden">
+        <div className="bg-white border border-black/10 overflow-hidden">
           {logGroups.map((group) => (
             <GroupedLog key={group.traceId} group={group} appId={appId} />
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden">
+        <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
           {entries.filter(e => e && e.id).map((entry) => (
             <LogRow key={entry.id} entry={entry} appId={appId} />
           ))}
@@ -485,11 +533,10 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
                 router.visit(`${basePath}?${params.toString()}`)
               }}
               disabled={pagination.offset === 0}
-              className="rounded-lg"
             >
               Previous
             </Button>
-            <span className="text-sm text-black/40 px-2">
+            <span className="text-sm text-black/50 px-2">
               {currentPage} / {totalPages}
             </span>
             <Button
@@ -501,7 +548,6 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
                 router.visit(`${basePath}?${params.toString()}`)
               }}
               disabled={pagination.offset + pagination.limit >= pagination.total}
-              className="rounded-lg"
             >
               Next
             </Button>

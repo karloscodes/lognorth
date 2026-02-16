@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle, Activity, TrendingUp, ChevronDown } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { Inbox } from 'lucide-react'
 import { Layout } from '@/components/layout'
 import type { Application } from '@/lib/shared'
 
@@ -19,20 +19,8 @@ interface RecentError {
   context?: string
 }
 
-interface AlertStatus {
-  path: string
-  status: 'learning' | 'healthy' | 'warning' | 'critical'
-  sample_count: number
-  samples_needed: number
-  baseline_mean?: number
-  baseline_stddev?: number
-  current_rate?: number
-  since_spiking?: string
-}
-
 interface Props {
   endpoints: EndpointStats[]
-  alertStatuses?: AlertStatus[]
   appId: number
   appName: string
   applications?: Application[]
@@ -43,8 +31,8 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
   const [recentErrors, setRecentErrors] = useState<RecentError[]>([])
   const [loading, setLoading] = useState(false)
 
-  const isHealthy = endpoint.error_rate === 0
-  const isCritical = endpoint.error_rate >= 10
+  const hasErrors = endpoint.errors > 0
+  const errorRate = endpoint.total > 0 ? ((endpoint.errors / endpoint.total) * 100).toFixed(1) : '0'
 
   const handleClick = async () => {
     if (expanded) {
@@ -54,8 +42,7 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
 
     setExpanded(true)
 
-    // Only fetch if we have errors and haven't loaded yet
-    if (endpoint.errors > 0 && recentErrors.length === 0) {
+    if (hasErrors && recentErrors.length === 0) {
       setLoading(true)
       try {
         const res = await fetch(
@@ -75,56 +62,52 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
   }
 
   return (
-    <div className={`border-b border-black/5 last:border-b-0 ${isCritical ? 'bg-red-500/[0.03]' : ''}`}>
+    <>
       <button
         onClick={handleClick}
-        className="w-full grid grid-cols-12 gap-4 px-5 py-4 text-left hover:bg-black/[0.02] transition-colors"
+        className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-black/[0.02] border-l-2 ${hasErrors ? 'border-l-red-500' : 'border-l-transparent'}`}
       >
-        <div className="col-span-6 flex items-center gap-3">
-          <ChevronDown className={`w-4 h-4 text-black/30 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-          {isHealthy ? (
-            <CheckCircle className="w-4 h-4 text-[#00D678] shrink-0" />
-          ) : (
-            <AlertTriangle className={`w-4 h-4 shrink-0 ${isCritical ? 'text-red-500' : 'text-amber-500'}`} />
-          )}
-          <code className="font-mono text-sm text-black truncate">{endpoint.path}</code>
-        </div>
-        <div className="col-span-2 text-right font-mono text-sm text-black/70">
-          {endpoint.total.toLocaleString()}
-        </div>
-        <div className={`col-span-2 text-right font-mono text-sm font-semibold ${
-          isHealthy ? 'text-black/40' : isCritical ? 'text-red-600' : 'text-amber-600'
-        }`}>
-          {endpoint.error_rate}%
-        </div>
-        <div className="col-span-2 text-right font-mono text-sm text-black/70">
-          {endpoint.avg_duration}ms
+        {/* Path */}
+        <span className="font-mono text-sm text-black font-medium truncate flex-1">
+          {endpoint.path}
+        </span>
+
+        {/* Stats */}
+        <div className="flex items-center gap-4 shrink-0">
+          <span className="font-mono text-sm text-black/50 tabular-nums w-16 text-right">
+            {endpoint.total.toLocaleString()}
+          </span>
+          <span className={`font-mono text-sm font-semibold tabular-nums w-10 text-right ${
+            hasErrors ? 'text-red-600' : 'text-black/30'
+          }`}>
+            {endpoint.errors}
+          </span>
+          <span className="font-mono text-xs text-black/50 tabular-nums w-16 text-right">
+            {endpoint.avg_duration}ms
+          </span>
         </div>
       </button>
 
       {expanded && (
-        <div className="px-5 pb-4 pt-1 border-t border-black/5 bg-black/[0.01]">
-          <div className="pl-11 space-y-3">
+        <div className="px-5 pb-4 bg-black/[0.015] border-t border-black/5">
+          <div className="py-4 space-y-4">
             {/* Stats summary */}
-            <div className="flex gap-6 text-sm">
-              <div>
-                <span className="text-black/50">Total requests</span>
-                <span className="ml-2 font-semibold text-black">{endpoint.total.toLocaleString()}</span>
-              </div>
-              <div>
-                <span className="text-black/50">Errors</span>
-                <span className="ml-2 font-semibold text-red-600">{endpoint.errors.toLocaleString()}</span>
-              </div>
-              <div>
-                <span className="text-black/50">Avg response</span>
-                <span className="ml-2 font-semibold text-black">{endpoint.avg_duration}ms</span>
-              </div>
+            <div className="flex items-center gap-4 text-xs text-black/50">
+              <span><span className="font-mono tabular-nums">{endpoint.total.toLocaleString()}</span> requests</span>
+              {hasErrors && (
+                <>
+                  <span>·</span>
+                  <span className="text-red-600 font-semibold"><span className="font-mono tabular-nums">{errorRate}</span>% error rate</span>
+                </>
+              )}
+              <span>·</span>
+              <span>avg <span className="font-mono tabular-nums">{endpoint.avg_duration}</span>ms</span>
             </div>
 
             {/* Recent errors */}
-            {endpoint.errors > 0 && (
+            {hasErrors && (
               <div>
-                <p className="text-xs font-semibold text-black/50 uppercase tracking-wide mb-2">Recent errors</p>
+                <p className="text-xs font-semibold text-black/50 uppercase tracking-wide mb-3">Recent errors</p>
                 {loading ? (
                   <p className="text-sm text-black/40">Loading...</p>
                 ) : recentErrors.length > 0 ? (
@@ -158,128 +141,41 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
-export default function Endpoints({ endpoints: endpointsProp, alertStatuses, appId, appName, applications }: Props) {
-  // Normalize null to empty array (Go sends null for empty slices)
-  const endpoints = endpointsProp || []
-  const problemCount = endpoints.filter(e => e.error_rate > 0).length
-  const totalRequests = endpoints.reduce((sum, e) => sum + e.total, 0)
+export default function Endpoints({ endpoints: endpointsProp, appId, appName, applications }: Props) {
+  const endpoints = (endpointsProp || []).sort((a, b) => b.errors - a.errors)
   const totalErrors = endpoints.reduce((sum, e) => sum + e.errors, 0)
-  const healthPercent = totalRequests > 0 ? ((1 - totalErrors / totalRequests) * 100).toFixed(1) : 100
-
-  // Build a map for quick lookup
-  const alertByPath = new Map(alertStatuses?.map(s => [s.path, s]) ?? [])
-
-  const getStatusBadge = (status: AlertStatus['status']) => {
-    switch (status) {
-      case 'learning':
-        return <span className="px-2 py-0.5 text-xs font-medium bg-black/5 text-black/60 rounded">Learning</span>
-      case 'healthy':
-        return <span className="px-2 py-0.5 text-xs font-medium bg-[#00D678]/10 text-[#00D678] rounded">Healthy</span>
-      case 'warning':
-        return <span className="px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-600 rounded">Warning</span>
-      case 'critical':
-        return <span className="px-2 py-0.5 text-xs font-medium bg-red-500/10 text-red-600 rounded">Critical</span>
-    }
-  }
+  const totalRequests = endpoints.reduce((sum, e) => sum + e.total, 0)
 
   return (
     <Layout currentPath="/endpoints" appId={appId} appName={appName} applications={applications}>
-      {/* Header with health score */}
+      {/* Header */}
       <div className="mb-8">
-        <div className="flex items-baseline gap-3">
-          <span className={`text-4xl font-bold ${Number(healthPercent) >= 99 ? 'text-[#00D678]' : Number(healthPercent) >= 95 ? 'text-amber-500' : 'text-red-500'}`}>
-            {healthPercent}%
-          </span>
-          <span className="text-black/60">healthy</span>
-        </div>
-        {problemCount > 0 && (
-          <p className="text-sm text-black/50 mt-2">
-            {problemCount} endpoint{problemCount !== 1 ? 's' : ''} with errors
-          </p>
-        )}
+        <h1 className="text-2xl font-bold text-black">Endpoints</h1>
+        <p className="text-sm text-black/50 mt-1">
+          {endpoints.length === 0 ? (
+            'HTTP requests grouped by path'
+          ) : totalErrors === 0 ? (
+            <><span className="font-mono tabular-nums">{endpoints.length}</span> endpoints · <span className="font-mono tabular-nums">{totalRequests.toLocaleString()}</span> requests · all healthy</>
+          ) : (
+            <>
+              <span className="font-mono tabular-nums">{endpoints.length}</span> endpoints · <span className="font-mono tabular-nums">{totalRequests.toLocaleString()}</span> requests · <span className="text-red-600 font-semibold font-mono tabular-nums">{totalErrors}</span> errors
+            </>
+          )}
+        </p>
       </div>
 
-      {/* Alerting Status Section */}
-      {alertStatuses && alertStatuses.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-lg font-semibold text-black mb-4 flex items-center gap-2">
-            <Activity className="w-5 h-5" />
-            Alerting Status
-          </h2>
-          <div className="border-2 border-black/10 rounded-sm overflow-hidden">
-            <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-black/[0.02] border-b border-black/10 text-xs font-semibold text-black/60 uppercase tracking-wide">
-              <div className="col-span-5">Endpoint</div>
-              <div className="col-span-2">Status</div>
-              <div className="col-span-3">Baseline</div>
-              <div className="col-span-2 text-right">Current</div>
-            </div>
-            {alertStatuses.map((alert) => (
-              <div
-                key={alert.path}
-                className={`grid grid-cols-12 gap-4 px-5 py-3 border-b border-black/5 last:border-b-0 ${
-                  alert.status === 'critical' ? 'bg-red-500/[0.03]' :
-                  alert.status === 'warning' ? 'bg-amber-500/[0.03]' : ''
-                }`}
-              >
-                <div className="col-span-5">
-                  <code className="font-mono text-sm text-black truncate">{alert.path}</code>
-                </div>
-                <div className="col-span-2 flex items-center gap-2">
-                  {getStatusBadge(alert.status)}
-                  {alert.since_spiking && (
-                    <span className="text-xs text-black/40">{alert.since_spiking}</span>
-                  )}
-                </div>
-                <div className="col-span-3 text-sm text-black/60">
-                  {alert.status === 'learning' ? (
-                    <span className="flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      {alert.sample_count}/{alert.samples_needed} samples
-                    </span>
-                  ) : alert.baseline_mean !== undefined ? (
-                    <span className="font-mono">{alert.baseline_mean}% ± {alert.baseline_stddev}%</span>
-                  ) : (
-                    <span className="text-black/30">—</span>
-                  )}
-                </div>
-                <div className="col-span-2 text-right font-mono text-sm">
-                  {alert.current_rate !== undefined ? (
-                    <span className={
-                      alert.status === 'critical' ? 'text-red-600 font-semibold' :
-                      alert.status === 'warning' ? 'text-amber-600 font-semibold' :
-                      'text-black/70'
-                    }>
-                      {alert.current_rate.toFixed(1)}%
-                    </span>
-                  ) : (
-                    <span className="text-black/30">—</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {endpoints.length === 0 ? (
-        <div className="py-16 text-center border-2 border-dashed border-black/10">
-          <p className="text-black/40">No HTTP requests recorded yet</p>
+        <div className="bg-white border border-black/10 py-16 text-center">
+          <Inbox className="w-10 h-10 text-black/20 mx-auto mb-4" />
+          <p className="font-semibold text-black mb-1">Quiet so far</p>
+          <p className="text-sm text-black/50">HTTP requests will show up once your app sends them.</p>
         </div>
       ) : (
-        <div className="border-2 border-black/10 rounded-sm overflow-hidden">
-          {/* Header row */}
-          <div className="grid grid-cols-12 gap-4 px-5 py-3 bg-black/[0.02] border-b border-black/10 text-xs font-semibold text-black/60 uppercase tracking-wide">
-            <div className="col-span-6">Endpoint</div>
-            <div className="col-span-2 text-right">Requests</div>
-            <div className="col-span-2 text-right">Error Rate</div>
-            <div className="col-span-2 text-right">Avg Duration</div>
-          </div>
-
-          {/* Data rows */}
+        <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
           {endpoints.map((endpoint) => (
             <EndpointRow key={endpoint.path} endpoint={endpoint} appId={appId} />
           ))}

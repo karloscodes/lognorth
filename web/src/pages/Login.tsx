@@ -17,24 +17,24 @@ export default function Login({ flash }: Props) {
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="w-full max-w-sm px-6">
         {/* Logo */}
-        <div className="text-center mb-12">
-          <span className="text-4xl font-bold tracking-tight">LogNorth</span>
-          <p className="text-sm font-medium text-black/60 mt-2">Smarter logs. Self-hosted.</p>
+        <div className="text-center mb-8">
+          <span className="text-4xl font-black tracking-tight text-black">LogNorth</span>
+          <p className="text-sm text-black/50 mt-2">Error tracking you own.</p>
         </div>
 
+        {flash?.type === 'error' && flash.message && (
+          <div className="bg-red-500/10 border-2 border-red-500/20 text-red-600 px-4 py-3 text-sm font-medium mb-6">
+            {flash.message}
+          </div>
+        )}
+
+        {flash?.type === 'success' && flash.message && (
+          <div className="bg-[#00D678]/10 border-2 border-[#00D678]/20 text-black px-4 py-3 text-sm font-medium mb-6">
+            {flash.message}
+          </div>
+        )}
+
         <form action="/login" method="POST" className="space-y-5">
-          {flash?.type === 'error' && flash.message && (
-            <div className="bg-red-500/10 border-2 border-red-500/20 text-red-600 px-4 py-3 text-sm font-medium">
-              {flash.message}
-            </div>
-          )}
-
-          {flash?.type === 'success' && flash.message && (
-            <div className="bg-green-500/10 border-2 border-green-500/20 text-green-700 px-4 py-3 text-sm font-medium">
-              {flash.message}
-            </div>
-          )}
-
           <div>
             <label htmlFor="email" className="block text-sm font-semibold text-black mb-2">
               Email
@@ -63,7 +63,7 @@ export default function Login({ flash }: Props) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 border-2 border-black/20 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-black placeholder:text-black/40"
-              placeholder="Enter your password"
+              placeholder="••••••••"
               required
             />
           </div>

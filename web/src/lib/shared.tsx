@@ -64,12 +64,12 @@ export interface Issue {
 export const errorConfig = {
   error: {
     icon: AlertTriangle,
-    colors: 'text-red-700 bg-red-100',
+    colors: 'text-red-600 bg-red-50',
     label: 'Error',
   },
   success: {
     icon: CheckCircle,
-    colors: 'text-black/70 bg-black/5',
+    colors: 'text-black/50 bg-black/[0.02]',
     label: 'Success',
   },
 } as const
@@ -80,24 +80,16 @@ export const getConfig = (isError: boolean) =>
 // === Status Colors ===
 
 export const statusColor = (status?: number) => {
-  if (!status) return 'text-black/70'
+  if (!status) return 'text-black/50'
   if (status >= 500) return 'text-red-600 font-semibold'
-  if (status >= 400) return 'text-amber-600'
-  return 'text-black/70'
+  if (status >= 400) return 'text-black'
+  return 'text-black/50'
 }
 
 // === HTTP Method Colors ===
 
-export const methodColor = (method?: string) => {
-  switch (method) {
-    case 'GET': return 'text-emerald-600'
-    case 'POST': return 'text-blue-600'
-    case 'PUT':
-    case 'PATCH': return 'text-amber-600'
-    case 'DELETE': return 'text-red-600'
-    default: return 'text-black/70'
-  }
-}
+// Methods have no color decoration - status codes carry the semantic weight
+export const methodColor = (_method?: string) => 'text-black/50'
 
 // === Helper to parse context ===
 
