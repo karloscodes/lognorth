@@ -135,11 +135,11 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                   {/* Status indicator */}
                   <div className="w-3 h-3 shrink-0">
                     {isActive ? (
-                      <span className="block w-full h-full rounded-full bg-[#00D678]" />
+                      <span className="block w-full h-full bg-[#00D678]" />
                     ) : hasData ? (
-                      <span className="block w-full h-full rounded-full bg-black/20" />
+                      <span className="block w-full h-full bg-black/20" />
                     ) : (
-                      <span className="block w-full h-full rounded-full border-2 border-dashed border-black/30" />
+                      <span className="block w-full h-full border-2 border-dashed border-black/30" />
                     )}
                   </div>
 
@@ -236,7 +236,7 @@ function AddAppCard() {
         onClick={() => setShowForm(true)}
         className="w-full p-5 text-left border-2 border-dashed border-black/10 hover:border-black/30 hover:bg-black/[0.01] transition-colors"
       >
-        <span className="text-lg font-semibold text-black/40 hover:text-black">+ Add app</span>
+        <span className="text-lg font-semibold text-black/50">+ Add app</span>
       </button>
     )
   }

@@ -157,6 +157,13 @@ func (e *AlertEngine) CheckNewErrorOrRegression(ctx map[string]any, apiKeyID uin
 		return
 	}
 
+	// Skip if muted - still track occurrence but no alert
+	if seen.Muted {
+		seen.LastOccurrenceAt = now
+		e.db.Save(&seen)
+		return
+	}
+
 	// Check REGRESSION - always alert if quiet period passed
 	if IsRegression(seen.LastOccurrenceAt) {
 		quietPeriod := time.Since(seen.LastOccurrenceAt)
@@ -168,19 +175,17 @@ func (e *AlertEngine) CheckNewErrorOrRegression(ctx map[string]any, apiKeyID uin
 	e.db.Save(&seen)
 }
 
-// CheckSpikes detects spikes and recoveries, sends grouped alerts
+// CheckSpikes detects spikes, sends grouped alerts
+// Recovery notifications are intentionally skipped - no one needs to be told things are fine
 func (e *AlertEngine) CheckSpikes() {
 	if !e.CanNotify() {
 		return
 	}
 
-	spikes, recoveries := e.detectSpikeChanges(DefaultSpikeThreshold)
+	spikes, _ := e.detectSpikeChanges(DefaultSpikeThreshold)
 
 	if len(spikes) > 0 {
 		e.sendGroupedSpikeAlert(spikes)
-	}
-	if len(recoveries) > 0 {
-		e.sendGroupedRecoveryAlert(recoveries)
 	}
 }
 

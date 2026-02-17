@@ -191,9 +191,7 @@ func MountRoutes(server *cartridge.Server) {
 		return ctx.Ctx.Redirect("/")
 	}
 	server.Get("/log", redirectHome, protectedConfig)
-
-	// Global issues page (shows all issues across apps)
-	server.Get("/issues", lbhttp.IssuesPageAction, protectedConfig)
+	server.Get("/issues", redirectHome, protectedConfig)
 
 	// App-scoped pages
 	server.Get("/apps/:id/issues", lbhttp.AppIssuesPageAction, protectedConfig)
@@ -204,13 +202,14 @@ func MountRoutes(server *cartridge.Server) {
 	// Trace view (global - traces can span apps)
 	server.Get("/trace/:traceId", lbhttp.TracePageAction, protectedConfig)
 
-	// Issue detail pages
-	server.Get("/issues/:hash", lbhttp.IssueDetailPageAction, protectedConfig)
+	// Issue detail page
 	server.Get("/apps/:id/issues/:hash", lbhttp.AppIssueDetailPageAction, protectedConfig)
 
 	// Issue actions
 	server.Post("/issues/seen", lbhttp.MarkAllIssuesSeenAction, protectedConfig)
 	server.Post("/issues/:hash/seen", lbhttp.MarkIssueSeenAction, protectedConfig)
+	server.Post("/issues/:hash/mute", lbhttp.MuteIssueAction, protectedConfig)
+	server.Post("/issues/:hash/unmute", lbhttp.UnmuteIssueAction, protectedConfig)
 
 	// Settings
 	server.Get("/settings", lbhttp.SettingsPageAction, protectedConfig)

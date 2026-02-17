@@ -44,7 +44,7 @@ func SettingsPageAction(ctx *cartridge.Context) error {
 
 // UpdateSettingsInput represents the settings update request
 type UpdateSettingsInput struct {
-	// Channel: "ntfy" or "email"
+	// Channel: "ntfy", "email", or "telegram"
 	NotifyChannel string `json:"notify_channel"`
 
 	// ntfy settings
@@ -57,6 +57,15 @@ type UpdateSettingsInput struct {
 	SMTPPassword string `json:"smtp_password"`
 	SMTPFrom     string `json:"smtp_from"`
 	NotifyEmail  string `json:"notify_email"`
+
+	// Telegram settings
+	TelegramBotToken string `json:"telegram_bot_token"`
+	TelegramChatID   string `json:"telegram_chat_id"`
+
+	// Quiet hours
+	QuietHoursEnabled bool `json:"quiet_hours_enabled"`
+	QuietStart        int  `json:"quiet_start"`
+	QuietEnd          int  `json:"quiet_end"`
 
 	// General
 	BaseURL string `json:"base_url"`
@@ -89,6 +98,15 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 	s.SMTPFrom = input.SMTPFrom
 	s.NotifyEmail = input.NotifyEmail
 	s.BaseURL = input.BaseURL
+
+	// Update Telegram
+	s.TelegramBotToken = input.TelegramBotToken
+	s.TelegramChatID = input.TelegramChatID
+
+	// Update quiet hours
+	s.QuietHoursEnabled = input.QuietHoursEnabled
+	s.QuietStart = input.QuietStart
+	s.QuietEnd = input.QuietEnd
 
 	// Only update password if provided
 	if input.SMTPPassword != "" {

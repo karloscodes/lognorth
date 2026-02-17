@@ -1,7 +1,70 @@
 // Shared types and components for LogNorth
 // See docs/EVENT_MODEL.md for the full specification
 
-import { AlertTriangle, CheckCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Inbox } from 'lucide-react'
+import { ReactNode } from 'react'
+
+// === UI Components ===
+
+// Monospace number display - use for counts, stats, durations
+export function Mono({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <span className={`font-mono tabular-nums ${className}`}>{children}</span>
+}
+
+// Code/path display - use for paths, error messages, technical strings
+export function Code({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <span className={`font-mono ${className}`}>{children}</span>
+}
+
+// Page header with title and optional subtitle
+export function PageHeader({
+  title,
+  subtitle,
+  children
+}: {
+  title: ReactNode
+  subtitle?: ReactNode
+  children?: ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between mb-8">
+      <div>
+        <h1 className="text-2xl font-bold text-black">{title}</h1>
+        {subtitle && <p className="text-sm text-black/50 mt-1">{subtitle}</p>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// Empty state for lists
+export function EmptyState({
+  title,
+  description,
+  children
+}: {
+  title: string
+  description?: string
+  children?: ReactNode
+}) {
+  return (
+    <div className="border border-black/10 py-16 text-center">
+      <Inbox className="w-10 h-10 text-black/20 mx-auto mb-4" />
+      <p className="font-semibold text-black mb-1">{title}</p>
+      {description && <p className="text-sm text-black/50">{description}</p>}
+      {children}
+    </div>
+  )
+}
+
+// List container with border and divide
+export function ListContainer({ children }: { children: ReactNode }) {
+  return (
+    <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
+      {children}
+    </div>
+  )
+}
 
 // === Types ===
 
@@ -56,6 +119,7 @@ export interface Issue {
   paths: string[]
   unseen: boolean  // New occurrences since last viewed
   active: boolean  // Had occurrences in last 24h
+  muted: boolean   // User muted this issue
 }
 
 // === Error Config ===

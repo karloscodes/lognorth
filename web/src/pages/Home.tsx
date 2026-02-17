@@ -1,5 +1,6 @@
 import { formatDistanceToNow } from 'date-fns'
 import { Layout } from '@/components/layout'
+import { Mono, Code } from '@/lib/shared'
 import type { Application, Issue } from '@/lib/shared'
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
 }
 
 export default function Home({ applications = [], recentIssues = [] }: Props) {
-  const totalErrors = applications.reduce((sum, app) => sum + (app.stats?.errors || 0), 0)
+  const totalIssues = recentIssues.length
 
   // Build lookup: app_id -> most recent issue
   const topIssueByApp = new Map<number, Issue>()
@@ -40,43 +41,42 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
     )
   }
 
-  const appsWithErrors = applications.filter(app => (app.stats?.errors || 0) > 0)
-  const healthyApps = applications.filter(app => (app.stats?.errors || 0) === 0)
+  // Count issues per app
+  const issueCountByApp = new Map<number, number>()
+  for (const issue of recentIssues) {
+    issueCountByApp.set(issue.api_key_id, (issueCountByApp.get(issue.api_key_id) || 0) + 1)
+  }
+
+  const appsWithIssues = applications.filter(app => issueCountByApp.has(app.id))
+  const healthyApps = applications.filter(app => !issueCountByApp.has(app.id))
 
   return (
     <Layout currentPath="/" applications={applications}>
-      {/* Header with status */}
-      <div className="flex items-baseline justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-black">Overview</h1>
-          <p className="text-sm text-black/50 mt-1">
-            <span className="font-mono tabular-nums">{applications.length}</span> app{applications.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-
-        {/* Status badge */}
-        {totalErrors > 0 ? (
+      {/* Status header */}
+      <div className="flex items-center justify-between mb-8">
+        {totalIssues > 0 ? (
           <div className="flex items-baseline gap-2">
-            <span className="font-mono tabular-nums text-4xl font-black text-red-600">
-              {totalErrors}
-            </span>
-            <span className="text-lg font-semibold text-black/60">
-              error{totalErrors !== 1 ? 's' : ''}
+            <Mono className="text-5xl font-black text-red-600">{totalIssues}</Mono>
+            <span className="text-xl font-semibold text-black/60">
+              issue{totalIssues !== 1 ? 's' : ''}
             </span>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="w-3 h-3 bg-[#00D678]" />
-            <span className="text-lg font-semibold text-black/60">All clear</span>
+            <span className="text-xl font-semibold text-black/60">All clear</span>
           </div>
         )}
+        <p className="text-sm text-black/40">
+          <Mono>{applications.length}</Mono> app{applications.length !== 1 ? 's' : ''}
+        </p>
       </div>
 
-      {/* Apps with errors - show top error inline */}
-      {appsWithErrors.length > 0 && (
+      {/* Apps with issues */}
+      {appsWithIssues.length > 0 && (
         <div className="mb-6 space-y-3">
-          {appsWithErrors.map((app) => {
-            const errors = app.stats?.errors || 0
+          {appsWithIssues.map((app) => {
+            const issueCount = issueCountByApp.get(app.id) || 0
             const topIssue = topIssueByApp.get(app.id)
 
             return (
@@ -89,21 +89,17 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
                   className="flex items-center justify-between p-4"
                 >
                   <span className="font-bold text-black text-lg">{app.name}</span>
-                  <span className="font-mono tabular-nums text-2xl font-black text-red-600">
-                    {errors}
-                  </span>
+                  <Mono className="text-2xl font-black text-red-600">{issueCount}</Mono>
                 </a>
                 {topIssue && (
                   <a
                     href={`/apps/${app.id}/log?error=${topIssue.hash}&is_error=true`}
                     className="block px-4 pb-4 -mt-1"
                   >
-                    <p className="text-sm text-red-700 truncate">
-                      {topIssue.error}
-                    </p>
+                    <Code className="text-sm text-red-700 truncate block">{topIssue.error}</Code>
                     <p className="text-xs text-black/40 mt-1">
                       {formatDistanceToNow(new Date(topIssue.last_seen), { addSuffix: true })}
-                      {topIssue.count > 1 && <> · <span className="font-mono tabular-nums">{topIssue.count}</span>×</>}
+                      {topIssue.count > 1 && <> · <Mono>{topIssue.count}</Mono>×</>}
                     </p>
                   </a>
                 )}
@@ -116,8 +112,8 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
       {/* Healthy apps - compact */}
       {healthyApps.length > 0 && (
         <div>
-          {appsWithErrors.length > 0 && (
-            <p className="text-xs font-semibold text-black/30 uppercase tracking-wide mb-3">
+          {appsWithIssues.length > 0 && (
+            <p className="text-xs font-semibold text-black/50 uppercase tracking-wide mb-3">
               Healthy
             </p>
           )}
@@ -129,7 +125,7 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
                 className="flex items-center justify-between p-4 border border-black/10 hover:border-black/20 transition-all"
               >
                 <span className="font-semibold text-black/70">{app.name}</span>
-                <span className="w-2 h-2 bg-[#00D678]" />
+                <span className="w-3 h-3 bg-[#00D678]" />
               </a>
             ))}
           </div>

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { getConfig, statusColor, methodColor, parseContext } from '@/lib/shared'
+import { getConfig, statusColor, methodColor, parseContext, PageHeader, Mono, Code } from '@/lib/shared'
 import type { Application, LogEntry } from '@/lib/shared'
 
 interface Filters {
@@ -94,7 +94,7 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
   return (
     <a
       href={href}
-      className={`block py-4 px-5 transition-colors hover:bg-black/[0.02] border-l-2 ${isError ? 'border-l-red-500' : 'border-l-transparent'}`}
+      className={`block py-4 px-5 transition-colors hover:bg-black/[0.02] ${isError ? 'shadow-[inset_2px_0_0_0_#ef4444]' : ''}`}
     >
       <div className="flex items-center gap-3">
         {/* Timestamp */}
@@ -142,9 +142,9 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
       {/* Error message */}
       {isError && ctx.error && (
         <div className="mt-2 pl-[168px]">
-          <p className="text-sm text-red-600 truncate">
+          <Code className="text-sm text-red-600 truncate block">
             {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
-          </p>
+          </Code>
         </div>
       )}
     </a>
@@ -162,7 +162,7 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
 
   return (
     <div className="border-b border-black/10 last:border-b-0">
-      <div className={`flex items-stretch border-l-2 ${isError ? 'border-l-red-500' : 'border-l-transparent'}`}>
+      <div className={`flex items-stretch ${isError ? 'shadow-[inset_2px_0_0_0_#ef4444]' : ''}`}>
         {hasMultiple && (
           <button
             onClick={() => setExpanded(!expanded)}
@@ -227,9 +227,9 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
           {/* Error message */}
           {isError && ctx.error && (
             <div className="mt-2 pl-[168px]">
-              <p className="text-sm text-red-600 truncate">
+              <Code className="text-sm text-red-600 truncate block">
                 {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
-              </p>
+              </Code>
             </div>
           )}
         </a>
@@ -394,33 +394,27 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
 
   return (
     <Layout currentPath="/log" appId={appId} appName={appName} applications={applications}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-black">Logs</h1>
+      <PageHeader
+        title={
+          <>
+            Logs
             {liveEnabled && (
-              <span className="flex items-center gap-1.5 px-2 py-1 bg-red-600 text-white text-xs font-semibold">
+              <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-red-600 text-white text-xs font-semibold align-middle">
                 <span className="w-1.5 h-1.5 bg-white animate-pulse" />
                 Live
               </span>
             )}
             {traceFilter && (
-              <span className="flex items-center gap-1.5 px-2 py-1 bg-black text-white text-xs font-semibold font-mono">
+              <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-black text-white text-xs font-semibold font-mono align-middle">
                 Trace: {traceFilter.slice(0, 8)}...
               </span>
             )}
-          </div>
-          <p className="text-sm text-black/50 mt-1">
-            {liveEnabled ? (
-              'Watching for requests'
-            ) : (
-              <><span className="font-mono tabular-nums">{pagination.total.toLocaleString()}</span> request{pagination.total !== 1 ? 's' : ''}{hasFilters && ' (filtered)'}</>
-            )}
-          </p>
-        </div>
-
-        {/* Live toggle */}
+          </>
+        }
+        subtitle={liveEnabled ? 'Watching...' : (
+          <><Mono>{pagination.total.toLocaleString()}</Mono> log{pagination.total !== 1 ? 's' : ''}{hasFilters && ' (filtered)'}</>
+        )}
+      >
         {appId && (
           <button
             onClick={() => toggleLive(!liveEnabled)}
@@ -434,7 +428,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             {liveEnabled ? 'Stop' : 'Live'}
           </button>
         )}
-      </div>
+      </PageHeader>
 
       {/* Filters Bar */}
       <div className="flex items-center gap-4 mb-6 p-4 bg-white border border-black/10">
@@ -462,7 +456,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
           <Input
             type="text"
-            placeholder="Search logs..."
+            placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
@@ -490,7 +484,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           } ${liveEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <Layers className="w-4 h-4" />
-          Group
+          Traces
         </button>
       </div>
 
@@ -504,7 +498,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           <p className="text-sm text-black/50">
             {hasFilters
               ? 'Try different filters.'
-              : 'Requests will show up here once your app sends them.'}
+              : 'Logs appear once your app is connected.'}
           </p>
           {hasFilters && (
             <Button variant="link" onClick={clearFilters} className="mt-4">
@@ -514,15 +508,31 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
         </div>
       ) : groupEnabled ? (
         <div className="bg-white border border-black/10 overflow-hidden">
+          <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
+            <span className="w-20">Time</span>
+            <span className="w-16"></span>
+            <span className="flex-1">Path</span>
+            <span className="w-10 text-right">Code</span>
+            <span className="w-16 text-right">Duration</span>
+          </div>
           {logGroups.map((group) => (
             <GroupedLog key={group.traceId} group={group} appId={appId} />
           ))}
         </div>
       ) : (
-        <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
-          {entries.filter(e => e && e.id).map((entry) => (
-            <LogRow key={entry.id} entry={entry} appId={appId} />
-          ))}
+        <div className="bg-white border border-black/10 overflow-hidden">
+          <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
+            <span className="w-20">Time</span>
+            <span className="w-16"></span>
+            <span className="flex-1">Path</span>
+            <span className="w-10 text-right">Code</span>
+            <span className="w-16 text-right">Duration</span>
+          </div>
+          <div className="divide-y divide-black/10">
+            {entries.filter(e => e && e.id).map((entry) => (
+              <LogRow key={entry.id} entry={entry} appId={appId} />
+            ))}
+          </div>
         </div>
       )}
 

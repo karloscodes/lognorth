@@ -15,7 +15,7 @@ import (
 type Settings struct {
 	ID uint `gorm:"primaryKey" json:"-"`
 
-	// Notification channel: "email" or "ntfy"
+	// Notification channel: "email", "ntfy", or "telegram"
 	NotifyChannel string `gorm:"size:20" json:"notify_channel"`
 
 	// ntfy.sh URL (e.g., https://ntfy.sh/my-secret-topic)
@@ -29,15 +29,24 @@ type Settings struct {
 	SMTPFrom     string `gorm:"size:255" json:"smtp_from"`
 	NotifyEmail  string `gorm:"size:255" json:"notify_email"`
 
+	// Telegram settings
+	TelegramBotToken string `gorm:"size:100" json:"telegram_bot_token"`
+	TelegramChatID   string `gorm:"size:50" json:"telegram_chat_id"`
+
+	// Quiet hours - no alerts during this window
+	QuietHoursEnabled bool `gorm:"default:false" json:"quiet_hours_enabled"`
+	QuietStart        int  `gorm:"default:23" json:"quiet_start"` // Hour (0-23), default 11pm
+	QuietEnd          int  `gorm:"default:7" json:"quiet_end"`    // Hour (0-23), default 7am
+
 	// Base URL for links in notifications (e.g., https://lognorth.example.com)
 	BaseURL string `gorm:"size:255" json:"base_url"`
 
 	// Legacy fields - kept for migration compatibility
-	NotifyNewErrors   bool `json:"-"`
-	NotifyRegressions bool `json:"-"`
-	NotifySpikes      bool `json:"-"`
-	SpikeThreshold    int  `json:"-"`
-	DigestHour        int  `json:"-"`
+	NotifyNewErrors   bool   `json:"-"`
+	NotifyRegressions bool   `json:"-"`
+	NotifySpikes      bool   `json:"-"`
+	SpikeThreshold    int    `json:"-"`
+	DigestHour        int    `json:"-"`
 	DigestTimezone    string `gorm:"size:50" json:"-"`
 }
 
@@ -91,13 +100,36 @@ func (s *Settings) IsNtfyConfigured() bool {
 	return s.NtfyURL != ""
 }
 
-// CanNotify returns true if any notification channel is configured
+// IsTelegramConfigured returns true if Telegram bot is configured
+func (s *Settings) IsTelegramConfigured() bool {
+	return s.TelegramBotToken != "" && s.TelegramChatID != ""
+}
+
+// IsQuietHours returns true if current time is within quiet hours
+func (s *Settings) IsQuietHours() bool {
+	if !s.QuietHoursEnabled {
+		return false
+	}
+	hour := time.Now().Hour()
+	if s.QuietStart > s.QuietEnd {
+		// Crosses midnight (e.g., 23-7)
+		return hour >= s.QuietStart || hour < s.QuietEnd
+	}
+	return hour >= s.QuietStart && hour < s.QuietEnd
+}
+
+// CanNotify returns true if any notification channel is configured and not in quiet hours
 func (s *Settings) CanNotify() bool {
+	if s.IsQuietHours() {
+		return false
+	}
 	switch s.NotifyChannel {
 	case "ntfy":
 		return s.IsNtfyConfigured()
 	case "email":
 		return s.IsEmailConfigured()
+	case "telegram":
+		return s.IsTelegramConfigured()
 	default:
 		return false
 	}
@@ -110,6 +142,8 @@ func (s *Settings) SendNotification(title, message string) error {
 		return s.sendViaNtfy(title, message)
 	case "email":
 		return s.sendViaSMTP(title, message)
+	case "telegram":
+		return s.sendViaTelegram(title, message)
 	default:
 		return fmt.Errorf("no notification channel configured")
 	}
@@ -162,6 +196,40 @@ func (s *Settings) sendViaSMTP(subject, body string) error {
 		s.SMTPFrom, s.NotifyEmail, subject, body)
 
 	return smtp.SendMail(addr, auth, s.SMTPFrom, to, []byte(msg))
+}
+
+// sendViaTelegram sends notification via Telegram bot
+func (s *Settings) sendViaTelegram(title, message string) error {
+	if !s.IsTelegramConfigured() {
+		return fmt.Errorf("Telegram not configured")
+	}
+
+	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", s.TelegramBotToken)
+
+	// Format message with title
+	text := fmt.Sprintf("*%s*\n\n%s", title, message)
+
+	body := fmt.Sprintf(`{"chat_id":"%s","text":%q,"parse_mode":"Markdown"}`,
+		s.TelegramChatID, text)
+
+	req, err := http.NewRequest("POST", url, strings.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("telegram request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("telegram failed with status %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // SendEmail is a compatibility wrapper for SendNotification

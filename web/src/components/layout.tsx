@@ -172,17 +172,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
                       : 'border-transparent text-black/50 hover:text-black'
                   }`}
                 >
-                  Overview
-                </Link>
-                <Link
-                  href="/issues"
-                  className={`py-5 text-sm font-semibold border-b-2 transition-colors ${
-                    currentPath === '/issues'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-black/50 hover:text-black'
-                  }`}
-                >
-                  Issues
+                  Home
                 </Link>
               </nav>
             )}

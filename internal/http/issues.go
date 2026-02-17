@@ -123,3 +123,43 @@ func MarkAllIssuesSeenAction(ctx *cartridge.Context) error {
 	}
 	return ctx.Ctx.Redirect(referer, fiber.StatusFound)
 }
+
+// MuteIssueAction handles POST /issues/:hash/mute
+func MuteIssueAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+	hash := ctx.Ctx.Params("hash")
+
+	if hash == "" {
+		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Hash required"})
+	}
+
+	if err := events.MuteIssue(db, hash); err != nil {
+		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to mute"})
+	}
+
+	referer := ctx.Ctx.Get("Referer")
+	if referer == "" {
+		referer = "/issues"
+	}
+	return ctx.Ctx.Redirect(referer, fiber.StatusFound)
+}
+
+// UnmuteIssueAction handles POST /issues/:hash/unmute
+func UnmuteIssueAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+	hash := ctx.Ctx.Params("hash")
+
+	if hash == "" {
+		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Hash required"})
+	}
+
+	if err := events.UnmuteIssue(db, hash); err != nil {
+		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to unmute"})
+	}
+
+	referer := ctx.Ctx.Get("Referer")
+	if referer == "" {
+		referer = "/issues"
+	}
+	return ctx.Ctx.Redirect(referer, fiber.StatusFound)
+}

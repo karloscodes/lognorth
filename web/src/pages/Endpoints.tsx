@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { Inbox } from 'lucide-react'
 import { Layout } from '@/components/layout'
+import { Mono, Code, PageHeader, EmptyState } from '@/lib/shared'
 import type { Application } from '@/lib/shared'
 
 interface EndpointStats {
@@ -65,26 +65,24 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
     <>
       <button
         onClick={handleClick}
-        className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-black/[0.02] border-l-2 ${hasErrors ? 'border-l-red-500' : 'border-l-transparent'}`}
+        className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-black/[0.02] ${hasErrors ? 'shadow-[inset_2px_0_0_0_#ef4444]' : ''}`}
       >
         {/* Path */}
-        <span className="font-mono text-sm text-black font-medium truncate flex-1">
+        <Code className="text-sm text-black font-medium truncate flex-1">
           {endpoint.path}
-        </span>
+        </Code>
 
         {/* Stats */}
         <div className="flex items-center gap-4 shrink-0">
-          <span className="font-mono text-sm text-black/50 tabular-nums w-16 text-right">
+          <Mono className="text-sm text-black/50 w-16 text-right">
             {endpoint.total.toLocaleString()}
-          </span>
-          <span className={`font-mono text-sm font-semibold tabular-nums w-10 text-right ${
-            hasErrors ? 'text-red-600' : 'text-black/30'
-          }`}>
+          </Mono>
+          <Mono className={`text-sm font-semibold w-10 text-right ${hasErrors ? 'text-red-600' : 'text-black/30'}`}>
             {endpoint.errors}
-          </span>
-          <span className="font-mono text-xs text-black/50 tabular-nums w-16 text-right">
+          </Mono>
+          <Mono className="text-xs text-black/50 w-16 text-right">
             {endpoint.avg_duration}ms
-          </span>
+          </Mono>
         </div>
       </button>
 
@@ -118,7 +116,7 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
                         href={`/apps/${appId}/log/${err.id}`}
                         className="block p-3 bg-white border border-black/10 hover:border-black/20 transition-colors"
                       >
-                        <p className="text-sm text-red-600 truncate">{err.message}</p>
+                        <Code className="text-sm text-red-600 truncate block">{err.message}</Code>
                         <p className="text-xs text-black/40 mt-1">
                           {formatDistanceToNow(new Date(err.timestamp), { addSuffix: true })}
                         </p>
@@ -136,7 +134,7 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
               href={`/apps/${appId}/log?search=${encodeURIComponent(endpoint.path)}`}
               className="inline-block text-sm font-semibold text-black/50 hover:text-black"
             >
-              View all requests →
+              View logs →
             </a>
           </div>
         </div>
@@ -152,33 +150,32 @@ export default function Endpoints({ endpoints: endpointsProp, appId, appName, ap
 
   return (
     <Layout currentPath="/endpoints" appId={appId} appName={appName} applications={applications}>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-black">Endpoints</h1>
-        <p className="text-sm text-black/50 mt-1">
-          {endpoints.length === 0 ? (
-            'HTTP requests grouped by path'
-          ) : totalErrors === 0 ? (
-            <><span className="font-mono tabular-nums">{endpoints.length}</span> endpoints · <span className="font-mono tabular-nums">{totalRequests.toLocaleString()}</span> requests · all healthy</>
+      <PageHeader
+        title="Endpoints"
+        subtitle={endpoints.length === 0 ? undefined : (
+          totalErrors === 0 ? (
+            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · all healthy</>
           ) : (
-            <>
-              <span className="font-mono tabular-nums">{endpoints.length}</span> endpoints · <span className="font-mono tabular-nums">{totalRequests.toLocaleString()}</span> requests · <span className="text-red-600 font-semibold font-mono tabular-nums">{totalErrors}</span> errors
-            </>
-          )}
-        </p>
-      </div>
+            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · <Mono className="text-red-600 font-semibold">{totalErrors}</Mono> errors</>
+          )
+        )}
+      />
 
       {endpoints.length === 0 ? (
-        <div className="bg-white border border-black/10 py-16 text-center">
-          <Inbox className="w-10 h-10 text-black/20 mx-auto mb-4" />
-          <p className="font-semibold text-black mb-1">Quiet so far</p>
-          <p className="text-sm text-black/50">HTTP requests will show up once your app sends them.</p>
-        </div>
+        <EmptyState title="Quiet so far" description="Requests appear once your app is connected." />
       ) : (
-        <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
-          {endpoints.map((endpoint) => (
-            <EndpointRow key={endpoint.path} endpoint={endpoint} appId={appId} />
-          ))}
+        <div className="bg-white border border-black/10 overflow-hidden">
+          <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
+            <span className="flex-1">Path</span>
+            <span className="w-16 text-right">Requests</span>
+            <span className="w-10 text-right">Errors</span>
+            <span className="w-16 text-right">Avg ms</span>
+          </div>
+          <div className="divide-y divide-black/10">
+            {endpoints.map((endpoint) => (
+              <EndpointRow key={endpoint.path} endpoint={endpoint} appId={appId} />
+            ))}
+          </div>
         </div>
       )}
     </Layout>

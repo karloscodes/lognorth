@@ -76,7 +76,7 @@ func (j *AnomalyChecker) checkEndpoint(db *gorm.DB, apiKeyID uint, appName, path
 	// Check for recovery
 	if state.Severity != "" && severity == "" {
 		if events.SPCIsRecovered(currentRate, mean, stddev) {
-			j.handleRecovery(db, state, cusumState, appName, path, currentRate, mean)
+			j.handleRecovery(db, state, cusumState)
 			return
 		}
 	}
@@ -98,38 +98,11 @@ func (j *AnomalyChecker) checkEndpoint(db *gorm.DB, apiKeyID uint, appName, path
 	}
 }
 
-func (j *AnomalyChecker) handleRecovery(db *gorm.DB, state *events.SpikeState, cusumState *events.CUSUMState, appName, path string, currentRate, mean float64) {
-	s, err := settings.Get(db)
-	if err != nil {
-		return
-	}
-
-	wasCritical := state.Severity == "critical"
-	duration := time.Since(state.SpikeStartAt)
+func (j *AnomalyChecker) handleRecovery(db *gorm.DB, state *events.SpikeState, cusumState *events.CUSUMState) {
+	// Clear state, no notification needed
+	// Recovery is the absence of a problem - you don't need to be told things are fine
 	events.ClearSPCState(db, state)
 	events.ClearCUSUMState(db, cusumState)
-
-	// Send recovery email for critical
-	if wasCritical && s.CanNotify() {
-		subject := fmt.Sprintf("[RECOVERED] %s: Error rate back to normal", appName)
-		body := fmt.Sprintf(`%s has recovered.
-
-- Endpoint: %s
-- Duration: %s
-- Current error rate: %.1f%%
-- Normal error rate: %.1f%%
-
-View details: %s/apps/%d/issues`,
-			path,
-			path,
-			duration.Round(time.Minute),
-			currentRate,
-			mean,
-			s.BaseURL,
-			state.APIKeyID,
-		)
-		s.SendEmail(subject, body)
-	}
 }
 
 func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB) {

@@ -18,6 +18,8 @@ type IssueSeen struct {
 	SeenAt           time.Time `json:"seen_at"`
 	LastOccurrenceAt time.Time `json:"last_occurrence_at"` // For regression detection
 	LastNotifiedAt   time.Time `json:"last_notified_at"`   // Prevent notification spam
+	Muted            bool      `gorm:"default:false" json:"muted"`
+	MutedAt          time.Time `json:"muted_at,omitempty"`
 }
 
 // TableName specifies the table name
@@ -63,6 +65,7 @@ type IssueWithState struct {
 	Paths     []string `json:"paths"`
 	Unseen    bool     `json:"unseen"` // New occurrences since last viewed
 	Active    bool     `json:"active"` // Had occurrences in last 24h
+	Muted     bool     `json:"muted"`  // User muted this issue
 }
 
 // IssueAggregateRow represents a row from SQL aggregation
@@ -126,9 +129,9 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 	// Load seen states
 	var seenRecords []IssueSeen
 	db.Find(&seenRecords)
-	seenMap := make(map[string]time.Time)
+	seenMap := make(map[string]IssueSeen)
 	for _, s := range seenRecords {
-		seenMap[s.ErrorHash] = s.SeenAt
+		seenMap[s.ErrorHash] = s
 	}
 
 	now := time.Now()
@@ -177,8 +180,9 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 		}
 
 		// Check seen state
-		if seenAt, exists := seenMap[hash]; exists {
-			issue.Unseen = lastSeenTime.After(seenAt)
+		if seen, exists := seenMap[hash]; exists {
+			issue.Unseen = lastSeenTime.After(seen.SeenAt)
+			issue.Muted = seen.Muted
 		} else {
 			issue.Unseen = true
 		}
@@ -403,6 +407,42 @@ func MarkIssueSeen(db *gorm.DB, errorHash string) error {
 
 	seen.SeenAt = time.Now()
 	return db.Save(&seen).Error
+}
+
+// MuteIssue mutes an issue to prevent alerts (also marks as seen)
+func MuteIssue(db *gorm.DB, errorHash string) error {
+	now := time.Now()
+	var seen IssueSeen
+	result := db.Where("error_hash = ?", errorHash).First(&seen)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		seen = IssueSeen{
+			ErrorHash: errorHash,
+			SeenAt:    now,
+			Muted:     true,
+			MutedAt:   now,
+		}
+		return db.Create(&seen).Error
+	}
+
+	seen.SeenAt = now
+	seen.Muted = true
+	seen.MutedAt = now
+	return db.Save(&seen).Error
+}
+
+// UnmuteIssue unmutes an issue to allow alerts
+func UnmuteIssue(db *gorm.DB, errorHash string) error {
+	return db.Model(&IssueSeen{}).
+		Where("error_hash = ?", errorHash).
+		Updates(map[string]any{"muted": false, "muted_at": nil}).Error
+}
+
+// IsIssueMuted checks if an issue is muted
+func IsIssueMuted(db *gorm.DB, errorHash string) bool {
+	var seen IssueSeen
+	result := db.Where("error_hash = ? AND muted = ?", errorHash, true).First(&seen)
+	return result.Error == nil
 }
 
 // MarkAllIssuesSeen marks all issues as seen

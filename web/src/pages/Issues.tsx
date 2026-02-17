@@ -2,6 +2,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Clock, Check } from 'lucide-react'
 import { router } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
+import { Mono, Code, PageHeader, EmptyState } from '@/lib/shared'
 import type { Application, Issue } from '@/lib/shared'
 
 interface Props {
@@ -34,21 +35,15 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
 
   return (
     <Layout currentPath="/issues" appId={appId} appName={appName} applications={applications}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-black">Issues</h1>
-          <p className="text-sm text-black/50 mt-1">
-            {issues.length === 0 ? (
-              'Errors grouped by message'
-            ) : (
-              <>
-                <span className="font-mono tabular-nums">{issues.length}</span> unique error{issues.length !== 1 ? 's' : ''}
-                {unseenCount > 0 && <> · <span className="font-mono tabular-nums">{unseenCount}</span> new</>}
-              </>
-            )}
-          </p>
-        </div>
+      <PageHeader
+        title="Issues"
+        subtitle={issues.length === 0 ? undefined : (
+          <>
+            <Mono>{issues.length}</Mono> issue{issues.length !== 1 ? 's' : ''}
+            {unseenCount > 0 && <> · <Mono>{unseenCount}</Mono> new</>}
+          </>
+        )}
+      >
         {hasUnseen && (
           <button
             onClick={markAllSeen}
@@ -58,13 +53,10 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
             Mark all seen
           </button>
         )}
-      </div>
+      </PageHeader>
 
       {issues.length === 0 ? (
-        <div className="border border-black/10 py-16 text-center">
-          <p className="font-semibold text-black mb-1">No issues</p>
-          <p className="text-sm text-black/50">Enjoy your day.</p>
-        </div>
+        <EmptyState title="No issues" description="Enjoy your day." />
       ) : (
         <div className="space-y-8">
           {/* Active Issues */}
@@ -75,9 +67,9 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
                 <h2 className="text-sm font-bold text-black/50 uppercase tracking-wide">
                   Active
                 </h2>
-                <span className="text-xs text-black/30">Last 24 hours</span>
+                <span className="text-xs text-black/40">Last 24 hours</span>
               </div>
-              <div className="bg-white border border-black/10 divide-y divide-black/5 overflow-hidden">
+              <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
                 {activeIssues.map((issue) => (
                   <IssueRow
                     key={issue.hash}
@@ -94,13 +86,13 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
           {staleIssues.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-3.5 h-3.5 text-black/30" />
-                <h2 className="text-sm font-bold text-black/30 uppercase tracking-wide">
+                <Clock className="w-3.5 h-3.5 text-black/40" />
+                <h2 className="text-sm font-bold text-black/50 uppercase tracking-wide">
                   Stale
                 </h2>
-                <span className="text-xs text-black/20">No recent occurrences</span>
+                <span className="text-xs text-black/40">No recent occurrences</span>
               </div>
-              <div className="bg-white border border-black/5 divide-y divide-black/5 overflow-hidden opacity-60 hover:opacity-100 transition-opacity">
+              <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
                 {staleIssues.map((issue) => (
                   <IssueRow
                     key={issue.hash}
@@ -122,24 +114,28 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
 function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePath: string; appName?: string; stale?: boolean }) {
   const isUnseen = issue.unseen && !stale
 
+  const toggleMute = () => {
+    const url = issue.muted ? `/issues/${issue.hash}/unmute` : `/issues/${issue.hash}/mute`
+    router.post(url, {}, { preserveScroll: true })
+  }
+
   return (
-    <a
-      href={issuePath}
-      className={`flex items-start gap-4 p-5 transition-colors hover:bg-black/[0.02] ${
-        isUnseen ? 'border-l-4 border-l-red-600 bg-red-50/50 pl-[16px]' : ''
-      }`}
+    <div
+      className={`flex items-center gap-4 p-5 transition-colors hover:bg-black/[0.02] ${
+        isUnseen && !issue.muted ? 'shadow-[inset_3px_0_0_0_#dc2626] bg-red-50/50' : ''
+      } ${issue.muted ? 'opacity-50' : ''}`}
     >
-      {/* Main content */}
-      <div className="flex-1 min-w-0">
-        <p className={`font-mono leading-snug ${
-          isUnseen
+      {/* Main content - clickable link */}
+      <a href={issuePath} className="flex-1 min-w-0 py-1">
+        <Code className={`leading-snug block ${
+          isUnseen && !issue.muted
             ? 'font-semibold text-black'
-            : stale
+            : stale || issue.muted
               ? 'text-black/50'
               : 'text-black/80'
         }`}>
           {issue.error}
-        </p>
+        </Code>
         <div className="flex items-center gap-2 mt-2 text-xs text-black/40">
           {appName && (
             <>
@@ -153,25 +149,38 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
           {issue.paths?.length > 0 && (
             <>
               <span>·</span>
-              <code className="font-mono">{issue.paths[0]}</code>
+              <Code>{issue.paths[0]}</Code>
             </>
           )}
           {issue.paths?.length > 1 && (
             <span className="text-black/30">+{issue.paths.length - 1}</span>
           )}
         </div>
-      </div>
+      </a>
 
-      {/* Count badge - BIG and BOLD */}
-      <span className={`font-mono text-xl font-black tabular-nums ${
-        isUnseen
-          ? 'text-red-600'
-          : stale
-            ? 'text-black/30'
-            : 'text-black'
-      }`}>
-        {issue.count}×
-      </span>
-    </a>
+      {/* Right side: mute + count aligned */}
+      <div className="flex items-center gap-4 shrink-0">
+        <button
+          type="button"
+          onClick={toggleMute}
+          className="text-xs font-semibold text-black/50 hover:text-black transition-colors w-12 text-right"
+        >
+          {issue.muted ? 'Unmute' : 'Mute'}
+        </button>
+
+        <Mono
+          className={`text-xl font-black w-16 text-right ${
+            isUnseen && !issue.muted
+              ? 'text-red-600'
+              : stale || issue.muted
+                ? 'text-black/30'
+                : 'text-black'
+          }`}
+          title={`${issue.count} occurrences`}
+        >
+          {issue.count}×
+        </Mono>
+      </div>
+    </div>
   )
 }
