@@ -33,17 +33,19 @@ func (j *BaselineUpdater) ProcessBatch(ctx *cartridge.JobContext) error {
 		endpoints := events.GetActiveEndpoints(db, key.ID)
 
 		for _, path := range endpoints {
-			// Get current error rate
-			errorRate, _, err := events.GetCurrentErrorRate(db, key.ID, path)
+			// Get current error rate and volume
+			errorRate, total, err := events.GetCurrentErrorRate(db, key.ID, path)
 			if err != nil {
 				continue // Skip this endpoint
 			}
 
-			// Get or create baseline for this hour-of-week
+			// Update error rate baseline
 			baseline := events.GetOrCreateBaseline(db, key.ID, path, hourOfWeek)
-
-			// Update baseline with new observation
 			events.UpdateBaseline(db, baseline, errorRate)
+
+			// Update volume baseline
+			volumeBaseline := events.GetOrCreateVolumeBaseline(db, key.ID, path, hourOfWeek)
+			events.UpdateVolumeBaseline(db, volumeBaseline, float64(total))
 		}
 	}
 

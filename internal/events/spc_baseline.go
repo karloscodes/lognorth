@@ -159,3 +159,50 @@ func formatAlertDuration(d time.Duration) string {
 	}
 	return fmt.Sprintf("%dh %dm", hours, mins)
 }
+
+// GetOrCreateVolumeBaseline retrieves or creates a volume baseline for the given key.
+func GetOrCreateVolumeBaseline(db *gorm.DB, apiKeyID uint, path string, hourOfWeek int) *VolumeBaselineStat {
+	var baseline VolumeBaselineStat
+	result := db.Where("api_key_id = ? AND path = ? AND hour_of_week = ?",
+		apiKeyID, path, hourOfWeek).First(&baseline)
+
+	if result.Error != nil {
+		baseline = VolumeBaselineStat{
+			APIKeyID:    apiKeyID,
+			Path:        path,
+			HourOfWeek:  hourOfWeek,
+			Mean:        0,
+			StdDev:      0,
+			SampleCount: 0,
+			UpdatedAt:   time.Now(),
+		}
+		db.Create(&baseline)
+	}
+
+	return &baseline
+}
+
+// UpdateVolumeBaseline updates the volume baseline with a new observation using EMA.
+func UpdateVolumeBaseline(db *gorm.DB, baseline *VolumeBaselineStat, newVolume float64) {
+	baseline.Mean = (1-BaselineSmoothingFactor)*baseline.Mean + BaselineSmoothingFactor*newVolume
+
+	diff := newVolume - baseline.Mean
+	baseline.StdDev = math.Sqrt(
+		(1-BaselineSmoothingFactor)*baseline.StdDev*baseline.StdDev +
+			BaselineSmoothingFactor*diff*diff,
+	)
+
+	baseline.SampleCount++
+	baseline.UpdatedAt = time.Now()
+
+	db.Save(baseline)
+}
+
+// GetEffectiveVolumeBaseline returns the mean and stddev to use.
+// Returns 0, 0 during cold start (insufficient samples) to skip alerting.
+func GetEffectiveVolumeBaseline(baseline *VolumeBaselineStat) (mean, stddev float64) {
+	if baseline.SampleCount < MinSamplesForBaseline {
+		return 0, 0 // Not enough data, don't alert
+	}
+	return baseline.Mean, baseline.StdDev
+}

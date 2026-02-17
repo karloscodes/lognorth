@@ -47,11 +47,14 @@ func (j *AnomalyChecker) ProcessBatch(ctx *cartridge.JobContext) error {
 }
 
 func (j *AnomalyChecker) checkEndpoint(db *gorm.DB, apiKeyID uint, appName, path string, hourOfWeek int) {
-	// Get current error rate
-	currentRate, _, err := events.GetCurrentErrorRate(db, apiKeyID, path)
+	// Get current error rate and volume
+	currentRate, currentVolume, err := events.GetCurrentErrorRate(db, apiKeyID, path)
 	if err != nil {
 		return
 	}
+
+	// Check for silence (traffic drop)
+	j.checkSilence(db, apiKeyID, appName, path, hourOfWeek, currentVolume)
 
 	// Get baseline
 	baseline := events.GetOrCreateBaseline(db, apiKeyID, path, hourOfWeek)
@@ -105,6 +108,43 @@ func (j *AnomalyChecker) handleRecovery(db *gorm.DB, state *events.SpikeState, c
 	events.ClearCUSUMState(db, cusumState)
 }
 
+func (j *AnomalyChecker) checkSilence(db *gorm.DB, apiKeyID uint, appName, path string, hourOfWeek int, currentVolume int64) {
+	// Get volume baseline
+	baseline := events.GetOrCreateVolumeBaseline(db, apiKeyID, path, hourOfWeek)
+	mean, stddev := events.GetEffectiveVolumeBaseline(baseline)
+
+	if mean == 0 {
+		return // Not enough data yet
+	}
+
+	// Check for silence
+	_, severity := events.IsSilence(float64(currentVolume), mean, stddev)
+
+	// Get silence state
+	state := events.GetOrCreateSilenceState(db, apiKeyID, path)
+
+	// Check for recovery
+	if state.Severity != "" && severity == "" {
+		if events.IsSilenceRecovered(float64(currentVolume), mean, stddev) {
+			events.ClearSilenceState(db, state)
+			return
+		}
+	}
+
+	// Update alert state
+	if severity != "" {
+		previousSeverity := state.Severity
+		events.UpdateSilenceSeverity(db, state, severity)
+
+		// Queue warning for digest if new warning
+		if previousSeverity == "" && state.Severity == "warning" {
+			msg := fmt.Sprintf("%s: %s traffic dropped to %d requests (normally %.0f)",
+				appName, path, currentVolume, mean)
+			events.QueueDigestItem(db, apiKeyID, path, msg, "warning")
+		}
+	}
+}
+
 func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB) {
 	s, err := settings.Get(db)
 	if err != nil || !s.CanNotify() {
@@ -153,8 +193,53 @@ View details: %s/apps/%d/issues`,
 			spike.APIKeyID,
 		)
 
-		if err := s.SendEmail(subject, body); err == nil {
+		if err := s.SendNotification(subject, body); err == nil {
 			events.MarkSpikeNotified(db, &spike)
+		}
+	}
+
+	// Send silence alerts
+	j.sendSilenceAlerts(db, s)
+}
+
+func (j *AnomalyChecker) sendSilenceAlerts(db *gorm.DB, s *settings.Settings) {
+	silences := events.GetUnnotifiedCriticalSilences(db)
+
+	for _, silence := range silences {
+		var key apikeys.APIKey
+		db.First(&key, silence.APIKeyID)
+
+		hourOfWeek := events.HourOfWeek(time.Now())
+		baseline := events.GetOrCreateVolumeBaseline(db, silence.APIKeyID, silence.Path, hourOfWeek)
+		mean, _ := events.GetEffectiveVolumeBaseline(baseline)
+
+		_, currentVolume, _ := events.GetCurrentErrorRate(db, silence.APIKeyID, silence.Path)
+
+		subject := fmt.Sprintf("[CRITICAL] %s: Traffic disappeared", key.Name)
+		body := fmt.Sprintf(`%s is not receiving expected traffic.
+
+What's happening:
+- Endpoint: %s
+- Current volume: %d requests (expected: %.0f)
+- Silent since: %s ago
+
+This could mean:
+- Upstream service is down
+- Deployment broke something
+- Network issue
+
+View details: %s/apps/%d/issues`,
+			key.Name,
+			silence.Path,
+			currentVolume,
+			mean,
+			time.Since(silence.SilenceStartAt).Round(time.Minute),
+			s.BaseURL,
+			silence.APIKeyID,
+		)
+
+		if err := s.SendNotification(subject, body); err == nil {
+			events.MarkSilenceNotified(db, &silence)
 		}
 	}
 }

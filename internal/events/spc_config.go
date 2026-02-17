@@ -27,6 +27,11 @@ const (
 	RecoverySigma    = 1.0              // Below mean + 1σ to recover
 	RecoveryDuration = 10 * time.Minute // Must stay recovered this long
 
+	// Silence detection
+	MinVolumeForSilenceAlert = 50.0 // Don't alert on endpoints with <50 requests/5min baseline
+	SilenceWarningSigma      = -2.0 // Alert at -2σ
+	SilenceCriticalSigma     = -3.0 // Critical at -3σ
+
 	// Jobs
 	BaselineUpdateInterval = 5 * time.Minute
 	AnomalyCheckInterval   = 5 * time.Minute

@@ -123,3 +123,58 @@ func MarkDigestItemsResolved(db *gorm.DB, items []DigestItem) {
 		db.Model(&item).Update("resolved", true)
 	}
 }
+
+// GetOrCreateSilenceState retrieves or creates a silence state for the endpoint.
+func GetOrCreateSilenceState(db *gorm.DB, apiKeyID uint, path string) *SilenceState {
+	var state SilenceState
+	result := db.Where("api_key_id = ? AND path = ?", apiKeyID, path).First(&state)
+
+	if result.Error != nil {
+		state = SilenceState{
+			APIKeyID: apiKeyID,
+			Path:     path,
+		}
+		db.Create(&state)
+	}
+
+	return &state
+}
+
+// UpdateSilenceSeverity updates the silence state with new severity.
+func UpdateSilenceSeverity(db *gorm.DB, state *SilenceState, severity string) {
+	if state.Severity == "" && severity != "" {
+		state.SilenceStartAt = time.Now()
+		state.IsSilent = true
+	}
+
+	// Only escalate, never downgrade (until recovery)
+	if severity == "critical" && state.Severity != "critical" {
+		state.Severity = "critical"
+	} else if severity == "warning" && state.Severity == "" {
+		state.Severity = "warning"
+	}
+
+	db.Save(state)
+}
+
+// ClearSilenceState resets silence state after recovery.
+func ClearSilenceState(db *gorm.DB, state *SilenceState) {
+	state.Severity = ""
+	state.IsSilent = false
+	state.SilenceStartAt = time.Time{}
+	db.Save(state)
+}
+
+// GetUnnotifiedCriticalSilences returns critical silences that need alerts.
+func GetUnnotifiedCriticalSilences(db *gorm.DB) []SilenceState {
+	var silences []SilenceState
+	db.Where("severity = ? AND (last_alert_at IS NULL OR last_alert_at < silence_start_at)",
+		"critical").Find(&silences)
+	return silences
+}
+
+// MarkSilenceNotified marks the silence as notified.
+func MarkSilenceNotified(db *gorm.DB, state *SilenceState) {
+	state.LastAlertAt = time.Now()
+	db.Save(state)
+}

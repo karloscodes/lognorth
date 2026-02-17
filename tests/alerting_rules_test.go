@@ -123,3 +123,91 @@ func TestIsRegression(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// SILENCE DETECTION TESTS
+// Test the absence-of-logs detection functions
+// =============================================================================
+
+func TestIsSilence(t *testing.T) {
+	t.Run("detects critical silence at -3 sigma", func(t *testing.T) {
+		// Mean 100, stddev 10, current 65 → z = (65-100)/10 = -3.5
+		silent, severity := events.IsSilence(65, 100, 10)
+
+		if !silent {
+			t.Error("expected silence to be detected")
+		}
+		if severity != "critical" {
+			t.Errorf("expected critical, got %s", severity)
+		}
+	})
+
+	t.Run("detects warning at -2 sigma", func(t *testing.T) {
+		// Mean 100, stddev 10, current 78 → z = (78-100)/10 = -2.2
+		silent, severity := events.IsSilence(78, 100, 10)
+
+		if !silent {
+			t.Error("expected silence to be detected")
+		}
+		if severity != "warning" {
+			t.Errorf("expected warning, got %s", severity)
+		}
+	})
+
+	t.Run("ignores low-traffic endpoints", func(t *testing.T) {
+		// Mean 30 (below MinVolumeForSilenceAlert=50), should not alert
+		silent, _ := events.IsSilence(0, 30, 10)
+
+		if silent {
+			t.Error("should not alert on low-traffic endpoints")
+		}
+	})
+
+	t.Run("normal traffic is not silence", func(t *testing.T) {
+		// Mean 100, stddev 10, current 95 → z = -0.5
+		silent, _ := events.IsSilence(95, 100, 10)
+
+		if silent {
+			t.Error("normal traffic should not be detected as silence")
+		}
+	})
+
+	t.Run("handles zero stddev with default coefficient of variation", func(t *testing.T) {
+		// Mean 100, stddev 0 → uses mean*0.3=30 as stddev
+		// Current 30 → z = (30-100)/30 = -2.33 → warning
+		silent, severity := events.IsSilence(30, 100, 0)
+
+		if !silent {
+			t.Error("expected silence with zero stddev fallback")
+		}
+		if severity != "warning" {
+			t.Errorf("expected warning, got %s", severity)
+		}
+	})
+}
+
+func TestIsSilenceRecovered(t *testing.T) {
+	t.Run("returns true when volume back to normal", func(t *testing.T) {
+		// Mean 100, stddev 10, recovery threshold = 100 - 1*10 = 90
+		// Current 95 is above 90
+		if !events.IsSilenceRecovered(95, 100, 10) {
+			t.Error("expected recovery when volume is back to normal")
+		}
+	})
+
+	t.Run("returns false when volume still low", func(t *testing.T) {
+		// Mean 100, stddev 10, recovery threshold = 90
+		// Current 85 is below 90
+		if events.IsSilenceRecovered(85, 100, 10) {
+			t.Error("expected no recovery when volume still low")
+		}
+	})
+
+	t.Run("handles zero stddev", func(t *testing.T) {
+		// Mean 100, stddev 0 → uses mean*0.3=30
+		// Recovery threshold = 100 - 1*30 = 70
+		if !events.IsSilenceRecovered(75, 100, 0) {
+			t.Error("expected recovery with zero stddev fallback")
+		}
+	})
+}

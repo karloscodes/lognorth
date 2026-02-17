@@ -52,3 +52,33 @@ func SPCIsRecovered(current, mean, stddev float64) bool {
 	threshold := mean + RecoverySigma*stddev
 	return current <= threshold
 }
+
+// IsSilence checks if current volume is abnormally low.
+// Returns (isSilent, severity) where severity is "warning", "critical", or "".
+func IsSilence(currentVolume, mean, stddev float64) (bool, string) {
+	if mean < MinVolumeForSilenceAlert {
+		return false, "" // Low-traffic endpoint, skip
+	}
+	if stddev == 0 {
+		stddev = mean * 0.3 // Default to 30% coefficient of variation
+	}
+
+	zScore := (currentVolume - mean) / stddev
+
+	if zScore <= SilenceCriticalSigma {
+		return true, "critical"
+	}
+	if zScore <= SilenceWarningSigma {
+		return true, "warning"
+	}
+	return false, ""
+}
+
+// IsSilenceRecovered checks if volume is back to normal.
+func IsSilenceRecovered(currentVolume, mean, stddev float64) bool {
+	if stddev == 0 {
+		stddev = mean * 0.3
+	}
+	threshold := mean - RecoverySigma*stddev
+	return currentVolume >= threshold
+}
