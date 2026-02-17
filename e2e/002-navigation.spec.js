@@ -16,14 +16,18 @@ test.describe("Navigation Tests", () => {
 		}
 	});
 
-	test("Home page shows overview", async ({ page }) => {
+	test("Home page shows correct heading", async ({ page }) => {
 		helpers.log("Testing home page");
 
 		await helpers.navigateTo("/");
 
-		// Should show Overview heading
-		await expect(page.locator("h1")).toContainText("Overview");
-		helpers.log("Home page loaded with Overview heading");
+		// When no apps: redirects to /apps showing "Add your first app"
+		// When apps exist: shows "Overview"
+		const h1 = page.locator("h1");
+		await expect(h1).toBeVisible({ timeout: 10000 });
+		const text = await h1.textContent();
+		expect(text === "Add your first app" || text === "Overview").toBeTruthy();
+		helpers.log(`Home page loaded with heading: ${text}`);
 	});
 
 	test("Can access Settings page", async ({ page }) => {
@@ -31,7 +35,6 @@ test.describe("Navigation Tests", () => {
 
 		await helpers.navigateTo("/settings");
 
-		// Settings page has "Notifications" as the main heading
 		await expect(page.locator("h1")).toContainText("Notifications");
 		helpers.log("Settings page loaded");
 	});
@@ -41,7 +44,11 @@ test.describe("Navigation Tests", () => {
 
 		await helpers.navigateTo("/apps");
 
-		await expect(page.locator("h1")).toContainText("Apps");
-		helpers.log("Apps page loaded");
+		// Shows "Add your first app" when no apps exist, "Apps" when apps exist
+		const h1 = page.locator("h1");
+		await expect(h1).toBeVisible({ timeout: 10000 });
+		const text = await h1.textContent();
+		expect(text === "Add your first app" || text === "Apps").toBeTruthy();
+		helpers.log(`Apps page loaded with heading: ${text}`);
 	});
 });

@@ -21,25 +21,20 @@ test.describe("App Management Tests", () => {
 
 		await helpers.navigateTo("/apps");
 
-		// Click create new app button - try different selectors
-		const createButton = page.locator('button:has-text("Create"), button:has-text("New"), a:has-text("Add"), a:has-text("Create")').first();
-		if (await createButton.count() > 0) {
-			await createButton.click();
+		// When no apps exist, form is shown directly on page
+		const nameInput = page.locator('input[name="name"]');
+		if (await nameInput.count() > 0) {
+			await nameInput.fill("Test App E2E");
+			await page.click('button[type="submit"]');
 			await page.waitForLoadState("networkidle");
 
-			// Fill in app name if form appears
-			const nameInput = page.locator('input[name="name"]');
-			if (await nameInput.count() > 0) {
-				await helpers.fillForm({ name: "Test App E2E" }, { waitAfterSubmit: true });
-				const content = await page.textContent("body");
-				expect(content).toContain("Test App E2E");
-				helpers.log("App created successfully");
-			} else {
-				helpers.log("App creation form not found - may already have apps", "warn");
-			}
+			// Should now show the app
+			const content = await page.textContent("body");
+			expect(content).toContain("Test App E2E");
+			helpers.log("App created successfully");
 		} else {
-			// If no create button, apps already exist
-			helpers.log("No create button found - checking for existing apps");
+			// Apps already exist - verify we can see them
+			helpers.log("Apps already exist - verifying visibility");
 			await expect(page.locator('a[href*="/apps/"]').first()).toBeVisible();
 			helpers.log("Existing apps found - test passed");
 		}
