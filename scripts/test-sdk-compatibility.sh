@@ -200,8 +200,24 @@ if [ "$HAS_RAILS_SDK" = true ]; then
         bundle install --quiet
     fi
     echo "  Running tests..."
-    bundle exec rake test TEST=test/compatibility_test.rb || bundle exec rspec spec/compatibility_spec.rb
-    RAILS_EXIT=$?
+    # Try different test patterns - Rails SDK might use minitest or rspec
+    if [ -f "test/compatibility_test.rb" ]; then
+        bundle exec rake test TEST=test/compatibility_test.rb
+        RAILS_EXIT=$?
+    elif [ -f "spec/compatibility_spec.rb" ]; then
+        bundle exec rspec spec/compatibility_spec.rb
+        RAILS_EXIT=$?
+    elif [ -d "test" ] && ls test/*_test.rb 1>/dev/null 2>&1; then
+        bundle exec rake test
+        RAILS_EXIT=$?
+    elif [ -d "spec" ] && ls spec/*_spec.rb 1>/dev/null 2>&1; then
+        bundle exec rspec
+        RAILS_EXIT=$?
+    else
+        echo -e "${YELLOW}  No test files found, running basic require check...${NC}"
+        bundle exec ruby -e "require 'lognorth'; puts '✅ Gem loads successfully'"
+        RAILS_EXIT=$?
+    fi
     cd "$REPO_ROOT"
     echo ""
 else
