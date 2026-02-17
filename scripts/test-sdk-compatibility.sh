@@ -21,6 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 HAS_TS_SDK=false
 HAS_GO_SDK=false
+HAS_RAILS_SDK=false
 
 # Check for TypeScript SDK
 if [ -d "$REPO_ROOT/../lognorth-sdk-ts" ]; then
@@ -36,6 +37,12 @@ fi
 if [ -d "$REPO_ROOT/../lognorth-sdk-go" ]; then
     HAS_GO_SDK=true
     GO_SDK_PATH="$REPO_ROOT/../lognorth-sdk-go"
+fi
+
+# Check for Rails SDK
+if [ -d "$REPO_ROOT/../lognorth-sdk-rails" ]; then
+    HAS_RAILS_SDK=true
+    RAILS_SDK_PATH="$REPO_ROOT/../lognorth-sdk-rails"
 fi
 
 # Cleanup function
@@ -128,6 +135,7 @@ export LOGNORTH_API_KEY="$API_KEY"
 
 TS_EXIT=0
 GO_EXIT=0
+RAILS_EXIT=0
 
 # Step 5: Run TypeScript SDK tests (if available)
 if [ "$HAS_TS_SDK" = true ]; then
@@ -182,6 +190,25 @@ else
     echo ""
 fi
 
+# Step 7: Run Rails SDK tests (if available)
+if [ "$HAS_RAILS_SDK" = true ]; then
+    echo -e "${BLUE}📝 Running Rails SDK compatibility test...${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    cd "$RAILS_SDK_PATH"
+    if [ ! -f "Gemfile.lock" ]; then
+        echo "  Installing SDK dependencies..."
+        bundle install --quiet
+    fi
+    echo "  Running tests..."
+    bundle exec rake test TEST=test/compatibility_test.rb || bundle exec rspec spec/compatibility_spec.rb
+    RAILS_EXIT=$?
+    cd "$REPO_ROOT"
+    echo ""
+else
+    echo -e "${YELLOW}⚠️  Rails SDK not found, skipping${NC}"
+    echo ""
+fi
+
 # Summary
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BLUE}📊 Test Summary${NC}"
@@ -203,9 +230,17 @@ if [ "$HAS_GO_SDK" = true ]; then
     fi
 fi
 
+if [ "$HAS_RAILS_SDK" = true ]; then
+    if [ $RAILS_EXIT -eq 0 ]; then
+        echo -e "${GREEN}✅ Rails SDK: PASSED${NC}"
+    else
+        echo -e "${RED}❌ Rails SDK: FAILED${NC}"
+    fi
+fi
+
 echo ""
 
-if [ $TS_EXIT -eq 0 ] && [ $GO_EXIT -eq 0 ]; then
+if [ $TS_EXIT -eq 0 ] && [ $GO_EXIT -eq 0 ] && [ $RAILS_EXIT -eq 0 ]; then
     echo -e "${GREEN}🎉 All SDK compatibility tests passed!${NC}"
     exit 0
 else
