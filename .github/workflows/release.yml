@@ -51,6 +51,10 @@ jobs:
         working-directory: web
         run: npm ci
 
+      - name: Build web assets
+        working-directory: web
+        run: npm run build
+
       - name: Install e2e dependencies
         working-directory: e2e
         run: npm ci
@@ -62,6 +66,8 @@ jobs:
       - name: Run e2e tests
         working-directory: e2e
         run: npx playwright test
+        env:
+          CI: true
 
       - name: Upload test artifacts
         if: failure()

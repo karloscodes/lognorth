@@ -47,15 +47,19 @@ async function setupTestEnvironment() {
 			if (fs.existsSync(shmPath)) fs.unlinkSync(shmPath);
 		}
 
-		// Build web assets
-		runCommand(
-			"cd web && npm run build",
-			"Building web assets",
-			{
-				cwd: projectRoot,
-				timeout: 120000,
-			}
-		);
+		// Build web assets (skip in CI where it's done separately)
+		if (!process.env.CI) {
+			runCommand(
+				"cd web && npm run build",
+				"Building web assets",
+				{
+					cwd: projectRoot,
+					timeout: 120000,
+				}
+			);
+		} else {
+			console.log("📋 Skipping web build (already done in CI workflow)");
+		}
 
 		console.log("\n🎉 E2E test environment setup completed!");
 		console.log("📊 Summary:");
