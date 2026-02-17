@@ -16,18 +16,30 @@ test.describe("Navigation Tests", () => {
 		}
 	});
 
-	test("Home page shows correct heading", async ({ page }) => {
+	test("Home page shows correct content", async ({ page }) => {
 		helpers.log("Testing home page");
 
 		await helpers.navigateTo("/");
 
 		// When no apps: redirects to /apps showing "Add your first app"
-		// When apps exist: shows "Overview"
+		// When apps exist: shows issue count or "All clear"
 		const h1 = page.locator("h1");
-		await expect(h1).toBeVisible({ timeout: 10000 });
-		const text = await h1.textContent();
-		expect(text === "Add your first app" || text === "Overview").toBeTruthy();
-		helpers.log(`Home page loaded with heading: ${text}`);
+		const h1Visible = await h1.isVisible({ timeout: 5000 }).catch(() => false);
+
+		if (h1Visible) {
+			// No apps yet - redirected to /apps
+			const text = await h1.textContent();
+			expect(text).toBe("Add your first app");
+			helpers.log("Home page: no apps, redirected to apps page");
+		} else {
+			// Apps exist - check for issue count or "All clear"
+			const issueCount = page.locator("text=/\\d+ issues?/");
+			const allClear = page.locator("text=All clear");
+			const hasIssues = await issueCount.isVisible({ timeout: 5000 }).catch(() => false);
+			const hasAllClear = await allClear.isVisible({ timeout: 5000 }).catch(() => false);
+			expect(hasIssues || hasAllClear).toBeTruthy();
+			helpers.log(`Home page: ${hasIssues ? "has issues" : "all clear"}`);
+		}
 	});
 
 	test("Can access Settings page", async ({ page }) => {
