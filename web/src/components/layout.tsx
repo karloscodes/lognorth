@@ -1,4 +1,5 @@
 import { ReactNode, useState } from 'react'
+import avatarUrl from '@/assets/avatar.jpg'
 import { Link, router } from '@inertiajs/react'
 import { Check, ChevronDown, ArrowLeft } from 'lucide-react'
 import {
@@ -94,6 +95,56 @@ function LogoutButton() {
     >
       Logout
     </button>
+  )
+}
+
+function FeedbackWidget() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-3">
+      <div
+        className="group"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+      >
+        {open && (
+          <div className="bg-white border border-black/10 shadow-lg rounded-xl p-4 w-60 text-sm mb-3">
+            <p className="text-black/70 text-sm leading-relaxed mb-3">
+              Something broken or an idea?
+            </p>
+            <div className="flex flex-col gap-2">
+              <a
+                href="mailto:me@karloscodes.com?subject=LogNorth feedback"
+                className="font-semibold text-sm hover:underline"
+              >
+                email me →
+              </a>
+              <a
+                href="https://github.com/karloscodes/karloscodes/issues/new/choose"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-black/50 hover:text-black hover:underline transition-colors"
+              >
+                open an issue →
+              </a>
+            </div>
+          </div>
+        )}
+        <div className="flex justify-end">
+          <div
+            className="rounded-full overflow-hidden w-14 h-14 ring-2 ring-white shadow-lg hover:scale-105 transition-transform cursor-pointer"
+          >
+            <img
+              src={avatarUrl}
+              alt="Carlos"
+              className="w-full h-full object-cover"
+              style={{ objectPosition: 'center 1%' }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -200,7 +251,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
 
               <div className="h-5 w-px bg-black/10" />
 
-              <LogoutButton />
+<LogoutButton />
             </div>
           </div>
         </div>
@@ -210,6 +261,9 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
       <main className="max-w-6xl mx-auto px-8 py-10">
         {children}
       </main>
+
+      {/* Feedback Widget */}
+      <FeedbackWidget />
     </div>
   )
 }
