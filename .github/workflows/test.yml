@@ -37,6 +37,9 @@ jobs:
       - name: Build manager
         run: go build -o bin/lognorth ./cmd/manager
 
+      - name: Build app image locally
+        run: docker build --tag karloscodes/lognorth:latest .
+
       - name: Run install
         run: echo -e "localhost\ny\n" | sudo -E ./bin/lognorth install
         env:
