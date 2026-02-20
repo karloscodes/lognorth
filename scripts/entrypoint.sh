@@ -31,6 +31,7 @@ case "$COMMAND" in
   server)
     log "Starting LogNorth server..."
     run_migrations
+    chown -R lognorth:lognorth /app/storage /app/logs
     exec su-exec lognorth /app/lognorth-server
     ;;
 

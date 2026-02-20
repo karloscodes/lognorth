@@ -118,7 +118,7 @@ jobs:
             sleep 5
           done
           echo "Health check failed"
-          docker logs lognorth-app-1 || true
+          docker logs lognorth-app || true
           exit 1
 
       - name: Collect logs on failure
@@ -127,9 +127,9 @@ jobs:
           echo "=== Docker containers ==="
           docker ps -a
           echo "=== App logs ==="
-          docker logs lognorth-app-1 2>&1 | tail -100 || true
-          echo "=== Caddy logs ==="
-          docker logs lognorth-caddy 2>&1 | tail -50 || true
+          docker logs lognorth-app 2>&1 | tail -100 || true
+          echo "=== Proxy logs ==="
+          docker logs lognorth-proxy 2>&1 | tail -50 || true
 
   release:
     name: Build and Release

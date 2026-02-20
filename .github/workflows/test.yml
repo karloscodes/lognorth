@@ -57,8 +57,8 @@ jobs:
         if: failure()
         run: |
           docker ps -a
-          docker logs lognorth-app-1 2>&1 | tail -100 || true
-          docker logs lognorth-caddy 2>&1 | tail -50 || true
+          docker logs lognorth-app 2>&1 | tail -100 || true
+          docker logs lognorth-proxy 2>&1 | tail -50 || true
 
   # E2E tests with Playwright
   e2e-tests:
