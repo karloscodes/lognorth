@@ -14,7 +14,7 @@ func main() {
 	m := matcha.New(matcha.Config{
 		Name:           "lognorth",
 		AppImage:       "karloscodes/lognorth:latest",
-		BlueGreen:      true,
+		HealthPath:     "/_health",
 		CronUpdates:    true,
 		Backups:        true,
 		ManagerRepo:    "karloscodes/lognorth-releases",
