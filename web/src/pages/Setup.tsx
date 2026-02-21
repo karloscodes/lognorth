@@ -46,7 +46,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="w-full max-w-sm px-6">
           <div className="text-center mb-8">
-            <span className="text-4xl font-black tracking-tight">LogNorth</span>
+            <span className="text-4xl font-black font-mono tracking-tight"><span className="text-lime-500">[</span>lognorth<span className="text-lime-500">]</span></span>
             <p className="text-sm font-medium text-black/60 mt-2">Error tracking you own.</p>
           </div>
 

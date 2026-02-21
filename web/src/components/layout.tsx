@@ -18,8 +18,8 @@ interface LayoutProps {
 }
 
 const LogNorthLogo = () => (
-  <span className="text-2xl font-black tracking-tight">
-    LogNorth
+  <span className="text-2xl font-black font-mono tracking-tight" style={{ WebkitTextStroke: '0.5px currentColor' }}>
+    <span className="text-lime-500">[</span>lognorth<span className="text-lime-500">]</span>
   </span>
 )
 
