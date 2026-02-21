@@ -5,6 +5,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge/flash"
 	"github.com/karloscodes/cartridge/inertia"
+
+	"lognorth/internal/config"
 )
 
 var devMode bool
@@ -31,6 +33,10 @@ func RenderPage(c *fiber.Ctx, component string, props inertia.Props) error {
 	}
 	if _, exists := props["flash"]; !exists {
 		props["flash"] = flash.GetFlash(c)
+	}
+
+	if config.GetConfig().IsDemo() {
+		props["isDemo"] = true
 	}
 
 	return inertia.RenderPage(c, component, props)

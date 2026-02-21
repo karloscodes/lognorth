@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react'
 import avatarUrl from '@/assets/avatar.jpg'
-import { Link, router } from '@inertiajs/react'
+import { Link, router, usePage } from '@inertiajs/react'
 import { Check, ChevronDown, ArrowLeft } from 'lucide-react'
 import {
   Popover,
@@ -149,6 +149,8 @@ function FeedbackWidget() {
 }
 
 export function Layout({ children, currentPath, appId, appName, applications }: LayoutProps) {
+  const { props } = usePage<{ isDemo?: boolean }>()
+  const isDemo = props.isDemo ?? false
   const isAppScoped = appId && appName && applications
 
   const isActive = (path: string) => {
@@ -249,9 +251,12 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
                 Settings
               </Link>
 
-              <div className="h-5 w-px bg-black/10" />
-
-<LogoutButton />
+              {!isDemo && (
+                <>
+                  <div className="h-5 w-px bg-black/10" />
+                  <LogoutButton />
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -263,7 +268,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
       </main>
 
       {/* Feedback Widget */}
-      <FeedbackWidget />
+      {!isDemo && <FeedbackWidget />}
     </div>
   )
 }
