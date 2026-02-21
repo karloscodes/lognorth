@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	github.com/gofiber/fiber/v2 v2.52.11
 	github.com/karloscodes/cartridge v0.0.0-20260215191752-240a3c5e87be
-	github.com/karloscodes/matcha v0.11.4
+	github.com/karloscodes/matcha v0.12.5
 	github.com/valyala/fasthttp v1.68.0
 	gorm.io/gorm v1.31.0
 )
@@ -44,5 +44,6 @@ require (
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/sqlite v1.6.0 // indirect
 )

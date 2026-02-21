@@ -9,6 +9,8 @@ import (
 	"os"
 	"time"
 
+	"gorm.io/gorm"
+
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/database"
@@ -132,14 +134,25 @@ func main() {
 	fmt.Println("Seeding demo data...")
 	fmt.Println()
 
+	// Create all API keys first (needed for cross-app traces)
+	apiKeyMap := make(map[string]*apikeys.APIKey)
 	for _, app := range apps {
 		apiKey, _, err := apikeys.Create(db, app.name)
 		if err != nil {
 			log.Printf("Failed to create API key for %s: %v", app.name, err)
 			continue
 		}
+		apiKeyMap[app.name] = apiKey
+	}
 
-		now := time.Now()
+	now := time.Now()
+
+	for _, app := range apps {
+		apiKey := apiKeyMap[app.name]
+		if apiKey == nil {
+			continue
+		}
+
 		totalEvents := 0
 		errorCount := 0
 
@@ -326,6 +339,133 @@ func main() {
 		fmt.Printf("  %s: %d events (%d errors)\n", app.name, totalEvents, errorCount)
 	}
 
+	// Generate correlated traces that span multiple apps
+	// These make the trace view interesting — a request flows through web → api → workers
+	fmt.Println()
+	fmt.Println("  Generating cross-app traces...")
+
+	traceScenarios := []struct {
+		name     string
+		isError  bool
+		hoursAgo int
+	}{
+		// Successful checkout flow
+		{name: "checkout", hoursAgo: 1},
+		{name: "checkout", hoursAgo: 4},
+		{name: "checkout", hoursAgo: 12},
+		{name: "checkout", hoursAgo: 36},
+		{name: "checkout", hoursAgo: 72},
+		// User signup flow
+		{name: "signup", hoursAgo: 2},
+		{name: "signup", hoursAgo: 8},
+		{name: "signup", hoursAgo: 48},
+		// Failed checkout (payment timeout)
+		{name: "checkout_fail", isError: true, hoursAgo: 0},
+		{name: "checkout_fail", isError: true, hoursAgo: 3},
+		// Order processing
+		{name: "order", hoursAgo: 6},
+		{name: "order", hoursAgo: 18},
+		{name: "order", hoursAgo: 24},
+		{name: "order", hoursAgo: 50},
+		// Failed order (inventory sync error)
+		{name: "order_fail", isError: true, hoursAgo: 5},
+	}
+
+	webKey := apiKeyMap["acme-web"]
+	apiKeyRef := apiKeyMap["acme-api"]
+	workersKey := apiKeyMap["acme-workers"]
+	traceCount := 0
+
+	for _, scenario := range traceScenarios {
+		if webKey == nil || apiKeyRef == nil || workersKey == nil {
+			break
+		}
+
+		traceID := fmt.Sprintf("trace_%x", rand.Int63())
+		baseTime := now.Add(-time.Duration(scenario.hoursAgo)*time.Hour - time.Duration(rand.Intn(60))*time.Minute)
+		user := fmt.Sprintf("user_%d", rand.Intn(50))
+
+		switch scenario.name {
+		case "checkout":
+			// web: POST /api/checkout/confirm → 200 (50ms)
+			// api: POST /api/checkout/confirm → 200 (120ms, does the work)
+			// api: POST /api/payments/webhook → 200 (80ms, Stripe callback)
+			// workers: ProcessPayments completed (2s)
+			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/checkout/confirm → 200",
+				&events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 200, User: user, IP: "10.1.2.3"}, 50, false)
+			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(10*time.Millisecond), "POST /api/checkout/confirm → 200",
+				&events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 200, User: user, IP: "10.0.1.5"}, 120, false)
+			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(2*time.Second), "POST /api/payments/webhook → 200",
+				&events.EventContext{Method: "POST", Path: "/api/payments/webhook", Status: 200, IP: "10.0.0.1"}, 80, false)
+			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(3*time.Second), "ProcessPayments completed",
+				&events.EventContext{Job: "ProcessPayments"}, 1800+rand.Intn(1000), false)
+			traceCount += 4
+
+		case "checkout_fail":
+			// web: POST /api/checkout/confirm → 200 (50ms)
+			// api: POST /api/checkout/confirm → 500 (30s timeout)
+			// workers: ProcessPayments failed (context deadline exceeded)
+			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/checkout/confirm → 200",
+				&events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 200, User: user, IP: "10.1.2.3"}, 45, false)
+			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(10*time.Millisecond), "POST /api/checkout/confirm → 500",
+				&events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 500, Error: "connection timeout after 30s", User: user, IP: "10.0.1.5"}, 30000, true)
+			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(31*time.Second), "ProcessPayments failed",
+				&events.EventContext{Job: "ProcessPayments", Error: "context deadline exceeded"}, 31000, true)
+			traceCount += 3
+
+		case "signup":
+			// web: POST /api/users → 201 (80ms)
+			// api: POST /api/users → 201 (200ms)
+			// workers: SendWeeklyDigest completed (1s, welcome email)
+			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/users → 201",
+				&events.EventContext{Method: "POST", Path: "/api/users", Status: 201, User: user, IP: "10.3.4.5"}, 80, false)
+			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(5*time.Millisecond), "POST /api/users → 201",
+				&events.EventContext{Method: "POST", Path: "/api/users", Status: 201, User: user, IP: "10.0.1.5"}, 200, false)
+			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(500*time.Millisecond), "SendWeeklyDigest completed",
+				&events.EventContext{Job: "SendWeeklyDigest"}, 900+rand.Intn(500), false)
+			traceCount += 3
+
+		case "order":
+			// web: POST /api/orders → 201 (60ms)
+			// api: POST /api/orders → 201 (150ms)
+			// workers: SyncInventory completed (3s)
+			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/orders → 201",
+				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.2.3.4"}, 60, false)
+			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(8*time.Millisecond), "POST /api/orders → 201",
+				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.0.1.5"}, 150, false)
+			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(1*time.Second), "SyncInventory completed",
+				&events.EventContext{Job: "SyncInventory"}, 2500+rand.Intn(2000), false)
+			traceCount += 3
+
+		case "order_fail":
+			// web: POST /api/orders → 201 (60ms)
+			// api: POST /api/orders → 201 (150ms)
+			// workers: SyncInventory failed (Redis connection refused)
+			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/orders → 201",
+				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.2.3.4"}, 60, false)
+			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(8*time.Millisecond), "POST /api/orders → 201",
+				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.0.1.5"}, 150, false)
+			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(1*time.Second), "SyncInventory failed",
+				&events.EventContext{Job: "SyncInventory", Error: "Redis: connection refused"}, 5000, true)
+			traceCount += 3
+		}
+	}
+
+	fmt.Printf("  cross-app traces: %d events across %d traces\n", traceCount, len(traceScenarios))
 	fmt.Println()
 	fmt.Println("Done. Run with LOGNORTH_DEMO=true to start in demo mode.")
+}
+
+// createTraceEvent is a helper to insert a single event in a correlated trace
+func createTraceEvent(db *gorm.DB, apiKeyID uint, traceID string, timestamp time.Time, message string, ctx *events.EventContext, durationMS int, isError bool) {
+	event := &events.Event{
+		APIKeyID:   apiKeyID,
+		Timestamp:  timestamp,
+		Message:    message,
+		TraceID:    traceID,
+		DurationMS: durationMS,
+		IsError:    isError,
+	}
+	event.SetContext(ctx)
+	events.Create(db, event)
 }
