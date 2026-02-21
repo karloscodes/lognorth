@@ -3,7 +3,7 @@
 
 TMP_DIR := ./tmp
 
-.PHONY: build dev watch-go watch-web dev-server test clean install deps seed seed-events build-manager build-manager-linux build-docker test-installer test-installer-clean
+.PHONY: build dev watch-go watch-web dev-server test clean install deps seed seed-events build-manager build-manager-linux build-docker release test-installer test-installer-clean
 
 # Install all dependencies
 install: deps
@@ -36,7 +36,21 @@ build-manager-linux:
 
 # Build Docker image locally
 build-docker:
-	docker build -t lognorth:$(VERSION) -t lognorth:latest .
+	docker build -t karloscodes/lognorth:$(VERSION) -t karloscodes/lognorth:latest .
+
+# Tag, push tag, build Docker image, push to DockerHub, clean up
+# Usage: make release V=0.5.0
+release:
+	@if [ -z "$(V)" ]; then echo "Usage: make release V=x.y.z"; exit 1; fi
+	git tag v$(V)
+	git push origin v$(V)
+	docker buildx build --platform linux/amd64 \
+		-t karloscodes/lognorth:$(V) \
+		-t karloscodes/lognorth:latest \
+		--push .
+	-docker rmi karloscodes/lognorth:$(V) karloscodes/lognorth:latest 2>/dev/null
+	-docker buildx prune -f --filter "until=1h" 2>/dev/null
+	@echo "Released v$(V)"
 
 # Development mode with hot reload
 dev:
