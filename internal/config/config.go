@@ -56,8 +56,8 @@ func GetConfig() *Config {
 func getPrivateKey(env string, storagePath string) string {
 	key := os.Getenv("LOGNORTH_PRIVATE_KEY")
 
-	// Production requires explicit private key
-	if env == Production {
+	// Production requires explicit private key (unless demo mode)
+	if env == Production && os.Getenv("LOGNORTH_DEMO") != "true" {
 		if key == "" {
 			log.Fatal("Production requires LOGNORTH_PRIVATE_KEY to be set")
 		}

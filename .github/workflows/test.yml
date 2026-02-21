@@ -44,6 +44,7 @@ jobs:
         run: echo -e "localhost\ny\n" | sudo -E ./bin/lognorth install
         env:
           ENV: test
+          LOGNORTH_PRIVATE_KEY: test-ci-key-not-real-do-not-use
 
       - name: Verify install
         run: |
@@ -94,6 +95,9 @@ jobs:
       - name: Install Playwright browsers
         working-directory: e2e
         run: npx playwright install chromium --with-deps
+
+      - name: Pre-build server for e2e
+        run: go build -o tmp/lognorth-server cmd/lognorth/main.go
 
       - name: Run e2e tests
         working-directory: e2e

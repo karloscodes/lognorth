@@ -35,7 +35,9 @@ module.exports = {
 		},
 	],
 	webServer: {
-		command: "cd .. && LOGNORTH_ENV=test go run cmd/lognorth/main.go",
+		command: process.env.CI
+			? "cd .. && LOGNORTH_ENV=test ./tmp/lognorth-server"
+			: "cd .. && LOGNORTH_ENV=test go run cmd/lognorth/main.go",
 		url: "http://localhost:8080/login",
 		reuseExistingServer: !process.env.CI,
 		timeout: 90000,
