@@ -31,6 +31,15 @@ case "$COMMAND" in
   server)
     log "Starting LogNorth server..."
     run_migrations
+
+    # Demo mode: reset and seed on every start
+    if [ "$LOGNORTH_DEMO" = "true" ]; then
+      log "Demo mode: resetting database..."
+      rm -f /app/storage/*.db /app/storage/*.db-*
+      /app/seed-demo
+      log "Demo data seeded."
+    fi
+
     chown -R lognorth:lognorth /app/storage /app/logs
     exec su-exec lognorth /app/lognorth-server
     ;;

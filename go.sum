@@ -10,8 +10,6 @@ github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/go-viper/mapstructure/v2 v2.4.0 h1:EBsztssimR/CONLSZZ04E8qAkxNYq4Qp9LvH92wZUgs=
 github.com/go-viper/mapstructure/v2 v2.4.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
-github.com/gofiber/fiber/v2 v2.52.10 h1:jRHROi2BuNti6NYXmZ6gbNSfT3zj/8c0xy94GOU5elY=
-github.com/gofiber/fiber/v2 v2.52.10/go.mod h1:YEcBbO/FB+5M1IZNBP9FO3J9281zgPAreiI1oqg8nDw=
 github.com/gofiber/fiber/v2 v2.52.11 h1:5f4yzKLcBcF8ha1GQTWB+mpblWz3Vz6nSAbTL31HkWs=
 github.com/gofiber/fiber/v2 v2.52.11/go.mod h1:YEcBbO/FB+5M1IZNBP9FO3J9281zgPAreiI1oqg8nDw=
 github.com/gofiber/template v1.8.3 h1:hzHdvMwMo/T2kouz2pPCA0zGiLCeMnoGsQZBTSYgZxc=
@@ -28,12 +26,10 @@ github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jinzhu/now v1.1.5 h1:/o9tlHleP7gOFmsnYNz3RGnqzefHA47wQpKrrdTIwXQ=
 github.com/jinzhu/now v1.1.5/go.mod h1:d3SSVoowX0Lcu0IBviAWJpolVfI5UJVZZ7cO71lE/z8=
-github.com/karloscodes/cartridge v0.0.0-20260203074132-6f3533e1c37b h1:SXFjBmMWobV/g7dX4EW//A2y3O5cLRTSF/VL5MZjUXs=
-github.com/karloscodes/cartridge v0.0.0-20260203074132-6f3533e1c37b/go.mod h1:RjcYtbq3kyikk9hlCLxvjnmKqMgE8DV4U1tD0GZbDGs=
 github.com/karloscodes/cartridge v0.0.0-20260215191752-240a3c5e87be h1:/DeM6tKHgAMisSqVzmY88EffwxG6X+fVtdI54qKCyhg=
 github.com/karloscodes/cartridge v0.0.0-20260215191752-240a3c5e87be/go.mod h1:sdMuruvi0GhgAohujw6Oa0iSuluxWfMWU3dM6AZRVjU=
-github.com/karloscodes/matcha v0.11.3 h1:mwevTZVJeGf/EStg8SepcNv/D46MkuKPkU9cIL48dJY=
-github.com/karloscodes/matcha v0.11.3/go.mod h1:AuAlMSGa7OqirhsyV/74Ygbo9cu67wr8ON175QjyQ5I=
+github.com/karloscodes/matcha v0.11.4 h1:L6qXIj6LnGa5kUQSc1MPWbPDq/dhf59i+2+lwY9tjRM=
+github.com/karloscodes/matcha v0.11.4/go.mod h1:AuAlMSGa7OqirhsyV/74Ygbo9cu67wr8ON175QjyQ5I=
 github.com/klauspost/compress v1.18.2 h1:iiPHWW0YrcFgpBYhsA6D1+fqHssJscY/Tm/y2Uqnapk=
 github.com/klauspost/compress v1.18.2/go.mod h1:R0h/fSBs8DE4ENlcrlib3PsXS61voFxhIs2DeRhCvJ4=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=

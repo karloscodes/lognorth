@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 	cartridgemiddleware "github.com/karloscodes/cartridge/middleware"
@@ -128,6 +130,21 @@ func MountRoutes(server *cartridge.Server) {
 	// Serve static files
 	app.Static("/assets", "./web/dist/assets")
 
+	// Demo mode: block all write operations except API ingest
+	if cfg.IsDemo() {
+		app.Use(func(c *fiber.Ctx) error {
+			method := c.Method()
+			if method == "POST" || method == "PUT" || method == "DELETE" || method == "PATCH" {
+				if strings.HasPrefix(c.Path(), "/api/") {
+					return c.Next()
+				}
+				referer := c.Get("Referer", "/")
+				return c.Redirect(referer)
+			}
+			return c.Next()
+		})
+	}
+
 	// API routes (no CSRF, uses API key auth + rate limiting)
 	apiConfig := &cartridge.RouteConfig{
 		EnableSecFetchSite: cartridge.Bool(false),
@@ -146,36 +163,52 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/api/v1/api-keys", lbhttp.ListAPIKeysAction, apiReadConfig)
 
 	// Protected page config (with session auth + onboarding check)
-	protectedConfig := &cartridge.RouteConfig{
-		CustomMiddleware: []fiber.Handler{
+	// In demo mode, skip auth entirely — everyone sees the app
+	var protectedMiddleware []fiber.Handler
+	if cfg.IsDemo() {
+		protectedMiddleware = []fiber.Handler{}
+	} else {
+		protectedMiddleware = []fiber.Handler{
 			onboardingCheck,
 			sessionMgr.Middleware(),
-		},
+		}
+	}
+	protectedConfig := &cartridge.RouteConfig{
+		CustomMiddleware:   protectedMiddleware,
 		EnableSecFetchSite: cartridge.Bool(true),
 	}
 
-	// Login/logout (rate limited, no CSRF for login page itself)
-	loginConfig := &cartridge.RouteConfig{
-		EnableSecFetchSite: cartridge.Bool(false),
-	}
-	loginPostConfig := &cartridge.RouteConfig{
-		EnableSecFetchSite: cartridge.Bool(true),
-		CustomMiddleware:   []fiber.Handler{loginRateLimiter},
-	}
-	server.Get("/login", lbhttp.LoginPageAction, loginConfig)
-	server.Post("/login", lbhttp.LoginAction, loginPostConfig)
-	server.Post("/logout", lbhttp.LogoutAction, protectedConfig)
+	// Login/logout and onboarding
+	if cfg.IsDemo() {
+		// In demo mode, redirect login/setup to home
+		demoRedirect := func(ctx *cartridge.Context) error {
+			return ctx.Ctx.Redirect("/")
+		}
+		server.Get("/login", demoRedirect, nil)
+		server.Get("/setup", demoRedirect, nil)
+	} else {
+		loginConfig := &cartridge.RouteConfig{
+			EnableSecFetchSite: cartridge.Bool(false),
+		}
+		loginPostConfig := &cartridge.RouteConfig{
+			EnableSecFetchSite: cartridge.Bool(true),
+			CustomMiddleware:   []fiber.Handler{loginRateLimiter},
+		}
+		server.Get("/login", lbhttp.LoginPageAction, loginConfig)
+		server.Post("/login", lbhttp.LoginAction, loginPostConfig)
+		server.Post("/logout", lbhttp.LogoutAction, protectedConfig)
 
-	// Onboarding (no auth required - this is initial setup)
-	onboardingConfig := &cartridge.RouteConfig{
-		EnableSecFetchSite: cartridge.Bool(false),
+		// Onboarding (no auth required - this is initial setup)
+		onboardingConfig := &cartridge.RouteConfig{
+			EnableSecFetchSite: cartridge.Bool(false),
+		}
+		onboardingPostConfig := &cartridge.RouteConfig{
+			EnableSecFetchSite: cartridge.Bool(true),
+		}
+		server.Get("/setup", lbhttp.OnboardingPageAction, onboardingConfig)
+		server.Post("/setup/user", lbhttp.OnboardingUserAction, onboardingPostConfig)
+		server.Post("/setup/password", lbhttp.OnboardingPasswordAction, onboardingPostConfig)
 	}
-	onboardingPostConfig := &cartridge.RouteConfig{
-		EnableSecFetchSite: cartridge.Bool(true),
-	}
-	server.Get("/setup", lbhttp.OnboardingPageAction, onboardingConfig)
-	server.Post("/setup/user", lbhttp.OnboardingUserAction, onboardingPostConfig)
-	server.Post("/setup/password", lbhttp.OnboardingPasswordAction, onboardingPostConfig)
 
 	// Home page
 	server.Get("/", lbhttp.HomePageAction, protectedConfig)

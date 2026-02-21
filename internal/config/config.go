@@ -212,6 +212,11 @@ func (c *Config) GetBaseURL() string {
 	return ""
 }
 
+// IsDemo returns true if the application is running in demo mode
+func (c *Config) IsDemo() bool {
+	return os.Getenv("LOGNORTH_DEMO") == "true"
+}
+
 // Reset clears the cached configuration; intended for tests
 func Reset() {
 	once = sync.Once{}

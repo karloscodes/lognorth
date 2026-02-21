@@ -28,6 +28,7 @@ COPY web/index.html web/vite.config.ts web/tsconfig*.json web/postcss.config.js 
 RUN mkdir -p dist && \
   CGO_ENABLED=1 go build -o dist/lognorth-server cmd/lognorth/main.go && \
   CGO_ENABLED=1 go build -o dist/lnctl cmd/lnctl/main.go && \
+  CGO_ENABLED=1 go build -o dist/seed-demo cmd/seed-demo/main.go && \
   cd web && npm run build
 
 # Final stage - minimal runtime image
@@ -43,13 +44,14 @@ RUN apk add --no-cache ca-certificates tzdata sqlite curl su-exec && \
 # Copy compiled binaries and built assets from builder
 COPY --from=builder /app/dist/lognorth-server /app/lognorth-server
 COPY --from=builder /app/dist/lnctl /app/lnctl
+COPY --from=builder /app/dist/seed-demo /app/seed-demo
 COPY --from=builder /app/web/dist /app/web/dist
 
 # Copy entrypoint script
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 
 # Set permissions in one RUN command
-RUN chmod +x /app/entrypoint.sh /app/lognorth-server /app/lnctl
+RUN chmod +x /app/entrypoint.sh /app/lognorth-server /app/lnctl /app/seed-demo
 
 ENV LOGNORTH_ENV=production \
   LOGNORTH_STORAGE_PATH=/app/storage \
