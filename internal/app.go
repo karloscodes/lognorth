@@ -130,8 +130,12 @@ func MountRoutes(server *cartridge.Server) {
 	// Serve static files
 	app.Static("/assets", "./web/dist/assets")
 
-	// Demo mode: block all write operations except API ingest
+	// Demo mode: global rate limit + block write operations
 	if cfg.IsDemo() {
+		app.Use(cartridgemiddleware.RateLimiter(
+			cartridgemiddleware.WithMax(60),
+			cartridgemiddleware.WithDuration(time.Minute),
+		))
 		app.Use(func(c *fiber.Ctx) error {
 			method := c.Method()
 			if method == "POST" || method == "PUT" || method == "DELETE" || method == "PATCH" {

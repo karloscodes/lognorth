@@ -38,18 +38,41 @@ build-manager-linux:
 build-docker:
 	docker build -t karloscodes/lognorth:$(VERSION) -t karloscodes/lognorth:latest .
 
-# Tag, push tag, build Docker image, push to DockerHub, clean up
+# Full local release: tag, Docker image, CLI binaries, checksums, publish
 # Usage: make release V=0.5.0
 release:
 	@if [ -z "$(V)" ]; then echo "Usage: make release V=x.y.z"; exit 1; fi
+	@echo "=== Tagging v$(V) ==="
 	git tag v$(V)
 	git push origin v$(V)
+	@echo "=== Building Docker image ==="
 	docker buildx build --platform linux/amd64 \
 		-t karloscodes/lognorth:$(V) \
 		-t karloscodes/lognorth:latest \
 		--push .
+	@echo "=== Building CLI binaries ==="
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X main.currentVersion=$(V)" -o tmp/lognorth-linux-amd64 cmd/manager/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-X main.currentVersion=$(V)" -o tmp/lognorth-linux-arm64 cmd/manager/main.go
+	cd tmp && shasum -a 256 lognorth-linux-amd64 lognorth-linux-arm64 > checksums.txt
+	@echo "=== Publishing releases ==="
+	gh release create v$(V) \
+		--repo karloscodes/lognorth \
+		--title "LogNorth v$(V)" \
+		--notes "Release v$(V)" \
+		tmp/lognorth-linux-amd64 \
+		tmp/lognorth-linux-arm64 \
+		tmp/checksums.txt
+	gh release create v$(V) \
+		--repo karloscodes/lognorth-releases \
+		--title "LogNorth v$(V)" \
+		--notes "Release v$(V)" \
+		tmp/lognorth-linux-amd64 \
+		tmp/lognorth-linux-arm64 \
+		tmp/checksums.txt
+	@echo "=== Cleaning up ==="
 	-docker rmi karloscodes/lognorth:$(V) karloscodes/lognorth:latest 2>/dev/null
 	-docker buildx prune -f --filter "until=1h" 2>/dev/null
+	rm -f tmp/lognorth-linux-* tmp/checksums.txt
 	@echo "Released v$(V)"
 
 # Development mode with hot reload
