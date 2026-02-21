@@ -98,7 +98,7 @@ function LogoutButton() {
   )
 }
 
-function FeedbackWidget() {
+function FeedbackWidget({ isDemo }: { isDemo: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -114,12 +114,14 @@ function FeedbackWidget() {
               Something broken or an idea?
             </p>
             <div className="flex flex-col gap-2">
-              <a
-                href="mailto:me@karloscodes.com?subject=LogNorth feedback"
-                className="font-semibold text-sm hover:underline"
-              >
-                email me →
-              </a>
+              {!isDemo && (
+                <a
+                  href="mailto:me@karloscodes.com?subject=LogNorth feedback"
+                  className="font-semibold text-sm hover:underline"
+                >
+                  email me →
+                </a>
+              )}
               <a
                 href="https://github.com/karloscodes/karloscodes/issues/new/choose"
                 target="_blank"
@@ -268,7 +270,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
       </main>
 
       {/* Feedback Widget */}
-      {!isDemo && <FeedbackWidget />}
+      <FeedbackWidget isDemo={isDemo} />
     </div>
   )
 }
