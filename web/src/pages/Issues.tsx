@@ -63,7 +63,7 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
           {activeIssues.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-4">
-                <span className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="w-2 h-2 rounded-full bg-[#e11d48]" />
                 <h2 className="text-sm font-bold text-black/50 uppercase tracking-wide">
                   Active
                 </h2>
@@ -122,7 +122,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
   return (
     <div
       className={`flex items-center gap-4 p-5 transition-colors hover:bg-black/[0.02] ${
-        isUnseen && !issue.muted ? 'shadow-[inset_3px_0_0_0_#dc2626] bg-red-50/50' : ''
+        isUnseen && !issue.muted ? 'shadow-[inset_3px_0_0_0_#e11d48] bg-rose-50/50' : ''
       } ${issue.muted ? 'opacity-50' : ''}`}
     >
       {/* Main content - clickable link */}
@@ -171,7 +171,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
         <Mono
           className={`text-xl font-black w-16 text-right ${
             isUnseen && !issue.muted
-              ? 'text-red-600'
+              ? 'text-[#e11d48]'
               : stale || issue.muted
                 ? 'text-black/30'
                 : 'text-black'

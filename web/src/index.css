@@ -16,23 +16,20 @@
     --primary: 0 0% 0%;
     --primary-foreground: 0 0% 100%;
 
-    /* Secondary uses pure white - rely on black/* opacity for subtle backgrounds */
-    --secondary: 0 0% 100%;
+    --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 0%;
 
-    /* Muted uses pure white - rely on black/* opacity for subtle backgrounds */
-    --muted: 0 0% 100%;
-    --muted-foreground: 0 0% 0%; /* Use text-black/60 instead of this */
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
 
-    --accent: 156 100% 42%; /* #00D678 - use for icons, borders, badges only */
-    --accent-foreground: 0 0% 100%; /* white text on accent backgrounds */
+    --accent: 81 82% 55%; /* #a3e635 lime */
+    --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders use black - apply opacity via Tailwind (border-black/10) */
-    --border: 0 0% 0%;
-    --input: 0 0% 0%;
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
     --ring: 0 0% 0%;
 
     --radius: 0;

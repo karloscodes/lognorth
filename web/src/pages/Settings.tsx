@@ -383,8 +383,8 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
           <div
             className={`mt-6 p-3 text-sm font-medium ${
               message.type === 'success'
-                ? 'bg-[#00D678]/10 text-black border border-[#00D678]/20'
-                : 'bg-red-50 text-red-600 border border-red-200'
+                ? 'bg-accent/10 text-black border border-accent/20'
+                : 'bg-rose-50 text-[#e11d48] border border-[#e11d48]'
             }`}
           >
             {message.text}

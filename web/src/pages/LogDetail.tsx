@@ -108,9 +108,9 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {/* Error Block */}
       {ctx.error && (
         <div className="mb-8">
-          <h3 className="text-sm font-semibold text-red-700 uppercase tracking-wider mb-3">Error</h3>
-          <div className="bg-red-50 border-2 border-red-200 p-4">
-            <pre className="text-sm font-mono whitespace-pre-wrap text-red-800 break-words">
+          <h3 className="text-sm font-semibold text-[#e11d48] uppercase tracking-wider mb-3">Error</h3>
+          <div className="bg-rose-50 border-2 border-[#e11d48] p-4">
+            <pre className="text-sm font-mono whitespace-pre-wrap text-[#e11d48] break-words">
               {ctx.error}
             </pre>
           </div>

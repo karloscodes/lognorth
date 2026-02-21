@@ -94,7 +94,7 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
   return (
     <a
       href={href}
-      className={`block py-4 px-5 transition-colors hover:bg-black/[0.02] ${isError ? 'shadow-[inset_2px_0_0_0_#ef4444]' : ''}`}
+      className={`block py-4 px-5 transition-colors hover:bg-black/[0.02] ${isError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
     >
       <div className="flex items-center gap-3">
         {/* Timestamp */}
@@ -116,15 +116,15 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
         </span>
 
         {/* Path or Job name */}
-        <span className="font-mono text-sm text-black font-medium truncate flex-1">
+        <span className="font-mono text-sm text-black font-semibold truncate flex-1">
           {ctx.path || ctx.job || entry.message}
         </span>
 
         {/* Status + Duration */}
         <div className="flex items-center gap-3 shrink-0">
           {ctx.status ? (
-            <span className={`font-mono text-sm font-semibold w-10 text-right ${
-              ctx.status >= 500 ? 'text-red-600' :
+            <span className={`font-mono text-sm font-bold w-10 text-right ${
+              ctx.status >= 500 ? 'text-[#e11d48]' :
               ctx.status >= 400 ? 'text-black' :
               'text-black/50'
             }`}>
@@ -142,7 +142,7 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
       {/* Error message */}
       {isError && ctx.error && (
         <div className="mt-2 pl-[168px]">
-          <Code className="text-sm text-red-600 truncate block">
+          <Code className="text-sm text-[#e11d48] font-bold truncate block">
             {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
           </Code>
         </div>
@@ -162,7 +162,7 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
 
   return (
     <div className="border-b border-black/10 last:border-b-0">
-      <div className={`flex items-stretch ${isError ? 'shadow-[inset_2px_0_0_0_#ef4444]' : ''}`}>
+      <div className={`flex items-stretch ${isError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}>
         {hasMultiple && (
           <button
             onClick={() => setExpanded(!expanded)}
@@ -195,7 +195,7 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
             </span>
 
             {/* Path or Job name */}
-            <span className="font-mono text-sm text-black font-medium truncate flex-1">
+            <span className="font-mono text-sm text-black font-semibold truncate flex-1">
               {ctx.path || ctx.job || mainEntry.message}
             </span>
 
@@ -209,7 +209,7 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
             <div className="flex items-center gap-3 shrink-0">
               {ctx.status ? (
                 <span className={`font-mono text-sm font-semibold w-10 text-right ${
-                  ctx.status >= 500 ? 'text-red-600' :
+                  ctx.status >= 500 ? 'text-[#e11d48]' :
                   ctx.status >= 400 ? 'text-black' :
                   'text-black/50'
                 }`}>
@@ -227,7 +227,7 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
           {/* Error message */}
           {isError && ctx.error && (
             <div className="mt-2 pl-[168px]">
-              <Code className="text-sm text-red-600 truncate block">
+              <Code className="text-sm text-[#e11d48] font-bold truncate block">
                 {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
               </Code>
             </div>
@@ -399,7 +399,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           <>
             Logs
             {liveEnabled && (
-              <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-red-600 text-white text-xs font-semibold align-middle">
+              <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-[#e11d48] text-white text-xs font-semibold align-middle">
                 <span className="w-1.5 h-1.5 bg-white animate-pulse" />
                 Live
               </span>
@@ -420,11 +420,11 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             onClick={() => toggleLive(!liveEnabled)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all ${
               liveEnabled
-                ? 'bg-red-600 text-white'
+                ? 'bg-[#e11d48] text-white'
                 : 'border border-black/20 text-black/70 hover:border-black/40 hover:text-black'
             }`}
           >
-            <span className={`w-2 h-2 ${liveEnabled ? 'bg-white animate-pulse' : 'bg-[#00D678]'}`} />
+            <span className={`w-2 h-2 ${liveEnabled ? 'bg-white animate-pulse' : 'bg-accent'}`} />
             {liveEnabled ? 'Stop' : 'Live'}
           </button>
         )}

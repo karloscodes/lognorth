@@ -18,8 +18,8 @@ interface LayoutProps {
 }
 
 const LogNorthLogo = () => (
-  <span className="text-2xl font-black font-mono tracking-tight" style={{ WebkitTextStroke: '0.5px currentColor' }}>
-    <span className="text-lime-500">[</span>lognorth<span className="text-lime-500">]</span>
+  <span className="text-2xl font-black font-mono tracking-tight" style={{ WebkitTextStroke: '1px currentColor' }}>
+    <span className="text-accent">[</span>lognorth<span className="text-accent">]</span>
   </span>
 )
 
@@ -91,7 +91,7 @@ function LogoutButton() {
   return (
     <button
       onClick={handleLogout}
-      className="text-sm font-semibold text-black/50 hover:text-black transition-colors"
+      className="text-sm font-bold text-black"
     >
       Logout
     </button>
@@ -184,33 +184,33 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
                 <nav className="flex items-center gap-6">
                   <Link
                     href={`/apps/${appId}/issues`}
-                    className={`flex items-center gap-2 py-5 text-sm font-semibold border-b-2 transition-colors ${
+                    className={`flex items-center gap-2 py-5 text-sm font-bold text-black border-b-2 ${
                       currentPath?.includes('/issues')
-                        ? 'border-black text-black'
-                        : 'border-transparent text-black/50 hover:text-black'
+                        ? 'border-black'
+                        : 'border-transparent'
                     }`}
                   >
                     Issues
                     {hasErrors && (
-                      <span className="w-2 h-2 rounded-full bg-red-500" />
+                      <span className="w-2 h-2 rounded-full bg-[#e11d48]" />
                     )}
                   </Link>
                   <Link
                     href={`/apps/${appId}/log`}
-                    className={`py-5 text-sm font-semibold border-b-2 transition-colors ${
+                    className={`py-5 text-sm font-bold text-black border-b-2 ${
                       currentPath?.includes('/log')
-                        ? 'border-black text-black'
-                        : 'border-transparent text-black/50 hover:text-black'
+                        ? 'border-black'
+                        : 'border-transparent'
                     }`}
                   >
                     Logs
                   </Link>
                   <Link
                     href={`/apps/${appId}/endpoints`}
-                    className={`py-5 text-sm font-semibold border-b-2 transition-colors ${
+                    className={`py-5 text-sm font-bold text-black border-b-2 ${
                       currentPath?.includes('/endpoints')
-                        ? 'border-black text-black'
-                        : 'border-transparent text-black/50 hover:text-black'
+                        ? 'border-black'
+                        : 'border-transparent'
                     }`}
                   >
                     Endpoints
@@ -221,10 +221,10 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
               <nav className="flex items-center gap-6">
                 <Link
                   href="/"
-                  className={`py-5 text-sm font-semibold border-b-2 transition-colors ${
+                  className={`py-5 text-sm font-bold text-black border-b-2 ${
                     currentPath === '/'
-                      ? 'border-black text-black'
-                      : 'border-transparent text-black/50 hover:text-black'
+                      ? 'border-black'
+                      : 'border-transparent'
                   }`}
                 >
                   Home
@@ -237,18 +237,14 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
             <div className="flex items-center gap-6">
               <Link
                 href="/apps"
-                className={`text-sm font-semibold transition-colors ${
-                  isActive('/apps') ? 'text-black' : 'text-black/50 hover:text-black'
-                }`}
+                className="text-sm font-bold text-black"
               >
                 Apps
               </Link>
 
               <Link
                 href="/settings"
-                className={`text-sm font-semibold transition-colors ${
-                  isActive('/settings') ? 'text-black' : 'text-black/50 hover:text-black'
-                }`}
+                className="text-sm font-bold text-black"
               >
                 Settings
               </Link>

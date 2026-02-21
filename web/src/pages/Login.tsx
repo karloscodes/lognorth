@@ -18,18 +18,18 @@ export default function Login({ flash }: Props) {
       <div className="w-full max-w-sm px-6">
         {/* Logo */}
         <div className="text-center mb-8">
-          <span className="text-4xl font-black font-mono tracking-tight text-black"><span className="text-lime-500">[</span>lognorth<span className="text-lime-500">]</span></span>
+          <span className="text-4xl font-black font-mono tracking-tight text-black" style={{ WebkitTextStroke: '0.5px currentColor' }}><span className="text-accent">[</span>lognorth<span className="text-accent">]</span></span>
           <p className="text-sm text-black/50 mt-2">Error tracking you own.</p>
         </div>
 
         {flash?.type === 'error' && flash.message && (
-          <div className="bg-red-500/10 border-2 border-red-500/20 text-red-600 px-4 py-3 text-sm font-medium mb-6">
+          <div className="bg-[#e11d48]/10 border-2 border-[#e11d48]/20 text-[#e11d48] px-4 py-3 text-sm font-medium mb-6">
             {flash.message}
           </div>
         )}
 
         {flash?.type === 'success' && flash.message && (
-          <div className="bg-[#00D678]/10 border-2 border-[#00D678]/20 text-black px-4 py-3 text-sm font-medium mb-6">
+          <div className="bg-accent/10 border-2 border-accent/20 text-black px-4 py-3 text-sm font-medium mb-6">
             {flash.message}
           </div>
         )}

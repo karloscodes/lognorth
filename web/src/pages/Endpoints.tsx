@@ -65,10 +65,10 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
     <>
       <button
         onClick={handleClick}
-        className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-black/[0.02] ${hasErrors ? 'shadow-[inset_2px_0_0_0_#ef4444]' : ''}`}
+        className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-black/[0.02] ${hasErrors ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
       >
         {/* Path */}
-        <Code className="text-sm text-black font-medium truncate flex-1">
+        <Code className="text-sm text-black font-semibold truncate flex-1">
           {endpoint.path}
         </Code>
 
@@ -77,7 +77,7 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
           <Mono className="text-sm text-black/50 w-16 text-right">
             {endpoint.total.toLocaleString()}
           </Mono>
-          <Mono className={`text-sm font-semibold w-10 text-right ${hasErrors ? 'text-red-600' : 'text-black/30'}`}>
+          <Mono className={`text-sm font-bold w-10 text-right ${hasErrors ? 'text-[#e11d48]' : 'text-black/30'}`}>
             {endpoint.errors}
           </Mono>
           <Mono className="text-xs text-black/50 w-16 text-right">
@@ -95,7 +95,7 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
               {hasErrors && (
                 <>
                   <span>·</span>
-                  <span className="text-red-600 font-semibold"><span className="font-mono tabular-nums">{errorRate}</span>% error rate</span>
+                  <span className="text-[#e11d48] font-semibold"><span className="font-mono tabular-nums">{errorRate}</span>% error rate</span>
                 </>
               )}
               <span>·</span>
@@ -116,7 +116,7 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
                         href={`/apps/${appId}/log/${err.id}`}
                         className="block p-3 bg-white border border-black/10 hover:border-black/20 transition-colors"
                       >
-                        <Code className="text-sm text-red-600 truncate block">{err.message}</Code>
+                        <Code className="text-sm text-[#e11d48] truncate block">{err.message}</Code>
                         <p className="text-xs text-black/40 mt-1">
                           {formatDistanceToNow(new Date(err.timestamp), { addSuffix: true })}
                         </p>
@@ -156,7 +156,7 @@ export default function Endpoints({ endpoints: endpointsProp, appId, appName, ap
           totalErrors === 0 ? (
             <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · all healthy</>
           ) : (
-            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · <Mono className="text-red-600 font-semibold">{totalErrors}</Mono> errors</>
+            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · <Mono className="text-[#e11d48] font-black">{totalErrors}</Mono> errors</>
           )
         )}
       />

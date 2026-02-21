@@ -47,14 +47,14 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
       <div className="flex items-center justify-between mb-8">
         {totalIssues > 0 ? (
           <div className="flex items-baseline gap-2">
-            <Mono className="text-5xl font-black text-red-600">{totalIssues}</Mono>
+            <Mono className="text-5xl font-black text-[#e11d48]">{totalIssues}</Mono>
             <span className="text-xl font-semibold text-black/60">
               issue{totalIssues !== 1 ? 's' : ''}
             </span>
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <span className="w-3 h-3 bg-[#00D678]" />
+            <span className="w-3 h-3 bg-accent" />
             <span className="text-xl font-semibold text-black/60">All clear</span>
           </div>
         )}
@@ -73,10 +73,10 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
               <a
                 key={app.id}
                 href={`/apps/${app.id}/issues`}
-                className="flex items-center justify-between p-4 border-2 border-red-500/30 bg-red-50 hover:border-red-500 transition-all"
+                className="flex items-center justify-between p-4 border-2 border-[#e11d48] bg-rose-50 hover:bg-rose-100 transition-all"
               >
                 <span className="font-bold text-black text-lg">{app.name}</span>
-                <Mono className="text-2xl font-black text-red-600">{issueCount}</Mono>
+                <Mono className="text-2xl font-black text-[#e11d48]">{issueCount}</Mono>
               </a>
             )
           })}
@@ -93,7 +93,7 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
               className="flex items-center justify-between p-4 border border-black/10 hover:border-black/20 transition-all"
             >
               <span className="font-semibold text-black/70">{app.name}</span>
-              <span className="w-3 h-3 bg-[#00D678]" />
+              <span className="w-3 h-3 bg-accent" />
             </a>
           ))}
         </div>

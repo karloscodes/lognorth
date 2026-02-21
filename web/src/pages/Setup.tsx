@@ -46,14 +46,14 @@ export default function Setup({ apiKeys = [], flash }: Props) {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="w-full max-w-sm px-6">
           <div className="text-center mb-8">
-            <span className="text-4xl font-black font-mono tracking-tight"><span className="text-lime-500">[</span>lognorth<span className="text-lime-500">]</span></span>
+            <span className="text-4xl font-black font-mono tracking-tight" style={{ WebkitTextStroke: '0.5px currentColor' }}><span className="text-accent">[</span>lognorth<span className="text-accent">]</span></span>
             <p className="text-sm font-medium text-black/60 mt-2">Error tracking you own.</p>
           </div>
 
           <h1 className="text-xl font-bold text-black text-center mb-6">Add your first app</h1>
 
           {flash?.error && (
-            <div className="bg-red-500/10 border-2 border-red-500/20 text-red-600 px-4 py-3 text-sm font-medium mb-4">
+            <div className="bg-[#e11d48]/10 border-2 border-[#e11d48]/20 text-[#e11d48] px-4 py-3 text-sm font-medium mb-4">
               {flash.error}
             </div>
           )}
@@ -126,7 +126,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                 key={app.id}
                 className={`bg-white border-2 overflow-hidden group transition-all ${
                   isActive
-                    ? 'border-[#00D678]/40 border-l-4 border-l-[#00D678] hover:border-[#00D678]/60'
+                    ? 'border-accent/40 border-l-4 border-l-accent hover:border-accent/60'
                     : 'border-black/10 hover:border-black/30'
                 }`}
               >
@@ -135,7 +135,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                   {/* Status indicator */}
                   <div className="w-3 h-3 shrink-0">
                     {isActive ? (
-                      <span className="block w-full h-full bg-[#00D678]" />
+                      <span className="block w-full h-full bg-accent" />
                     ) : hasData ? (
                       <span className="block w-full h-full bg-black/20" />
                     ) : (
@@ -184,7 +184,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                       <input type="hidden" name="_method" value="DELETE" />
                       <button
                         type="submit"
-                        className="p-2 opacity-0 group-hover:opacity-100 text-black/30 hover:text-red-600 hover:bg-red-50 transition-all"
+                        className="p-2 opacity-0 group-hover:opacity-100 text-black/30 hover:text-[#e11d48] hover:bg-rose-50 transition-all"
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -209,7 +209,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                         }}
                         className="p-2 bg-white border border-black/20 hover:border-black/40 transition-colors"
                       >
-                        {copiedKey === app.id ? <Check className="w-4 h-4 text-[#00D678]" /> : <Copy className="w-4 h-4 text-black/70" />}
+                        {copiedKey === app.id ? <Check className="w-4 h-4 text-accent" /> : <Copy className="w-4 h-4 text-black/70" />}
                       </button>
                     </div>
                   </div>
