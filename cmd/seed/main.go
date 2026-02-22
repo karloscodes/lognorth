@@ -221,6 +221,11 @@ func main() {
 			}
 			event.SetContext(ctx)
 
+			// Populate error hashes for proper issue grouping
+			if isError {
+				events.PopulateErrorFields(event, ctx)
+			}
+
 			if err := events.Create(db, event); err != nil {
 				log.Printf("Failed to create event: %v", err)
 				continue
@@ -267,6 +272,11 @@ func main() {
 				IsError:    isError,
 			}
 			event.SetContext(ctx)
+
+			// Populate error hashes for proper issue grouping
+			if isError {
+				events.PopulateErrorFields(event, ctx)
+			}
 
 			if err := events.Create(db, event); err != nil {
 				log.Printf("Failed to create event: %v", err)
@@ -328,6 +338,9 @@ func main() {
 					IsError:    true,
 				}
 				event.SetContext(ctx)
+
+				// Populate error hashes for proper issue grouping
+				events.PopulateErrorFields(event, ctx)
 
 				if err := events.Create(db, event); err != nil {
 					log.Printf("Failed to create error event: %v", err)
