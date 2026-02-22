@@ -364,6 +364,7 @@ const LABEL_WIDTH = 40
 function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrencePoint[] | null; firstSeen: string }) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [numCols, setNumCols] = React.useState(60)
+  const [hoveredCell, setHoveredCell] = React.useState<{ day: Date; bucket: typeof TIME_BUCKETS[number]; count: number } | null>(null)
 
   // Measure container to fill full width
   React.useEffect(() => {
@@ -462,15 +463,18 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                   const dayStr = format(day, 'yyyy-MM-dd')
                   const count = bucketCount(dayStr, bucket)
                   const intensity = count > 0 ? Math.max(0.25, count / maxBucket) : 0
+                  const isHovered = hoveredCell?.day === day && hoveredCell?.bucket === bucket
                   return (
                     <div
                       key={`${bucket.label}-${i}`}
+                      className={`cursor-crosshair transition-opacity ${hoveredCell && !isHovered ? 'opacity-40' : ''}`}
                       style={{
                         aspectRatio: '1',
                         borderRadius: 2,
                         backgroundColor: count > 0 ? `rgba(225, 29, 72, ${intensity})` : 'rgba(0,0,0,0.06)',
                       }}
-                      title={`${format(day, 'EEE, MMM d')} ${bucket.label} — ${count} error${count !== 1 ? 's' : ''}`}
+                      onMouseEnter={() => setHoveredCell({ day, bucket, count })}
+                      onMouseLeave={() => setHoveredCell(null)}
                     />
                   )
                 })
@@ -498,6 +502,17 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
             </div>
           </div>
         </div>
+
+        {/* Hover tooltip */}
+        {hoveredCell && (
+          <div className="mt-2 text-xs text-center">
+            <span className="bg-black text-white px-2 py-1">
+              {format(hoveredCell.day, 'EEE, MMM d')} {hoveredCell.bucket.label}
+              <span className="mx-2">·</span>
+              <span className="font-mono font-semibold">{hoveredCell.count} error{hoveredCell.count !== 1 ? 's' : ''}</span>
+            </span>
+          </div>
+        )}
 
         {/* Legend */}
         <div className="flex items-center gap-1.5 mt-3 text-[10px] text-black/60 font-mono font-bold">

@@ -2,6 +2,18 @@ import { useState, useEffect } from 'react'
 import { router } from '@inertiajs/react'
 import { formatDistanceToNow } from 'date-fns'
 import { Search, Inbox, ChevronRight, Layers } from 'lucide-react'
+
+// Short time format: "18 minutes" → "18m", "2 hours" → "2h"
+const shortTime = (date: Date) => {
+  const diff = Date.now() - date.getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'now'
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  return `${days}d`
+}
 import { Layout } from '@/components/layout'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -108,7 +120,7 @@ function LogRow({ entry, appId, compact, hideErrorBorder }: { entry: LogEntry; a
     >
       {/* Timestamp */}
       <span className="text-xs text-black/50 tabular-nums w-16 shrink-0">
-        {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true }).replace('about ', '').replace(' ago', '')}
+        {shortTime(new Date(entry.timestamp))}
       </span>
 
       {/* Type badge */}
@@ -174,7 +186,7 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
         <span className="font-mono text-xs text-black/50">{traceId.slice(0, 12)}...</span>
         <span className="text-xs text-black/40">·</span>
         <span className="text-xs text-black/50">
-          {formatDistanceToNow(new Date(mainEntry.timestamp), { addSuffix: true }).replace('about ', '').replace(' ago', '')}
+          {shortTime(new Date(mainEntry.timestamp))}
         </span>
         <span className="text-xs text-black/40">·</span>
         <span className="text-xs text-black/50">{entries.length} event{entries.length !== 1 ? 's' : ''}</span>
@@ -427,7 +439,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           </>
         }
         subtitle={liveEnabled ? 'Watching...' : (
-          <><Mono>{pagination.total.toLocaleString()}</Mono> log{pagination.total !== 1 ? 's' : ''}{hasFilters && ' (filtered)'}</>
+          <><Mono>{pagination.total.toLocaleString()}</Mono> request{pagination.total !== 1 ? 's' : ''}</>
         )}
       >
         {appId && (
