@@ -19,6 +19,12 @@ interface Filters {
   end_time?: string
 }
 
+interface HistogramBucket {
+  timestamp: string
+  total: number
+  errors: number
+}
+
 interface Pagination {
   limit: number
   offset: number
@@ -29,6 +35,7 @@ interface Props {
   entries?: LogEntry[]
   filters?: Filters
   pagination?: Pagination
+  histogram?: HistogramBucket[]
   appId?: number
   appName?: string
   applications?: Application[]
@@ -254,6 +261,44 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
   )
 }
 
+function LogHistogram({ buckets }: { buckets: HistogramBucket[] }) {
+  if (!buckets || buckets.length === 0) return null
+
+  const maxTotal = Math.max(...buckets.map(b => b.total), 1)
+  const barWidth = 100 / buckets.length
+
+  return (
+    <div className="mb-6 bg-white border border-black/10 p-4">
+      <div className="h-16 flex items-end gap-px">
+        {buckets.map((bucket, i) => {
+          const successHeight = ((bucket.total - bucket.errors) / maxTotal) * 100
+          const errorHeight = (bucket.errors / maxTotal) * 100
+          const hasErrors = bucket.errors > 0
+
+          return (
+            <div
+              key={i}
+              className="flex-1 flex flex-col justify-end h-full"
+              title={`${bucket.total} requests, ${bucket.errors} errors`}
+            >
+              {hasErrors && (
+                <div
+                  className="w-full bg-[#e11d48]"
+                  style={{ height: `${errorHeight}%`, minHeight: bucket.errors > 0 ? '2px' : 0 }}
+                />
+              )}
+              <div
+                className="w-full bg-accent"
+                style={{ height: `${successHeight}%`, minHeight: bucket.total - bucket.errors > 0 ? '1px' : 0 }}
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 type DatePreset = 'all' | 'today' | '7d' | '30d'
 
 const getDatePresetFromFilters = (filters: Filters): DatePreset => {
@@ -285,7 +330,7 @@ const getStartTimeForPreset = (preset: DatePreset): string | undefined => {
   return undefined
 }
 
-export default function Log({ entries: initialEntries = [], filters = {}, pagination = { limit: 50, offset: 0, total: 0 }, appId, appName, applications }: Props) {
+export default function Log({ entries: initialEntries = [], filters = {}, pagination = { limit: 50, offset: 0, total: 0 }, histogram = [], appId, appName, applications }: Props) {
   const [entries, setEntries] = useState(initialEntries)
   const [search, setSearch] = useState(filters.search || '')
   const [errorFilter, setErrorFilter] = useState<string>(
@@ -487,6 +532,11 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           Traces
         </button>
       </div>
+
+      {/* Volume Histogram */}
+      {!liveEnabled && histogram.length > 0 && (
+        <LogHistogram buckets={histogram} />
+      )}
 
       {/* Log List */}
       {entries.length === 0 ? (

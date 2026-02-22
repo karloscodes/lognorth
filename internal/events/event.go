@@ -428,3 +428,80 @@ func GetStats(db *gorm.DB, apiKeyID uint) Stats {
 
 	return stats
 }
+
+// HistogramBucket represents a time bucket for the volume histogram
+type HistogramBucket struct {
+	Timestamp time.Time `json:"timestamp"`
+	Total     int64     `json:"total"`
+	Errors    int64     `json:"errors"`
+}
+
+// GetHistogram returns hourly volume buckets for the given time range
+func GetHistogram(db *gorm.DB, apiKeyID uint, startTime, endTime time.Time, buckets int) []HistogramBucket {
+	if buckets <= 0 {
+		buckets = 24 // default to 24 buckets
+	}
+
+	// Default time range: last 24 hours
+	now := time.Now()
+	if endTime.IsZero() {
+		endTime = now
+	}
+	if startTime.IsZero() {
+		startTime = endTime.Add(-24 * time.Hour)
+	}
+
+	// Calculate bucket duration
+	totalDuration := endTime.Sub(startTime)
+	bucketDuration := totalDuration / time.Duration(buckets)
+	if bucketDuration < time.Minute {
+		bucketDuration = time.Minute
+	}
+
+	// Initialize buckets
+	result := make([]HistogramBucket, buckets)
+	for i := 0; i < buckets; i++ {
+		result[i] = HistogramBucket{
+			Timestamp: startTime.Add(time.Duration(i) * bucketDuration),
+		}
+	}
+
+	// Query events grouped by bucket
+	type bucketResult struct {
+		BucketIdx int64
+		IsError   bool
+		Count     int64
+	}
+
+	var counts []bucketResult
+
+	// Use SQLite's strftime for bucketing
+	bucketSizeSeconds := int64(bucketDuration.Seconds())
+	startUnix := startTime.Unix()
+
+	query := db.Model(&Event{}).
+		Select("((strftime('%s', timestamp) - ?) / ?) as bucket_idx, is_error, COUNT(*) as count", startUnix, bucketSizeSeconds).
+		Where("timestamp >= ? AND timestamp < ?", startTime, endTime).
+		Group("bucket_idx, is_error")
+
+	if apiKeyID > 0 {
+		query = query.Where("api_key_id = ?", apiKeyID)
+	}
+
+	if err := query.Find(&counts).Error; err != nil {
+		return result
+	}
+
+	// Fill in the buckets
+	for _, c := range counts {
+		idx := int(c.BucketIdx)
+		if idx >= 0 && idx < buckets {
+			if c.IsError {
+				result[idx].Errors = c.Count
+			}
+			result[idx].Total += c.Count
+		}
+	}
+
+	return result
+}

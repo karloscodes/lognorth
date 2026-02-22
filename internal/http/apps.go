@@ -65,11 +65,15 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch log"})
 	}
 
+	// Get histogram data - 48 buckets for the time range
+	histogram := events.GetHistogram(db, app.ID, filters.StartTime, filters.EndTime, 48)
+
 	return RenderPage(ctx.Ctx, "Log", Props{
 		"appId":        app.ID,
 		"appName":      app.Name,
 		"applications": apps,
 		"entries":      entries,
+		"histogram":    histogram,
 		"filters": fiber.Map{
 			"is_error":   filters.IsError,
 			"search":     filters.Search,
