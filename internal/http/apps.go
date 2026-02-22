@@ -231,6 +231,9 @@ func parseAppFilters(c *fiber.Ctx, appID uint) events.ListFilters {
 		if t, err := time.Parse(time.RFC3339, startTime); err == nil {
 			filters.StartTime = t
 		}
+	} else {
+		// Default to last 7 days
+		filters.StartTime = time.Now().AddDate(0, 0, -7)
 	}
 	if endTime := c.Query("end_time"); endTime != "" {
 		if t, err := time.Parse(time.RFC3339, endTime); err == nil {

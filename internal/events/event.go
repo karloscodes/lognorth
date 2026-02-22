@@ -448,6 +448,9 @@ func GetHistogram(db *gorm.DB, apiKeyID uint, startTime, endTime time.Time, _ in
 		startTime = endTime.Add(-24 * time.Hour)
 	}
 
+	// Round start time to the beginning of the hour for cleaner bucket boundaries
+	startTime = startTime.Truncate(time.Hour)
+
 	// Calculate total duration and choose appropriate bucket size
 	totalDuration := endTime.Sub(startTime)
 
