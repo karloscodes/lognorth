@@ -261,18 +261,27 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
   )
 }
 
-function LogHistogram({ buckets }: { buckets: HistogramBucket[] }) {
+function LogHistogram({ buckets: rawBuckets }: { buckets: HistogramBucket[] }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
 
-  if (!buckets || buckets.length === 0) return null
+  if (!rawBuckets || rawBuckets.length === 0) return null
+
+  // Trim trailing empty buckets (future time periods with no data)
+  let lastNonEmpty = rawBuckets.length - 1
+  while (lastNonEmpty >= 0 && rawBuckets[lastNonEmpty].total === 0) {
+    lastNonEmpty--
+  }
+  const buckets = lastNonEmpty >= 0 ? rawBuckets.slice(0, lastNonEmpty + 1) : rawBuckets
+
+  if (buckets.length === 0) return null
 
   const maxTotal = Math.max(...buckets.map(b => b.total), 1)
   const hoveredBucket = hoveredIdx !== null ? buckets[hoveredIdx] : null
 
   return (
-    <div className="mb-4 bg-white border border-black/10 px-3 pt-3 pb-2">
-      {/* Bars - no gaps */}
-      <div className="h-16 flex items-end">
+    <div className="mb-4 bg-white border border-black/10 p-3 relative">
+      {/* Bars with gaps */}
+      <div className="h-16 flex items-end gap-0.5">
         {buckets.map((bucket, i) => {
           const successHeight = ((bucket.total - bucket.errors) / maxTotal) * 100
           const errorHeight = (bucket.errors / maxTotal) * 100
@@ -303,26 +312,24 @@ function LogHistogram({ buckets }: { buckets: HistogramBucket[] }) {
         })}
       </div>
 
-      {/* Tooltip - minimal height */}
-      <div className={`text-xs text-center ${hoveredBucket ? 'pt-2' : 'h-0'}`}>
-        {hoveredBucket && (
-          <span>
-            <span className="text-black/50">
-              {new Date(hoveredBucket.timestamp).toLocaleString(undefined, {
-                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-              })}
-            </span>
+      {/* Tooltip overlay - black background */}
+      {hoveredBucket && (
+        <div className="absolute bottom-1 left-0 right-0 text-xs text-center pointer-events-none">
+          <span className="bg-black text-white px-2 py-1">
+            {new Date(hoveredBucket.timestamp).toLocaleString(undefined, {
+              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            })}
             <span className="mx-2">·</span>
-            <span className="font-mono font-semibold text-black">{hoveredBucket.total} requests</span>
+            <span className="font-mono font-semibold">{hoveredBucket.total} requests</span>
             {hoveredBucket.errors > 0 && (
               <>
                 <span className="mx-2">·</span>
-                <span className="font-mono font-semibold text-[#e11d48]">{hoveredBucket.errors} errors</span>
+                <span className="font-mono font-semibold text-[#f87171]">{hoveredBucket.errors} errors</span>
               </>
             )}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
