@@ -85,13 +85,15 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
         href={href}
         className="flex items-center gap-3 py-2 px-3 transition-colors hover:bg-black/[0.03] text-sm"
       >
-        <span className={`font-mono text-xs font-medium ${statusColor(ctx.status)}`}>
-          {ctx.status || '—'}
+        <span className="font-mono text-xs text-black/60 truncate flex-1">
+          {entry.message || ctx.path || ctx.job || '—'}
         </span>
-        <span className="text-black/50 text-xs">{entry.duration_ms}ms</span>
-        <span className="text-black/50 text-xs ml-auto">
-          {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true }).replace('about ', '').replace(' ago', '')}
-        </span>
+        {ctx.status && (
+          <span className={`font-mono text-xs font-medium ${statusColor(ctx.status)}`}>
+            {ctx.status}
+          </span>
+        )}
+        <span className="text-black/40 text-xs tabular-nums">{entry.duration_ms}ms</span>
       </a>
     )
   }
@@ -156,95 +158,45 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
 
 function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
   const [expanded, setExpanded] = useState(false)
-  const { mainEntry, entries } = group
-  const href = appId ? `/apps/${appId}/log/${mainEntry.id}` : `/log/${mainEntry.id}`
+  const { mainEntry, entries, traceId } = group
   const hasMultiple = entries.length > 1
   const totalDuration = entries.reduce((sum, e) => sum + e.duration_ms, 0)
-  const ctx = parseContext(mainEntry.context)
-  const isError = mainEntry.is_error
+  const hasError = entries.some(e => e.is_error)
+
+  // If only one entry, render as normal row
+  if (!hasMultiple) {
+    return (
+      <div className="border-b border-black/10 last:border-b-0">
+        <LogRow entry={mainEntry} appId={appId} />
+      </div>
+    )
+  }
 
   return (
     <div className="border-b border-black/10 last:border-b-0">
-      <div className={`flex items-stretch ${isError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}>
-        {hasMultiple && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="px-3 hover:bg-black/[0.02] transition-colors flex items-center"
-          >
-            <ChevronRight className={`w-4 h-4 text-black/50 transition-transform ${expanded ? 'rotate-90' : ''}`} />
-          </button>
-        )}
-        <a
-          href={href}
-          className={`flex-1 flex items-center gap-3 py-3 pr-5 transition-colors hover:bg-black/[0.02] ${hasMultiple ? '' : 'pl-5'}`}
-        >
-          {/* Timestamp */}
-          <span className="text-xs text-black/50 tabular-nums w-16 shrink-0">
-            {formatDistanceToNow(new Date(mainEntry.timestamp), { addSuffix: true }).replace('about ', '').replace(' ago', '')}
-          </span>
+      {/* Group header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={`w-full flex items-center gap-3 py-3 px-5 text-left bg-black/[0.02] hover:bg-black/[0.04] transition-colors ${hasError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
+      >
+        <ChevronRight className={`w-4 h-4 text-black/40 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`} />
+        <span className="font-mono text-xs text-black/50">{traceId.slice(0, 12)}...</span>
+        <span className="text-xs text-black/40">·</span>
+        <span className="text-xs text-black/50">
+          {formatDistanceToNow(new Date(mainEntry.timestamp), { addSuffix: true }).replace('about ', '').replace(' ago', '')}
+        </span>
+        <span className="text-xs text-black/40">·</span>
+        <span className="text-xs text-black/50">{entries.length} events</span>
+        <span className="flex-1" />
+        <span className="font-mono text-xs text-black/50 tabular-nums">{totalDuration}ms total</span>
+      </button>
 
-          {/* Type badge - fixed width */}
-          <span className="w-14 shrink-0">
-            {ctx.method ? (
-              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
-                {ctx.method}
-              </span>
-            ) : ctx.job ? (
-              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
-                JOB
-              </span>
-            ) : null}
-          </span>
-
-          {/* Path + Error inline */}
-          <div className="flex-1 min-w-0 flex items-center gap-3">
-            <span className="font-mono text-sm text-black font-semibold truncate">
-              {ctx.path || ctx.job || mainEntry.message}
-            </span>
-            {isError && ctx.error && (
-              <span className="font-mono text-xs text-[#e11d48] truncate">
-                {ctx.error}
-              </span>
-            )}
-          </div>
-
-          {hasMultiple && (
-            <span className="text-xs text-black/50 font-medium shrink-0">
-              ×{entries.length}
-            </span>
-          )}
-
-          {/* Status + Duration */}
-          <div className="flex items-center gap-3 shrink-0">
-            {ctx.status ? (
-              <span className={`font-mono text-sm font-bold w-10 text-right ${
-                ctx.status >= 500 ? 'text-[#e11d48]' :
-                ctx.status >= 400 ? 'text-black' :
-                'text-black/50'
-              }`}>
-                {ctx.status}
-              </span>
-            ) : (
-              <span className="w-10" />
-            )}
-            <span className="font-mono text-xs text-black/50 tabular-nums w-14 text-right">
-              {totalDuration}ms
-            </span>
-          </div>
-        </a>
-      </div>
-
-      {expanded && hasMultiple && (
-        <div className="bg-black/[0.015] border-t border-black/5">
-          {entries.map((entry, idx) => (
-            <div key={entry.id} className="flex items-stretch">
-              <div className="w-8 flex flex-col items-center py-2">
-                <div className={`w-1.5 h-1.5 rounded-full ${idx === entries.length - 1 ? 'bg-black' : 'bg-black/20'}`} />
-                {idx < entries.length - 1 && <div className="w-px flex-1 bg-black/10 mt-1" />}
-              </div>
-              <div className="flex-1">
-                <LogRow entry={entry} appId={appId} compact />
-              </div>
+      {/* Expanded children */}
+      {expanded && (
+        <div className="border-t border-black/5">
+          {entries.map((entry) => (
+            <div key={entry.id} className="pl-8">
+              <LogRow entry={entry} appId={appId} />
             </div>
           ))}
         </div>
