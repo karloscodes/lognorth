@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
-import { Clock, Globe, User, Hash, Briefcase } from 'lucide-react'
+import { Clock, Hash, Briefcase, ArrowRight } from 'lucide-react'
 import { Layout } from '@/components/layout'
 import { getConfig, statusColor, methodColor, parseContext } from '@/lib/shared'
 import type { Application, LogEntry, LogContext } from '@/lib/shared'
@@ -73,73 +73,184 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-4 border-t border-black/10 divide-x divide-black/10 bg-black/[0.01]">
-          <div className="px-4 py-3">
-            <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
-              <Clock className="w-3 h-3" />
-              When
-            </div>
-            <p className="text-sm text-black/80">
-              {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
-            </p>
-          </div>
-          <div className="px-4 py-3">
-            <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
-              <Hash className="w-3 h-3" />
-              Trace ID
+        <div className="border-t border-black/10 bg-black/[0.01]">
+          <div className="flex items-center divide-x divide-black/10">
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
+                <Clock className="w-3 h-3" />
+                When
+              </div>
+              <p className="text-sm text-black/80">
+                {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
+              </p>
             </div>
             {entry.trace_id ? (
               <a
                 href={`${logPath}?trace=${entry.trace_id}`}
-                className="inline-flex items-center gap-1.5 text-sm font-mono text-black hover:text-black/70"
+                className="flex-1 px-4 py-3 hover:bg-black/[0.02] transition-colors group"
               >
-                {entry.trace_id.slice(0, 12)}...
-                <span className="text-[10px] bg-black text-white px-1.5 py-0.5 font-semibold">→</span>
+                <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
+                  <Hash className="w-3 h-3" />
+                  Trace ID
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-mono text-black">{entry.trace_id}</span>
+                  <span className="flex items-center gap-1 text-xs font-semibold text-black/50 group-hover:text-black transition-colors">
+                    View trace <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
               </a>
             ) : (
-              <p className="text-sm text-black/80 font-mono truncate">—</p>
+              <div className="flex-1 px-4 py-3">
+                <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
+                  <Hash className="w-3 h-3" />
+                  Trace ID
+                </div>
+                <p className="text-sm text-black/40 font-mono">No trace</p>
+              </div>
             )}
-          </div>
-          <div className="px-4 py-3">
-            <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
-              <Globe className="w-3 h-3" />
-              IP Address
-            </div>
-            <p className="text-sm text-black/80 font-mono">{ctx.ip || '—'}</p>
-          </div>
-          <div className="px-4 py-3">
-            <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
-              <User className="w-3 h-3" />
-              User
-            </div>
-            <p className="text-sm text-black/80">{ctx.user || '—'}</p>
           </div>
         </div>
       </div>
 
-      {/* Error Block */}
+      {/* Error Block - enhanced with structured info */}
       {ctx.error && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-[#e11d48] uppercase tracking-wider mb-3">Error</h3>
           <div className="bg-rose-50 border-2 border-[#e11d48] p-4">
-            <pre className="text-sm font-mono whitespace-pre-wrap text-[#e11d48] break-words">
+            <pre className="text-sm font-mono whitespace-pre-wrap text-[#e11d48] font-bold break-words">
               {ctx.error}
             </pre>
+            {/* Show error class and location if available */}
+            {(ctx.error_class || ctx.error_file) && (
+              <div className="mt-3 pt-3 border-t border-[#e11d48]/20 text-sm font-mono">
+                {ctx.error_class && (
+                  <span className="text-[#e11d48] font-semibold">{ctx.error_class}</span>
+                )}
+                {ctx.error_file && (
+                  <span className="text-[#e11d48]/70">
+                    {ctx.error_class ? ' at ' : ''}{ctx.error_file}{ctx.error_line ? `:${ctx.error_line}` : ''}
+                  </span>
+                )}
+                {ctx.error_caller && (
+                  <span className="text-[#e11d48]/50"> in {ctx.error_caller}</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Stack Trace */}
+      {/* Stack Trace - always visible for errors, no collapse */}
       {ctx.stack_trace && (
-        <details className="mb-8 border-2 border-black/10">
-          <summary className="px-4 py-3 text-sm font-black text-[#e11d48] uppercase tracking-wider cursor-pointer hover:bg-black/[0.02]">
-            Stack Trace
-          </summary>
-          <pre className="px-4 py-3 text-xs font-mono text-black/80 overflow-x-auto whitespace-pre border-t border-black/10 bg-black/[0.02]">
+        <div className="mb-8">
+          <h3 className="text-sm font-black text-[#e11d48] uppercase tracking-wider mb-3">Stack Trace</h3>
+          <pre className="p-4 text-xs font-mono text-black/80 overflow-x-auto whitespace-pre bg-black/[0.03] border border-black/10">
             {ctx.stack_trace}
           </pre>
-        </details>
+        </div>
       )}
+
+      {/* In Context - what happened before/after in this request */}
+      {relatedEntries.length > 1 && (() => {
+        const currentIdx = relatedEntries.findIndex(e => e.id === entry.id)
+        const before = relatedEntries.slice(0, currentIdx)
+        const after = relatedEntries.slice(currentIdx + 1)
+
+        return (
+          <div className="mb-8">
+            <h3 className="text-sm font-black text-black uppercase tracking-wider mb-3">
+              In Context
+            </h3>
+            <div className="border-2 border-black/10 overflow-hidden">
+              {/* Before this entry */}
+              {before.length > 0 && (
+                <>
+                  <div className="px-4 py-1.5 bg-black/[0.02] border-b border-black/10">
+                    <span className="text-[10px] font-mono font-black text-black/50 uppercase">Before</span>
+                  </div>
+                  {before.slice(-3).map((e) => {
+                    const eConfig = getConfig(e.is_error)
+                    const EIcon = eConfig.icon
+                    const eCtx = parseContext(e.context)
+                    return (
+                      <a
+                        key={e.id}
+                        href={`${logPath}/${e.id}`}
+                        className="flex items-center gap-3 py-2.5 px-4 hover:bg-black/[0.02] transition-colors border-b border-black/5"
+                      >
+                        <div className={`p-1 ${eConfig.colors}`}>
+                          <EIcon className="w-3 h-3" />
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          {eCtx.method && <span className={`font-mono text-xs font-bold ${methodColor(eCtx.method)}`}>{eCtx.method}</span>}
+                          {eCtx.status && <span className={`font-mono text-xs font-bold ${statusColor(eCtx.status)}`}>{eCtx.status}</span>}
+                          {eCtx.job && <span className="font-mono text-xs font-bold text-purple-600">{eCtx.job}</span>}
+                          <span className="font-mono text-xs text-black/60 truncate">{eCtx.path || e.message}</span>
+                        </div>
+                        <span className="font-mono text-xs text-black/40 shrink-0">{e.duration_ms}ms</span>
+                      </a>
+                    )
+                  })}
+                </>
+              )}
+
+              {/* Current entry - highlighted */}
+              <div className="bg-[#e11d48]/10 border-y-2 border-[#e11d48]/30 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="bg-[#e11d48] text-white px-1.5 py-0.5 text-[10px] font-black">CURRENT</span>
+                  {ctx.method && <span className={`font-mono text-sm font-bold ${methodColor(ctx.method)}`}>{ctx.method}</span>}
+                  {ctx.status && <span className={`font-mono text-sm font-bold ${statusColor(ctx.status)}`}>{ctx.status}</span>}
+                  {ctx.job && <span className="font-mono text-sm font-bold text-purple-600">{ctx.job}</span>}
+                  <span className="font-mono text-sm text-black/70">{ctx.path || entry.message}</span>
+                  <span className="font-mono text-xs text-black/50 ml-auto">{entry.duration_ms}ms</span>
+                </div>
+              </div>
+
+              {/* After this entry */}
+              {after.length > 0 && (
+                <>
+                  <div className="px-4 py-1.5 bg-black/[0.02] border-b border-black/10">
+                    <span className="text-[10px] font-mono font-black text-black/50 uppercase">After</span>
+                  </div>
+                  {after.slice(0, 3).map((e) => {
+                    const eConfig = getConfig(e.is_error)
+                    const EIcon = eConfig.icon
+                    const eCtx = parseContext(e.context)
+                    return (
+                      <a
+                        key={e.id}
+                        href={`${logPath}/${e.id}`}
+                        className="flex items-center gap-3 py-2.5 px-4 hover:bg-black/[0.02] transition-colors border-b border-black/5 last:border-b-0"
+                      >
+                        <div className={`p-1 ${eConfig.colors}`}>
+                          <EIcon className="w-3 h-3" />
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          {eCtx.method && <span className={`font-mono text-xs font-bold ${methodColor(eCtx.method)}`}>{eCtx.method}</span>}
+                          {eCtx.status && <span className={`font-mono text-xs font-bold ${statusColor(eCtx.status)}`}>{eCtx.status}</span>}
+                          {eCtx.job && <span className="font-mono text-xs font-bold text-purple-600">{eCtx.job}</span>}
+                          <span className="font-mono text-xs text-black/60 truncate">{eCtx.path || e.message}</span>
+                        </div>
+                        <span className="font-mono text-xs text-black/40 shrink-0">{e.duration_ms}ms</span>
+                      </a>
+                    )
+                  })}
+                </>
+              )}
+
+              {/* View full trace link */}
+              <a
+                href={`${logPath}?trace=${entry.trace_id}`}
+                className="flex items-center justify-between px-4 py-2.5 bg-black/[0.02] text-xs font-mono font-bold text-black/60 hover:text-black transition-colors"
+              >
+                <span>{relatedEntries.length} entries in this trace</span>
+                <span>View full trace →</span>
+              </a>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* User Agent */}
       {ctx.user_agent && (
@@ -191,61 +302,6 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
         </div>
       )}
 
-      {/* Related Entries */}
-      {relatedEntries.length > 1 && (
-        <div id="trace-timeline" className="border-t border-black/10 pt-8">
-          <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-4">
-            Trace ({relatedEntries.length} requests)
-          </h3>
-          <div className="border-2 border-black/10 overflow-hidden">
-            {relatedEntries.map((e, idx) => {
-              const eConfig = getConfig(e.is_error)
-              const EIcon = eConfig.icon
-              const isCurrent = e.id === entry.id
-              const eCtx = parseContext(e.context)
-
-              return (
-                <a
-                  key={e.id}
-                  href={isCurrent ? undefined : `${logPath}/${e.id}`}
-                  className={`flex items-center gap-3 py-3 px-4 transition-colors border-b border-black/5 last:border-b-0 ${
-                    isCurrent ? 'bg-black/[0.03]' : 'hover:bg-black/[0.02] cursor-pointer'
-                  }`}
-                >
-                  <div className="w-6 h-6 flex items-center justify-center">
-                    <span className="text-xs text-black/70 font-mono">{idx + 1}</span>
-                  </div>
-                  <div className={`p-1.5 flex items-center justify-center ${eConfig.colors}`}>
-                    <EIcon className="w-3 h-3" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {eCtx.method && (
-                        <span className={`font-mono text-sm font-semibold ${methodColor(eCtx.method)}`}>
-                          {eCtx.method}
-                        </span>
-                      )}
-                      {eCtx.status && (
-                        <span className={`font-mono text-sm ${statusColor(eCtx.status)}`}>{eCtx.status}</span>
-                      )}
-                      {eCtx.job && (
-                        <span className="font-mono text-sm font-semibold text-purple-600">{eCtx.job}</span>
-                      )}
-                      {isCurrent && (
-                        <span className="text-xs bg-black text-white px-1.5 py-0.5 font-semibold">
-                          CURRENT
-                        </span>
-                      )}
-                    </div>
-                    <p className="font-mono text-xs text-black/70 truncate mt-0.5">{e.message}</p>
-                  </div>
-                  <span className="font-mono text-xs text-black/70 shrink-0">{e.duration_ms}ms</span>
-                </a>
-              )
-            })}
-          </div>
-        </div>
-      )}
     </Layout>
   )
 }
