@@ -262,24 +262,31 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
 }
 
 function LogHistogram({ buckets }: { buckets: HistogramBucket[] }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+
   if (!buckets || buckets.length === 0) return null
 
   const maxTotal = Math.max(...buckets.map(b => b.total), 1)
-  const barWidth = 100 / buckets.length
+  const hoveredBucket = hoveredIdx !== null ? buckets[hoveredIdx] : null
 
   return (
-    <div className="mb-6 bg-white border border-black/10 p-4">
-      <div className="h-16 flex items-end gap-px">
+    <div className="mb-4 bg-white border border-black/10 px-3 pt-3 pb-2">
+      {/* Bars - no gaps */}
+      <div className="h-16 flex items-end">
         {buckets.map((bucket, i) => {
           const successHeight = ((bucket.total - bucket.errors) / maxTotal) * 100
           const errorHeight = (bucket.errors / maxTotal) * 100
           const hasErrors = bucket.errors > 0
+          const isHovered = hoveredIdx === i
 
           return (
             <div
               key={i}
-              className="flex-1 flex flex-col justify-end h-full"
-              title={`${bucket.total} requests, ${bucket.errors} errors`}
+              className={`flex-1 flex flex-col justify-end h-full cursor-crosshair transition-opacity ${
+                hoveredIdx !== null && !isHovered ? 'opacity-40' : ''
+              }`}
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
             >
               {hasErrors && (
                 <div
@@ -294,6 +301,27 @@ function LogHistogram({ buckets }: { buckets: HistogramBucket[] }) {
             </div>
           )
         })}
+      </div>
+
+      {/* Tooltip - minimal height */}
+      <div className={`text-xs text-center ${hoveredBucket ? 'pt-2' : 'h-0'}`}>
+        {hoveredBucket && (
+          <span>
+            <span className="text-black/50">
+              {new Date(hoveredBucket.timestamp).toLocaleString(undefined, {
+                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+              })}
+            </span>
+            <span className="mx-2">·</span>
+            <span className="font-mono font-semibold text-black">{hoveredBucket.total} requests</span>
+            {hoveredBucket.errors > 0 && (
+              <>
+                <span className="mx-2">·</span>
+                <span className="font-mono font-semibold text-[#e11d48]">{hoveredBucket.errors} errors</span>
+              </>
+            )}
+          </span>
+        )}
       </div>
     </div>
   )

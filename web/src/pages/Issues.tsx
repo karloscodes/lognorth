@@ -127,7 +127,20 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
     >
       {/* Main content - clickable link */}
       <a href={issuePath} className="flex-1 min-w-0 py-1">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Error class if available */}
+          {issue.error_class && (
+            <span className={`font-mono text-sm font-bold ${
+              isUnseen && !issue.muted
+                ? 'text-[#e11d48]'
+                : stale || issue.muted
+                  ? 'text-black/40'
+                  : 'text-[#e11d48]/80'
+            }`}>
+              {issue.error_class}
+            </span>
+          )}
+          {/* Error message */}
           <Code className={`leading-snug ${
             isUnseen && !issue.muted
               ? 'font-semibold text-black'
@@ -137,6 +150,14 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
           }`}>
             {issue.error}
           </Code>
+          {/* Location: file:line */}
+          {issue.error_file && (
+            <span className={`font-mono text-xs ${
+              stale || issue.muted ? 'text-black/30' : 'text-black/50'
+            }`}>
+              in {issue.error_file}{issue.error_line ? `:${issue.error_line}` : ''}
+            </span>
+          )}
           {issue.is_new && !stale && (
             <span className="text-[10px] font-bold text-[#e11d48] uppercase tracking-wide">
               New
