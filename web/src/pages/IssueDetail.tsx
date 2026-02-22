@@ -363,11 +363,11 @@ const LABEL_WIDTH = 40
 
 function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrencePoint[] | null; firstSeen: string }) {
   const containerRef = React.useRef<HTMLDivElement>(null)
-  const [numCols, setNumCols] = React.useState(60)
+  const [numCols, setNumCols] = React.useState(0) // Start at 0, measure before render
   const [hoveredCell, setHoveredCell] = React.useState<{ day: Date; bucket: typeof TIME_BUCKETS[number]; count: number } | null>(null)
 
-  // Measure container to fill full width
-  React.useEffect(() => {
+  // Measure container to fill full width - useLayoutEffect to measure before paint
+  React.useLayoutEffect(() => {
     const measure = () => {
       if (!containerRef.current) return
       const availableWidth = containerRef.current.clientWidth - LABEL_WIDTH - 32 // 32 = padding
@@ -420,6 +420,18 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
   }
 
   const needsScroll = days.length > numCols
+
+  // Don't render grid until container is measured
+  if (numCols === 0) {
+    return (
+      <div className="mb-8" ref={containerRef}>
+        <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
+          Frequency
+        </h3>
+        <div className="border border-black/10 p-4 h-[200px]" />
+      </div>
+    )
+  }
 
   return (
     <div className="mb-8" ref={containerRef}>
