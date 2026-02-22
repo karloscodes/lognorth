@@ -43,6 +43,27 @@ var jobNames = []string{
 	"CleanupExpiredSessions",
 }
 
+// errorDef defines a structured error with class, message, file, line, and stack trace
+type errorDef struct {
+	class      string
+	message    string
+	file       string
+	line       int
+	caller     string
+	stackTrace string
+}
+
+var structuredErrors = []errorDef{
+	{class: "TimeoutError", message: "Database connection timeout", file: "db/connection.go", line: 87, caller: "Connect", stackTrace: "goroutine 1 [running]:\ndb/connection.go:87 Connect\nrepository/users.go:23 FindByID\nhandlers/users.go:45 GetUser"},
+	{class: "NotFoundError", message: "User not found", file: "repository/users.go", line: 34, caller: "FindByID", stackTrace: "goroutine 1 [running]:\nrepository/users.go:34 FindByID\nhandlers/users.go:52 GetUser"},
+	{class: "AuthError", message: "Invalid authentication token", file: "middleware/auth.go", line: 56, caller: "ValidateToken", stackTrace: "goroutine 1 [running]:\nmiddleware/auth.go:56 ValidateToken\nmiddleware/auth.go:23 AuthMiddleware"},
+	{class: "PaymentError", message: "Payment gateway error: card declined", file: "services/stripe.go", line: 124, caller: "ChargeCard", stackTrace: "goroutine 1 [running]:\nservices/stripe.go:124 ChargeCard\nhandlers/checkout.go:89 ProcessPayment"},
+	{class: "RateLimitError", message: "Rate limit exceeded", file: "middleware/ratelimit.go", line: 45, caller: "Check", stackTrace: "goroutine 1 [running]:\nmiddleware/ratelimit.go:45 Check\nmiddleware/ratelimit.go:12 RateLimitMiddleware"},
+	{class: "InternalError", message: "Internal server error", file: "handlers/orders.go", line: 78, caller: "CreateOrder", stackTrace: "goroutine 1 [running]:\nhandlers/orders.go:78 CreateOrder\nrouter.go:156 ServeHTTP"},
+	{class: "ConnectionError", message: "Redis connection refused", file: "cache/redis.go", line: 34, caller: "Connect", stackTrace: "goroutine 1 [running]:\ncache/redis.go:34 Connect\ncache/session.go:12 GetSession"},
+	{class: "ParseError", message: "JSON parse error: unexpected token", file: "handlers/webhook.go", line: 67, caller: "ParseBody", stackTrace: "goroutine 1 [running]:\nhandlers/webhook.go:67 ParseBody\nhandlers/webhook.go:23 HandleStripeWebhook"},
+}
+
 var errorMessages = []string{
 	"Database connection timeout",
 	"User not found",
@@ -217,6 +238,14 @@ func main() {
 			}
 			if errorMsg != "" {
 				ctx.Error = errorMsg
+				// Add structured error fields
+				if ed := findErrorDef(errorMsg); ed != nil {
+					ctx.ErrorClass = ed.class
+					ctx.ErrorFile = ed.file
+					ctx.ErrorLine = ed.line
+					ctx.ErrorCaller = ed.caller
+					ctx.StackTrace = ed.stackTrace
+				}
 			}
 			if user != "" {
 				ctx.User = user
@@ -272,6 +301,14 @@ func main() {
 			}
 			if errorMsg != "" {
 				ctx.Error = errorMsg
+				// Add structured error fields
+				if ed := findErrorDef(errorMsg); ed != nil {
+					ctx.ErrorClass = ed.class
+					ctx.ErrorFile = ed.file
+					ctx.ErrorLine = ed.line
+					ctx.ErrorCaller = ed.caller
+					ctx.StackTrace = ed.stackTrace
+				}
 			}
 
 			event := &events.Event{
@@ -340,6 +377,15 @@ func main() {
 					}
 				}
 
+				// Add structured error fields
+				if ed := findErrorDef(re.errorMsg); ed != nil {
+					ctx.ErrorClass = ed.class
+					ctx.ErrorFile = ed.file
+					ctx.ErrorLine = ed.line
+					ctx.ErrorCaller = ed.caller
+					ctx.StackTrace = ed.stackTrace
+				}
+
 				event := &events.Event{
 					APIKeyID:   apiKey.ID,
 					Timestamp:  timestamp,
@@ -389,4 +435,14 @@ func main() {
 
 	fmt.Println()
 	fmt.Println("Done. Run 'make dev' to start LogNorth.")
+}
+
+// findErrorDef returns the structured error definition for a given error message
+func findErrorDef(errorMsg string) *errorDef {
+	for i := range structuredErrors {
+		if structuredErrors[i].message == errorMsg {
+			return &structuredErrors[i]
+		}
+	}
+	return nil
 }
