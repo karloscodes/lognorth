@@ -193,7 +193,7 @@ func main() {
 		totalEvents := 0
 		errorCount := 0
 
-		// Generate HTTP request events spread over 7 days
+		// Generate HTTP request events spread over 7 days (some with trace groups)
 		httpCount := int(float64(app.requestCount) * 0.75)
 		for i := 0; i < httpCount; i++ {
 			// More recent events are more likely (realistic traffic pattern)
@@ -229,13 +229,37 @@ func main() {
 				status = []int{200, 200, 200, 201, 204}[rand.Intn(5)] // 200 most common
 			}
 
+			ip := fmt.Sprintf("10.%d.%d.%d", rand.Intn(10), rand.Intn(256), rand.Intn(256))
+			user := ""
+			if rand.Float64() < 0.4 {
+				user = fmt.Sprintf("user_%d", rand.Intn(50))
+			}
+
+			// 25% chance of creating a traced request (multiple events with same trace_id)
+			if rand.Float64() < 0.25 {
+				// Event 1: DB query
+				dbCtx := &events.EventContext{Path: path, Method: method}
+				createTraceEvent(db, apiKey.ID, traceID, timestamp.Add(-30*time.Millisecond),
+					"SELECT * FROM users WHERE id = ?", dbCtx, 3+rand.Intn(15), false)
+				totalEvents++
+
+				// Event 2: External API call (50% of traced requests)
+				if rand.Float64() < 0.5 {
+					apiCtx := &events.EventContext{Path: path, Method: method}
+					createTraceEvent(db, apiKey.ID, traceID, timestamp.Add(-15*time.Millisecond),
+						"POST https://api.stripe.com/v1/charges", apiCtx, 40+rand.Intn(120), false)
+					totalEvents++
+				}
+			}
+
+			// Main request event
 			message := fmt.Sprintf("%s %s → %d", method, path, status)
 
 			ctx := &events.EventContext{
 				Method: method,
 				Path:   path,
 				Status: status,
-				IP:     fmt.Sprintf("10.%d.%d.%d", rand.Intn(10), rand.Intn(256), rand.Intn(256)),
+				IP:     ip,
 			}
 			if errorMsg != "" {
 				ctx.Error = errorMsg
@@ -243,8 +267,8 @@ func main() {
 					applyErrorFields(ctx, ed)
 				}
 			}
-			if rand.Float64() < 0.4 {
-				ctx.User = fmt.Sprintf("user_%d", rand.Intn(50))
+			if user != "" {
+				ctx.User = user
 			}
 
 			event := &events.Event{

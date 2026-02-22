@@ -126,7 +126,7 @@ func main() {
 		totalEvents := 0
 		errorCount := 0
 
-		// Generate HTTP request events
+		// Generate HTTP request events (some with trace groups)
 		httpCount := int(float64(app.requestCount) * 0.8)
 		for i := 0; i < httpCount; i++ {
 			// Random timestamp within last 3 days
@@ -137,7 +137,6 @@ func main() {
 			method := methods[rand.Intn(len(methods))]
 			path := httpPaths[rand.Intn(len(httpPaths))]
 			traceID := fmt.Sprintf("req-%d-%04d", timestamp.Unix(), rand.Intn(10000))
-			duration := 10 + rand.Intn(200)
 
 			// Determine status and error
 			isError := rand.Float64() < app.errorRate
@@ -154,21 +153,62 @@ func main() {
 				status = []int{200, 201, 204}[rand.Intn(3)]
 			}
 
-			// Build message: "METHOD /path → STATUS"
+			ip := fmt.Sprintf("10.0.%d.%d", rand.Intn(256), rand.Intn(256))
+			user := ""
+			if rand.Float64() < 0.3 {
+				user = fmt.Sprintf("user_%d", rand.Intn(100))
+			}
+
+			// 30% chance of creating a traced request (multiple events with same trace_id)
+			if rand.Float64() < 0.3 {
+				// Event 1: DB query
+				dbEvent := &events.Event{
+					APIKeyID:   apiKey.ID,
+					Timestamp:  timestamp.Add(-50 * time.Millisecond),
+					Message:    "SELECT * FROM users WHERE id = ?",
+					TraceID:    traceID,
+					DurationMS: 5 + rand.Intn(20),
+					IsError:    false,
+				}
+				dbCtx := &events.EventContext{Path: path, Method: method}
+				dbEvent.SetContext(dbCtx)
+				if err := events.Create(db, dbEvent); err == nil {
+					totalEvents++
+				}
+
+				// Event 2: External API call (sometimes)
+				if rand.Float64() < 0.5 {
+					apiEvent := &events.Event{
+						APIKeyID:   apiKey.ID,
+						Timestamp:  timestamp.Add(-20 * time.Millisecond),
+						Message:    "POST https://api.stripe.com/v1/charges",
+						TraceID:    traceID,
+						DurationMS: 50 + rand.Intn(150),
+						IsError:    false,
+					}
+					apiCtx := &events.EventContext{Path: path, Method: method}
+					apiEvent.SetContext(apiCtx)
+					if err := events.Create(db, apiEvent); err == nil {
+						totalEvents++
+					}
+				}
+			}
+
+			// Main request event
+			duration := 10 + rand.Intn(200)
 			message := fmt.Sprintf("%s %s → %d", method, path, status)
 
-			// Build context
 			ctx := &events.EventContext{
 				Method: method,
 				Path:   path,
 				Status: status,
-				IP:     fmt.Sprintf("10.0.%d.%d", rand.Intn(256), rand.Intn(256)),
+				IP:     ip,
 			}
 			if errorMsg != "" {
 				ctx.Error = errorMsg
 			}
-			if rand.Float64() < 0.3 {
-				ctx.User = fmt.Sprintf("user_%d", rand.Intn(100))
+			if user != "" {
+				ctx.User = user
 			}
 
 			event := &events.Event{

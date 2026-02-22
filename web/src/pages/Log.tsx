@@ -90,7 +90,7 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
         </span>
         <span className="text-black/50 text-xs">{entry.duration_ms}ms</span>
         <span className="text-black/50 text-xs ml-auto">
-          {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
+          {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true }).replace('about ', '').replace(' ago', '')}
         </span>
       </a>
     )
@@ -101,59 +101,55 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
   return (
     <a
       href={href}
-      className={`block py-4 px-5 transition-colors hover:bg-black/[0.02] ${isError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
+      className={`flex items-center gap-3 py-3 px-5 transition-colors hover:bg-black/[0.02] ${isError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
     >
-      <div className="flex items-center gap-3">
-        {/* Timestamp */}
-        <span className="text-xs text-black/50 tabular-nums w-20 shrink-0">
-          {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
-        </span>
+      {/* Timestamp */}
+      <span className="text-xs text-black/50 tabular-nums w-16 shrink-0">
+        {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true }).replace('about ', '').replace(' ago', '')}
+      </span>
 
-        {/* Type badge - fixed width for alignment */}
-        <span className="w-16 shrink-0">
-          {ctx.method ? (
-            <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
-              {ctx.method}
-            </span>
-          ) : ctx.job ? (
-            <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
-              JOB
-            </span>
-          ) : null}
-        </span>
+      {/* Type badge */}
+      <span className="w-14 shrink-0">
+        {ctx.method ? (
+          <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+            {ctx.method}
+          </span>
+        ) : ctx.job ? (
+          <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+            JOB
+          </span>
+        ) : null}
+      </span>
 
-        {/* Path or Job name */}
-        <span className="font-mono text-sm text-black font-semibold truncate flex-1">
+      {/* Path + Error inline */}
+      <div className="flex-1 min-w-0 flex items-center gap-3">
+        <span className="font-mono text-sm text-black font-semibold truncate">
           {ctx.path || ctx.job || entry.message}
         </span>
-
-        {/* Status + Duration */}
-        <div className="flex items-center gap-3 shrink-0">
-          {ctx.status ? (
-            <span className={`font-mono text-sm font-bold w-10 text-right ${
-              ctx.status >= 500 ? 'text-[#e11d48]' :
-              ctx.status >= 400 ? 'text-black' :
-              'text-black/50'
-            }`}>
-              {ctx.status}
-            </span>
-          ) : (
-            <span className="w-10" />
-          )}
-          <span className="font-mono text-xs text-black/50 tabular-nums w-16 text-right">
-            {entry.duration_ms}ms
+        {isError && ctx.error && (
+          <span className="font-mono text-xs text-[#e11d48] truncate">
+            {ctx.error}
           </span>
-        </div>
+        )}
       </div>
 
-      {/* Error message */}
-      {isError && ctx.error && (
-        <div className="mt-2 pl-[168px]">
-          <Code className="text-sm text-[#e11d48] font-bold truncate block">
-            {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
-          </Code>
-        </div>
-      )}
+      {/* Status + Duration */}
+      <div className="flex items-center gap-3 shrink-0">
+        {ctx.status ? (
+          <span className={`font-mono text-sm font-bold w-10 text-right ${
+            ctx.status >= 500 ? 'text-[#e11d48]' :
+            ctx.status >= 400 ? 'text-black' :
+            'text-black/50'
+          }`}>
+            {ctx.status}
+          </span>
+        ) : (
+          <span className="w-10" />
+        )}
+        <span className="font-mono text-xs text-black/50 tabular-nums w-14 text-right">
+          {entry.duration_ms}ms
+        </span>
+      </div>
     </a>
   )
 }
@@ -180,65 +176,61 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
         )}
         <a
           href={href}
-          className={`flex-1 block py-4 pr-5 transition-colors hover:bg-black/[0.02] ${hasMultiple ? '' : 'pl-5'}`}
+          className={`flex-1 flex items-center gap-3 py-3 pr-5 transition-colors hover:bg-black/[0.02] ${hasMultiple ? '' : 'pl-5'}`}
         >
-          <div className="flex items-center gap-3">
-            {/* Timestamp */}
-            <span className="text-xs text-black/50 tabular-nums w-20 shrink-0">
-              {formatDistanceToNow(new Date(mainEntry.timestamp), { addSuffix: true })}
-            </span>
+          {/* Timestamp */}
+          <span className="text-xs text-black/50 tabular-nums w-16 shrink-0">
+            {formatDistanceToNow(new Date(mainEntry.timestamp), { addSuffix: true }).replace('about ', '').replace(' ago', '')}
+          </span>
 
-            {/* Type badge - fixed width */}
-            <span className="w-16 shrink-0">
-              {ctx.method ? (
-                <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
-                  {ctx.method}
-                </span>
-              ) : ctx.job ? (
-                <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
-                  JOB
-                </span>
-              ) : null}
-            </span>
+          {/* Type badge - fixed width */}
+          <span className="w-14 shrink-0">
+            {ctx.method ? (
+              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+                {ctx.method}
+              </span>
+            ) : ctx.job ? (
+              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+                JOB
+              </span>
+            ) : null}
+          </span>
 
-            {/* Path or Job name */}
-            <span className="font-mono text-sm text-black font-semibold truncate flex-1">
+          {/* Path + Error inline */}
+          <div className="flex-1 min-w-0 flex items-center gap-3">
+            <span className="font-mono text-sm text-black font-semibold truncate">
               {ctx.path || ctx.job || mainEntry.message}
             </span>
-
-            {hasMultiple && (
-              <span className="text-xs text-black/50 font-medium shrink-0">
-                ×{entries.length}
+            {isError && ctx.error && (
+              <span className="font-mono text-xs text-[#e11d48] truncate">
+                {ctx.error}
               </span>
             )}
-
-            {/* Status + Duration */}
-            <div className="flex items-center gap-3 shrink-0">
-              {ctx.status ? (
-                <span className={`font-mono text-sm font-semibold w-10 text-right ${
-                  ctx.status >= 500 ? 'text-[#e11d48]' :
-                  ctx.status >= 400 ? 'text-black' :
-                  'text-black/50'
-                }`}>
-                  {ctx.status}
-                </span>
-              ) : (
-                <span className="w-10" />
-              )}
-              <span className="font-mono text-xs text-black/50 tabular-nums w-16 text-right">
-                {totalDuration}ms
-              </span>
-            </div>
           </div>
 
-          {/* Error message */}
-          {isError && ctx.error && (
-            <div className="mt-2 pl-[168px]">
-              <Code className="text-sm text-[#e11d48] font-bold truncate block">
-                {ctx.error.length > 120 ? ctx.error.slice(0, 120) + '…' : ctx.error}
-              </Code>
-            </div>
+          {hasMultiple && (
+            <span className="text-xs text-black/50 font-medium shrink-0">
+              ×{entries.length}
+            </span>
           )}
+
+          {/* Status + Duration */}
+          <div className="flex items-center gap-3 shrink-0">
+            {ctx.status ? (
+              <span className={`font-mono text-sm font-bold w-10 text-right ${
+                ctx.status >= 500 ? 'text-[#e11d48]' :
+                ctx.status >= 400 ? 'text-black' :
+                'text-black/50'
+              }`}>
+                {ctx.status}
+              </span>
+            ) : (
+              <span className="w-10" />
+            )}
+            <span className="font-mono text-xs text-black/50 tabular-nums w-14 text-right">
+              {totalDuration}ms
+            </span>
+          </div>
         </a>
       </div>
 
@@ -337,7 +329,7 @@ function LogHistogram({ buckets: rawBuckets }: { buckets: HistogramBucket[] }) {
 type DatePreset = 'all' | 'today' | '7d' | '30d'
 
 const getDatePresetFromFilters = (filters: Filters): DatePreset => {
-  if (!filters.start_time) return 'all'
+  if (!filters.start_time) return '7d' // Default is 7 days
   const start = new Date(filters.start_time)
   const now = new Date()
   const diffDays = Math.round((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
@@ -594,11 +586,11 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
       ) : groupEnabled ? (
         <div className="bg-white border border-black/10 overflow-hidden">
           <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
-            <span className="w-20">Time</span>
-            <span className="w-16"></span>
+            <span className="w-16">Time</span>
+            <span className="w-14"></span>
             <span className="flex-1">Path</span>
             <span className="w-10 text-right">Code</span>
-            <span className="w-16 text-right">Duration</span>
+            <span className="w-14 text-right">Duration</span>
           </div>
           {logGroups.map((group) => (
             <GroupedLog key={group.traceId} group={group} appId={appId} />
@@ -607,11 +599,11 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
       ) : (
         <div className="bg-white border border-black/10 overflow-hidden">
           <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
-            <span className="w-20">Time</span>
-            <span className="w-16"></span>
+            <span className="w-16">Time</span>
+            <span className="w-14"></span>
             <span className="flex-1">Path</span>
             <span className="w-10 text-right">Code</span>
-            <span className="w-16 text-right">Duration</span>
+            <span className="w-14 text-right">Duration</span>
           </div>
           <div className="divide-y divide-black/10">
             {entries.filter(e => e && e.id).map((entry) => (

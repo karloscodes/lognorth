@@ -153,25 +153,99 @@ EOF
   fi
 }
 
+# Build a traced request (multiple events with same trace_id)
+traced_request() {
+  local tid=$(trace_id)
+  local base_ts=$(timestamp)
+  local controller=${CONTROLLERS[$(rand ${#CONTROLLERS[@]})]}
+  local action=${ACTIONS[$(rand ${#ACTIONS[@]})]}
+  local method=${HTTP_METHODS[$(rand ${#HTTP_METHODS[@]})]}
+  local path=${PATHS[$(rand ${#PATHS[@]})]}
+  local is_error=$1
+
+  local status=200
+  local error_field=""
+  if [ "$is_error" = "1" ]; then
+    status=500
+    error_field=",\"error\":\"${ERROR_MESSAGES[$(rand ${#ERROR_MESSAGES[@]})]}\""
+  fi
+
+  # Event 1: Request start
+  cat <<EOF
+{
+  "message": "${method} ${path} started",
+  "timestamp": "${base_ts}",
+  "duration_ms": 0,
+  "trace_id": "${tid}",
+  "context": {
+    "controller": "${controller}",
+    "action": "${action}",
+    "method": "${method}",
+    "path": "${path}",
+    "phase": "start"
+  }
+}
+EOF
+  echo ","
+
+  # Event 2: DB query
+  cat <<EOF
+{
+  "message": "SQL: SELECT * FROM users",
+  "timestamp": "${base_ts}",
+  "duration_ms": $((10 + RANDOM % 100)),
+  "trace_id": "${tid}",
+  "context": {
+    "query": "SELECT * FROM users WHERE id = ?",
+    "phase": "db"
+  }
+}
+EOF
+  echo ","
+
+  # Event 3: Request complete
+  cat <<EOF
+{
+  "message": "${method} ${path} - ${status}",
+  "timestamp": "${base_ts}",
+  "duration_ms": $((100 + RANDOM % 500)),
+  "trace_id": "${tid}",
+  "context": {
+    "controller": "${controller}",
+    "action": "${action}",
+    "method": "${method}",
+    "path": "${path}",
+    "status": ${status}${error_field}
+  }
+}
+EOF
+}
+
 # Build a batch of events
 build_batch() {
   local count=$1
   echo '{"events":['
 
-  for ((i=0; i<count; i++)); do
-    # 10% errors, 70% rails requests, 30% sidekiq
+  local i=0
+  while [ $i -lt $count ]; do
     local is_error=0
     if [ $((RANDOM % 10)) -eq 0 ]; then
       is_error=1
     fi
 
-    if [ $((RANDOM % 10)) -lt 7 ]; then
+    # 30% chance of traced request (3 events), 70% single events
+    if [ $((RANDOM % 10)) -lt 3 ] && [ $((i + 3)) -le $count ]; then
+      traced_request $is_error
+      i=$((i + 3))
+    elif [ $((RANDOM % 10)) -lt 7 ]; then
       rails_request_event $is_error
+      i=$((i + 1))
     else
       sidekiq_event $is_error
+      i=$((i + 1))
     fi
 
-    if [ $i -lt $((count - 1)) ]; then
+    if [ $i -lt $count ]; then
       echo ","
     fi
   done
