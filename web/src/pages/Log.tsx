@@ -157,7 +157,7 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
 }
 
 function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const { mainEntry, entries, traceId } = group
   const totalDuration = entries.reduce((sum, e) => sum + e.duration_ms, 0)
   const hasError = entries.some(e => e.is_error)

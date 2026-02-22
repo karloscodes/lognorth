@@ -442,7 +442,8 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
 
           {/* Grid — uses CSS grid to fill available width */}
           <div
-            className="overflow-x-auto flex-1"
+            className="overflow-x-auto flex-1 scrollbar-hide"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             ref={(el) => {
               if (el && needsScroll) el.scrollLeft = el.scrollWidth
             }}
