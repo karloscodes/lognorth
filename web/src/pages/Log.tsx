@@ -270,7 +270,7 @@ function LogHistogram({ buckets }: { buckets: HistogramBucket[] }) {
   const hoveredBucket = hoveredIdx !== null ? buckets[hoveredIdx] : null
 
   return (
-    <div className="mb-4 bg-white border border-black/10 px-3 pt-3 pb-2">
+    <div className="mb-4 bg-white border border-black/10 p-3 relative">
       {/* Bars - no gaps */}
       <div className="h-16 flex items-end">
         {buckets.map((bucket, i) => {
@@ -303,10 +303,10 @@ function LogHistogram({ buckets }: { buckets: HistogramBucket[] }) {
         })}
       </div>
 
-      {/* Tooltip - minimal height */}
-      <div className={`text-xs text-center ${hoveredBucket ? 'pt-2' : 'h-0'}`}>
-        {hoveredBucket && (
-          <span>
+      {/* Tooltip overlay - doesn't affect layout */}
+      {hoveredBucket && (
+        <div className="absolute bottom-1 left-0 right-0 text-xs text-center pointer-events-none">
+          <span className="bg-white/90 px-2 py-0.5">
             <span className="text-black/50">
               {new Date(hoveredBucket.timestamp).toLocaleString(undefined, {
                 month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -321,8 +321,8 @@ function LogHistogram({ buckets }: { buckets: HistogramBucket[] }) {
               </>
             )}
           </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
