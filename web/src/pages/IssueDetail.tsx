@@ -68,7 +68,7 @@ export default function IssueDetail({ issue, occurrences, traces, appId, appName
 
         <div className="grid grid-cols-3 border-t-2 border-black/10 divide-x-2 divide-black/10 bg-black/[0.02]">
           <div className="px-5 py-3">
-            <div className="text-xs text-black/70 font-bold mb-1">Occurrences</div>
+            <div className="text-xs text-black/70 font-bold mb-1">Times</div>
             <Mono className="text-2xl font-black text-[#e11d48]">{issue.count}</Mono>
           </div>
           <div className="px-5 py-3">
@@ -85,8 +85,8 @@ export default function IssueDetail({ issue, occurrences, traces, appId, appName
       {/* Frequency Heatmap */}
       <FrequencyHeatmap occurrences={occurrences} firstSeen={issue.first_seen} />
 
-      {/* In Context — surrounding log lines from the same trace */}
-      {latestTraced && latestTraceEntries && (
+      {/* In Context — surrounding log lines from the same trace (hidden when solo entry) */}
+      {latestTraced && latestTraceEntries && latestTraceEntries.length > 1 && (
         <InContextSection
           errorEntry={latestTraced}
           traceEntries={latestTraceEntries}
@@ -98,7 +98,7 @@ export default function IssueDetail({ issue, occurrences, traces, appId, appName
       {recentEntries.length > 0 && (
         <div className="mb-8">
           <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
-            Recent Occurrences
+            Last {recentEntries.length} times
           </h3>
           <div className="relative pl-6">
             <div className="absolute left-[7px] top-2 bottom-2 w-px bg-black/20" />
@@ -175,13 +175,6 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
               <TraceRow key={e.id} entry={e} logPath={logPath} />
             ))}
           </>
-        )}
-
-        {/* No surrounding entries */}
-        {before.length === 0 && after.length === 0 && (
-          <div className="px-4 py-2.5 border-t border-black/10">
-            <span className="text-xs font-mono text-black/60">No other log entries in this trace</span>
-          </div>
         )}
 
         {/* View full trace */}
