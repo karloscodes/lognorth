@@ -73,7 +73,7 @@ const groupByTraceId = (entries: LogEntry[]): LogGroup[] => {
     .sort((a, b) => b.firstTimestamp.getTime() - a.firstTimestamp.getTime())
 }
 
-function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; compact?: boolean }) {
+function LogRow({ entry, appId, compact, hideErrorBorder }: { entry: LogEntry; appId?: number; compact?: boolean; hideErrorBorder?: boolean }) {
   const config = getConfig(entry.is_error)
   const Icon = config.icon
   const href = appId ? `/apps/${appId}/log/${entry.id}` : `/log/${entry.id}`
@@ -99,11 +99,12 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
   }
 
   const isError = entry.is_error
+  const showErrorBorder = isError && !hideErrorBorder
 
   return (
     <a
       href={href}
-      className={`flex items-center gap-3 py-3 px-5 transition-colors hover:bg-black/[0.02] ${isError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
+      className={`flex items-center gap-3 py-3 px-5 transition-colors hover:bg-black/[0.02] ${showErrorBorder ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
     >
       {/* Timestamp */}
       <span className="text-xs text-black/50 tabular-nums w-16 shrink-0">
@@ -186,7 +187,7 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
         <div className="border-t border-black/5">
           {entries.map((entry) => (
             <div key={entry.id} className="pl-8">
-              <LogRow entry={entry} appId={appId} />
+              <LogRow entry={entry} appId={appId} hideErrorBorder />
             </div>
           ))}
         </div>
