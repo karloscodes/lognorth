@@ -32,7 +32,10 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
   const [loading, setLoading] = useState(false)
 
   const hasErrors = endpoint.errors > 0
-  const errorRate = endpoint.total > 0 ? ((endpoint.errors / endpoint.total) * 100).toFixed(1) : '0'
+  const errorRateNum = endpoint.total > 0 ? (endpoint.errors / endpoint.total) * 100 : 0
+  const errorRate = errorRateNum.toFixed(1)
+  const isHighErrorRate = errorRateNum >= 20
+  const isCriticalErrorRate = errorRateNum >= 40
 
   const handleClick = async () => {
     if (expanded) {
@@ -65,10 +68,18 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
     <>
       <button
         onClick={handleClick}
-        className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-black/[0.02] ${hasErrors ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
+        className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-black/[0.02] ${
+          isCriticalErrorRate
+            ? 'bg-rose-50 shadow-[inset_4px_0_0_0_#e11d48]'
+            : isHighErrorRate
+              ? 'bg-rose-50/50 shadow-[inset_3px_0_0_0_#e11d48]'
+              : hasErrors
+                ? 'shadow-[inset_3px_0_0_0_#e11d48]'
+                : ''
+        }`}
       >
         {/* Path */}
-        <Code className="text-sm text-black font-semibold truncate flex-1">
+        <Code className={`text-sm truncate flex-1 ${isCriticalErrorRate ? 'text-black font-bold' : 'text-black font-semibold'}`}>
           {endpoint.path}
         </Code>
 
@@ -77,9 +88,13 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
           <Mono className="text-sm text-black/50 w-16 text-right">
             {endpoint.total.toLocaleString()}
           </Mono>
-          <Mono className={`text-sm font-bold w-10 text-right ${hasErrors ? 'text-[#e11d48]' : 'text-black/30'}`}>
-            {endpoint.errors}
-          </Mono>
+          {hasErrors ? (
+            <Mono className={`text-sm font-bold w-16 text-right ${isCriticalErrorRate ? 'text-[#e11d48]' : 'text-[#e11d48]/80'}`}>
+              {errorRate}%
+            </Mono>
+          ) : (
+            <Mono className="text-sm text-black/20 w-16 text-right">—</Mono>
+          )}
           <Mono className="text-xs text-black/50 w-16 text-right">
             {endpoint.avg_duration}ms
           </Mono>
@@ -144,9 +159,16 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
 }
 
 export default function Endpoints({ endpoints: endpointsProp, appId, appName, applications }: Props) {
-  const endpoints = (endpointsProp || []).sort((a, b) => b.errors - a.errors)
+  // Sort by error rate (most broken first), then by error count
+  const endpoints = (endpointsProp || []).sort((a, b) => {
+    const rateA = a.total > 0 ? a.errors / a.total : 0
+    const rateB = b.total > 0 ? b.errors / b.total : 0
+    if (rateB !== rateA) return rateB - rateA
+    return b.errors - a.errors
+  })
   const totalErrors = endpoints.reduce((sum, e) => sum + e.errors, 0)
   const totalRequests = endpoints.reduce((sum, e) => sum + e.total, 0)
+  const overallErrorRate = totalRequests > 0 ? ((totalErrors / totalRequests) * 100).toFixed(1) : '0'
 
   return (
     <Layout currentPath="/endpoints" appId={appId} appName={appName} applications={applications}>
@@ -156,7 +178,7 @@ export default function Endpoints({ endpoints: endpointsProp, appId, appName, ap
           totalErrors === 0 ? (
             <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · all healthy</>
           ) : (
-            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · <Mono className="text-[#e11d48] font-black">{totalErrors}</Mono> errors</>
+            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · <Mono className="text-[#e11d48] font-black">{overallErrorRate}%</Mono> failing</>
           )
         )}
       />
@@ -168,7 +190,7 @@ export default function Endpoints({ endpoints: endpointsProp, appId, appName, ap
           <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
             <span className="flex-1">Path</span>
             <span className="w-16 text-right">Requests</span>
-            <span className="w-10 text-right">Errors</span>
+            <span className="w-16 text-right">Error %</span>
             <span className="w-16 text-right">Avg ms</span>
           </div>
           <div className="divide-y divide-black/10">
