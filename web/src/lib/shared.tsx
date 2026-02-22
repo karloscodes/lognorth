@@ -105,8 +105,21 @@ export interface LogContext {
   user_agent?: string
   headers?: Record<string, string>
   body?: string
+  // Error grouping fields (SDK-extracted)
+  error_type?: string
+  error_location?: string
   // Custom fields
   extra?: Record<string, any>
+}
+
+export interface OccurrencePoint {
+  hour: string
+  count: number
+}
+
+export interface IssueDetail extends Issue {
+  api_key_id: number
+  entries: LogEntry[]
 }
 
 export interface Issue {

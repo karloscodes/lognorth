@@ -445,6 +445,87 @@ func IsIssueMuted(db *gorm.DB, errorHash string) bool {
 	return result.Error == nil
 }
 
+// OccurrencePoint represents hourly occurrence count for frequency graphs
+type OccurrencePoint struct {
+	Hour  string `json:"hour"`
+	Count int    `json:"count"`
+}
+
+// GetIssueOccurrencesByHour returns hourly occurrence counts for an issue over the last N days
+func GetIssueOccurrencesByHour(db *gorm.DB, hash string, apiKeyID uint, days int) ([]OccurrencePoint, error) {
+	if days <= 0 {
+		days = 7
+	}
+
+	// First find the issue to get its grouping criteria
+	issue, err := GetIssueByHash(db, hash, apiKeyID)
+	if err != nil || issue == nil {
+		return nil, err
+	}
+
+	// Find the first entry to determine grouping key
+	if len(issue.Entries) == 0 {
+		return nil, nil
+	}
+
+	firstEntry := issue.Entries[0]
+	ctx, err := firstEntry.GetContext()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build WHERE clause matching the issue grouping logic
+	var whereClause string
+	var whereArgs []any
+
+	if ctx.ErrorType != "" {
+		whereClause = "json_extract(context, '$.error_type') = ? AND COALESCE(json_extract(context, '$.error_location'), '') = ?"
+		whereArgs = []any{ctx.ErrorType, ctx.ErrorLocation}
+	} else {
+		whereClause = "json_extract(context, '$.error') = ?"
+		whereArgs = []any{ctx.Error}
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format("2006-01-02 15:04:05")
+
+	query := fmt.Sprintf(`
+		SELECT
+			strftime('%%Y-%%m-%%d %%H', timestamp) as hour,
+			COUNT(*) as count
+		FROM events
+		WHERE is_error = 1
+			AND api_key_id = ?
+			AND datetime(timestamp) >= datetime(?)
+			AND %s
+		GROUP BY strftime('%%Y-%%m-%%d %%H', timestamp)
+		ORDER BY hour ASC
+	`, whereClause)
+
+	args := append([]any{apiKeyID, cutoff}, whereArgs...)
+
+	var points []OccurrencePoint
+	if err := db.Raw(query, args...).Scan(&points).Error; err != nil {
+		return nil, err
+	}
+
+	return points, nil
+}
+
+// GetIssueHashForEvent computes the issue hash for an error event
+func GetIssueHashForEvent(event *Event) string {
+	if !event.IsError {
+		return ""
+	}
+	ctx, err := event.GetContext()
+	if err != nil {
+		return ""
+	}
+	if ctx.Error == "" && ctx.ErrorType == "" {
+		return ""
+	}
+	return hashError(ctx.ToMap(), event.APIKeyID)
+}
+
 // MarkAllIssuesSeen marks all issues as seen
 func MarkAllIssuesSeen(db *gorm.DB, apiKeyID uint) error {
 	// Get all current error hashes

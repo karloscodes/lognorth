@@ -13,10 +13,10 @@ interface Props {
 }
 
 export default function Issues({ issues = [], appId, appName, applications }: Props) {
-  // Click issue → go to Logs filtered by that error
+  // Click issue → go to issue detail page
   const issuePath = (issue: Issue) => {
-    const base = appId ? `/apps/${appId}/log` : `/apps/${issue.api_key_id}/log`
-    return `${base}?error=${issue.hash}&is_error=true`
+    const id = appId || issue.api_key_id
+    return `/apps/${id}/issues/${issue.hash}`
   }
   const activeIssues = issues.filter((i) => i.active)
   const staleIssues = issues.filter((i) => !i.active)

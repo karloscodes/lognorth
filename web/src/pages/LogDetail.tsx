@@ -11,9 +11,10 @@ interface Props {
   appId?: number
   appName?: string
   applications?: Application[]
+  issueHash?: string
 }
 
-export default function LogDetail({ entry, entryContext, relatedEntries, appId, appName, applications }: Props) {
+export default function LogDetail({ entry, entryContext, relatedEntries, appId, appName, applications, issueHash }: Props) {
   const config = getConfig(entry.is_error)
   const Icon = config.icon
   const logPath = appId ? `/apps/${appId}/log` : '/log'
@@ -23,6 +24,17 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
 
   return (
     <Layout currentPath="/log" appId={appId} appName={appName} applications={applications}>
+      {/* Issue Link */}
+      {issueHash && appId && (
+        <a
+          href={`/apps/${appId}/issues/${issueHash}`}
+          className="flex items-center justify-between px-4 py-3 mb-4 border-2 border-[#e11d48]/20 bg-rose-50/50 hover:bg-rose-50 transition-colors"
+        >
+          <span className="text-sm text-[#e11d48] font-semibold">This error is a tracked issue</span>
+          <span className="text-xs bg-[#e11d48] text-white px-2 py-1 font-bold">View Issue →</span>
+        </a>
+      )}
+
       {/* Header Card */}
       <div className="border-2 border-black/10 overflow-hidden mb-8">
         <div className="flex items-center gap-4 p-6">

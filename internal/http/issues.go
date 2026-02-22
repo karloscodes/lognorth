@@ -2,6 +2,7 @@ package http
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
@@ -9,6 +10,22 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 )
+
+// parseTimestamp handles SQLite timestamp formats
+func parseTimestamp(s string) time.Time {
+	for _, layout := range []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05-07:00",
+		"2006-01-02 15:04:05+00:00",
+		"2006-01-02T15:04:05Z",
+		"2006-01-02 15:04:05",
+	} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
+}
 
 // IssuesPageAction handles GET /issues
 func IssuesPageAction(ctx *cartridge.Context) error {
@@ -48,7 +65,7 @@ func IssuesAPIAction(ctx *cartridge.Context) error {
 	})
 }
 
-// IssueDetailPageAction handles GET /issues/:hash - redirects to filtered logs
+// IssueDetailPageAction handles GET /issues/:hash - redirects to app-scoped issue page
 func IssueDetailPageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 	hash := ctx.Ctx.Params("hash")
@@ -57,33 +74,76 @@ func IssueDetailPageAction(ctx *cartridge.Context) error {
 		return ctx.Ctx.Redirect("/issues")
 	}
 
-	// Find which app this issue belongs to
 	issue, err := events.GetIssueByHash(db, hash, 0)
 	if err != nil || issue == nil {
 		return ctx.Ctx.Redirect("/issues")
 	}
 
-	// Mark as seen
-	events.MarkIssueSeen(db, hash)
-
-	// Redirect to logs filtered by this error
-	return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(issue.APIKeyID), 10) + "/log?error=" + hash + "&is_error=true")
+	return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(issue.APIKeyID), 10) + "/issues/" + hash)
 }
 
-// AppIssueDetailPageAction handles GET /apps/:id/issues/:hash - redirects to filtered logs
+// AppIssueDetailPageAction handles GET /apps/:id/issues/:hash - renders issue detail page
 func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 	hash := ctx.Ctx.Params("hash")
-	appID := ctx.Ctx.Params("id")
 
-	if hash == "" {
-		return ctx.Ctx.Redirect("/apps/" + appID + "/issues")
+	app, apps, err := getAppFromURL(ctx)
+	if err != nil {
+		return ctx.Ctx.Redirect("/")
 	}
 
-	// Mark as seen
-	events.MarkIssueSeen(ctx.DB(), hash)
+	if hash == "" {
+		return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(app.ID), 10) + "/issues")
+	}
 
-	// Redirect to logs filtered by this error
-	return ctx.Ctx.Redirect("/apps/" + appID + "/log?error=" + hash + "&is_error=true")
+	db := ctx.DB()
+
+	issue, err := events.GetIssueByHash(db, hash, app.ID)
+	if err != nil || issue == nil {
+		return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(app.ID), 10) + "/issues")
+	}
+
+	// Compute days to cover the full issue history (min 7, max 30)
+	days := 7
+	if issue.FirstSeen != "" {
+		firstSeen := parseTimestamp(issue.FirstSeen)
+		if !firstSeen.IsZero() {
+			d := int(time.Since(firstSeen).Hours()/24) + 1
+			if d > days {
+				days = d
+			}
+			if days > 30 {
+				days = 30
+			}
+		}
+	}
+
+	occurrences, _ := events.GetIssueOccurrencesByHour(db, hash, app.ID, days)
+	events.MarkIssueSeen(db, hash)
+
+	// Load trace siblings for the top 20 entries
+	traces := make(map[string][]events.Event)
+	seen := make(map[string]bool)
+	limit := 20
+	if len(issue.Entries) < limit {
+		limit = len(issue.Entries)
+	}
+	for _, entry := range issue.Entries[:limit] {
+		if entry.TraceID != "" && !seen[entry.TraceID] {
+			seen[entry.TraceID] = true
+			if siblings, err := events.FindByTraceID(db, entry.TraceID); err == nil && len(siblings) > 0 {
+				traces[entry.TraceID] = siblings
+			}
+		}
+	}
+
+	return RenderPage(ctx.Ctx, "IssueDetail", Props{
+		"issue":        issue,
+		"occurrences":  occurrences,
+		"traces":       traces,
+		"appId":        app.ID,
+		"appName":      app.Name,
+		"applications": apps,
+	})
 }
 
 // MarkIssueSeenAction handles POST /issues/:hash/seen (kept for API use)

@@ -134,14 +134,22 @@ func AppLogDetailPageAction(ctx *cartridge.Context) error {
 
 	entryContext, _ := entry.GetContext()
 
-	return RenderPage(ctx.Ctx, "LogDetail", Props{
+	props := Props{
 		"appId":          app.ID,
 		"appName":        app.Name,
 		"applications":   apps,
 		"entry":          entry,
 		"entryContext":   entryContext,
 		"relatedEntries": relatedEntries,
-	})
+	}
+
+	if entry.IsError {
+		if issueHash := events.GetIssueHashForEvent(entry); issueHash != "" {
+			props["issueHash"] = issueHash
+		}
+	}
+
+	return RenderPage(ctx.Ctx, "LogDetail", props)
 }
 
 // TracePageAction handles GET /trace/:traceId - redirects to logs filtered by trace

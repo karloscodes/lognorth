@@ -12,6 +12,7 @@ import LogDetail from './pages/LogDetail'
 import Issues from './pages/Issues'
 import Settings from './pages/Settings'
 import Endpoints from './pages/Endpoints'
+import IssueDetail from './pages/IssueDetail'
 
 // Map of page components
 const pages: Record<string, React.ComponentType<any>> = {
@@ -24,6 +25,7 @@ const pages: Record<string, React.ComponentType<any>> = {
   Issues,
   Settings,
   Endpoints,
+  IssueDetail,
 }
 
 // Track if app has been initialized
