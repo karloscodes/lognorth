@@ -126,6 +126,85 @@ func TestHashError(t *testing.T) {
 }
 
 // =============================================================================
+// computeErrorHashes - Three-tier grouping
+// =============================================================================
+
+func TestComputeErrorHashes(t *testing.T) {
+	t.Run("same inputs produce same hashes", func(t *testing.T) {
+		h1a, h2a, h3a := computeErrorHashes("TypeError", "undefined is not a function", "app.ts", 42, 1)
+		h1b, h2b, h3b := computeErrorHashes("TypeError", "undefined is not a function", "app.ts", 42, 1)
+
+		if h1a != h1b || h2a != h2b || h3a != h3b {
+			t.Error("same inputs should produce same hashes")
+		}
+	})
+
+	t.Run("same class+message different file produces same h1 different h2 h3", func(t *testing.T) {
+		h1a, h2a, h3a := computeErrorHashes("TypeError", "undefined is not a function", "app.ts", 42, 1)
+		h1b, h2b, h3b := computeErrorHashes("TypeError", "undefined is not a function", "other.ts", 10, 1)
+
+		if h1a != h1b {
+			t.Error("same class+message should produce same h1")
+		}
+		if h2a == h2b {
+			t.Error("different file should produce different h2")
+		}
+		if h3a == h3b {
+			t.Error("different file+line should produce different h3")
+		}
+	})
+
+	t.Run("no class uses message only", func(t *testing.T) {
+		h1a, _, _ := computeErrorHashes("", "connection refused", "db.go", 10, 1)
+		h1b, _, _ := computeErrorHashes("", "connection refused", "db.go", 10, 1)
+
+		if h1a != h1b {
+			t.Error("same message-only should produce same h1")
+		}
+
+		// Different from when class is present
+		h1c, _, _ := computeErrorHashes("NetError", "connection refused", "db.go", 10, 1)
+		if h1a == h1c {
+			t.Error("message-only vs class+message should differ")
+		}
+	})
+
+	t.Run("no file or line leaves h2 h3 empty", func(t *testing.T) {
+		h1, h2, h3 := computeErrorHashes("TypeError", "bad stuff", "", 0, 1)
+
+		if h1 == "" {
+			t.Error("h1 should always be set")
+		}
+		if h2 != "" {
+			t.Error("h2 should be empty when no file")
+		}
+		if h3 != "" {
+			t.Error("h3 should be empty when no file/line")
+		}
+	})
+
+	t.Run("file but no line leaves h3 empty", func(t *testing.T) {
+		h1, h2, h3 := computeErrorHashes("TypeError", "bad stuff", "app.ts", 0, 1)
+
+		if h1 == "" || h2 == "" {
+			t.Error("h1 and h2 should be set")
+		}
+		if h3 != "" {
+			t.Error("h3 should be empty when no line")
+		}
+	})
+
+	t.Run("different apps produce different hashes", func(t *testing.T) {
+		h1a, _, _ := computeErrorHashes("TypeError", "bad stuff", "app.ts", 42, 1)
+		h1b, _, _ := computeErrorHashes("TypeError", "bad stuff", "app.ts", 42, 2)
+
+		if h1a == h1b {
+			t.Error("different apps should produce different hashes")
+		}
+	})
+}
+
+// =============================================================================
 // splitPaths - Helper function
 // =============================================================================
 

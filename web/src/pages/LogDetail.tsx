@@ -129,6 +129,18 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
         </div>
       )}
 
+      {/* Stack Trace */}
+      {ctx.stack_trace && (
+        <details className="mb-8 border-2 border-black/10">
+          <summary className="px-4 py-3 text-sm font-black text-[#e11d48] uppercase tracking-wider cursor-pointer hover:bg-black/[0.02]">
+            Stack Trace
+          </summary>
+          <pre className="px-4 py-3 text-xs font-mono text-black/80 overflow-x-auto whitespace-pre border-t border-black/10 bg-black/[0.02]">
+            {ctx.stack_trace}
+          </pre>
+        </details>
+      )}
+
       {/* User Agent */}
       {ctx.user_agent && (
         <div className="mb-8">

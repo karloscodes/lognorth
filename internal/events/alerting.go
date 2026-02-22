@@ -139,7 +139,36 @@ func (e *AlertEngine) CheckNewErrorOrRegression(ctx map[string]any, apiKeyID uin
 	}
 
 	errorMsg, _ := ctx["error"].(string)
-	hash := hashError(ctx, apiKeyID)
+
+	// Prefer new three-tier hashing when structured fields are available
+	errorClass, _ := ctx["error_class"].(string)
+	if errorClass == "" {
+		errorClass, _ = ctx["error_type"].(string)
+	}
+	errorFile, _ := ctx["error_file"].(string)
+	errorLine := 0
+	if el, ok := ctx["error_line"].(int); ok {
+		errorLine = el
+	} else if el, ok := ctx["error_line"].(float64); ok {
+		errorLine = int(el)
+	}
+
+	var hash string
+	if errorClass != "" || errorMsg != "" {
+		h1, h2, h3 := computeErrorHashes(errorClass, errorMsg, errorFile, errorLine, apiKeyID)
+		if h3 != "" {
+			hash = h3
+		} else if h2 != "" {
+			hash = h2
+		} else {
+			hash = h1
+		}
+	}
+	// Fallback to legacy hash if new hashing produced nothing
+	if hash == "" {
+		hash = hashError(ctx, apiKeyID)
+	}
+
 	now := time.Now()
 
 	var seen IssueSeen

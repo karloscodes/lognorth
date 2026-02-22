@@ -59,6 +59,43 @@ var jobNames = []string{
 	"ProcessRefunds",
 }
 
+// errorDef defines a structured error with class, message, file, line, caller, and stack trace
+type errorDef struct {
+	class      string
+	message    string
+	file       string
+	line       int
+	caller     string
+	stackTrace string
+}
+
+var structuredErrors = []errorDef{
+	{class: "TimeoutError", message: "connection timeout after 30s", file: "db.go", line: 142, caller: "QueryContext", stackTrace: "goroutine 1 [running]:\ndb.go:142 QueryContext\nrepository.go:87 FindUser\nhandler.go:34 GetUser"},
+	{class: "NotFoundError", message: "record not found", file: "repository.go", line: 55, caller: "FindByID", stackTrace: "goroutine 1 [running]:\nrepository.go:55 FindByID\nhandler.go:22 GetUser"},
+	{class: "AuthError", message: "invalid authentication token", file: "auth.go", line: 89, caller: "ValidateToken", stackTrace: "goroutine 1 [running]:\nauth.go:89 ValidateToken\nmiddleware.go:45 AuthMiddleware"},
+	{class: "PaymentError", message: "Stripe: card_declined", file: "payments.go", line: 203, caller: "ChargeCard", stackTrace: "goroutine 1 [running]:\npayments.go:203 ChargeCard\ncheckout.go:67 ProcessCheckout"},
+	{class: "RateLimitError", message: "rate limit exceeded (429)", file: "client.go", line: 78, caller: "DoRequest", stackTrace: "goroutine 1 [running]:\nclient.go:78 DoRequest\napi.go:34 FetchData"},
+	{class: "IOError", message: "unexpected EOF", file: "reader.go", line: 34, caller: "ReadBody", stackTrace: "goroutine 1 [running]:\nreader.go:34 ReadBody\nhandler.go:112 ParseRequest"},
+	{class: "ConnectionError", message: "Redis: connection refused", file: "cache.go", line: 23, caller: "Connect", stackTrace: "goroutine 1 [running]:\ncache.go:23 Connect\nsession.go:45 GetSession"},
+	{class: "ParseError", message: "JSON: unexpected token at position 42", file: "parser.go", line: 67, caller: "ParseJSON", stackTrace: "goroutine 1 [running]:\nparser.go:67 ParseJSON\nhandler.go:89 HandleWebhook"},
+	{class: "PermissionError", message: "permission denied", file: "authz.go", line: 34, caller: "CheckPermission", stackTrace: "goroutine 1 [running]:\nauthz.go:34 CheckPermission\nhandler.go:56 UpdateUser"},
+	{class: "ConflictError", message: "duplicate key: email already exists", file: "repository.go", line: 112, caller: "Create", stackTrace: "goroutine 1 [running]:\nrepository.go:112 Create\nhandler.go:78 CreateUser"},
+	{class: "TimeoutError", message: "context deadline exceeded", file: "worker.go", line: 45, caller: "ProcessJob", stackTrace: "goroutine 1 [running]:\nworker.go:45 ProcessJob\nqueue.go:123 RunWorker"},
+	{class: "TLSError", message: "TLS handshake timeout", file: "client.go", line: 156, caller: "DialTLS", stackTrace: "goroutine 1 [running]:\nclient.go:156 DialTLS\npayments.go:34 ConnectStripe"},
+}
+
+// Same errors at alternate locations (for "also happens at").
+// These share error_class + error_message with structuredErrors above,
+// so they get the same hash_1 but different hash_3.
+var alternateLocations = []errorDef{
+	{class: "TimeoutError", message: "connection timeout after 30s", file: "api_client.go", line: 88, caller: "FetchRemote", stackTrace: "goroutine 1 [running]:\napi_client.go:88 FetchRemote\nsync.go:34 SyncData"},
+	{class: "TimeoutError", message: "connection timeout after 30s", file: "webhook.go", line: 55, caller: "DeliverWebhook", stackTrace: "goroutine 1 [running]:\nwebhook.go:55 DeliverWebhook\njobs.go:12 ProcessJob"},
+	{class: "ConnectionError", message: "Redis: connection refused", file: "pubsub.go", line: 12, caller: "Subscribe", stackTrace: "goroutine 1 [running]:\npubsub.go:12 Subscribe\nnotifier.go:78 StartListening"},
+	{class: "ConnectionError", message: "Redis: connection refused", file: "rate_limiter.go", line: 34, caller: "CheckLimit", stackTrace: "goroutine 1 [running]:\nrate_limiter.go:34 CheckLimit\nmiddleware.go:22 RateLimit"},
+	{class: "TimeoutError", message: "context deadline exceeded", file: "scheduler.go", line: 201, caller: "RunTask", stackTrace: "goroutine 1 [running]:\nscheduler.go:201 RunTask\ncron.go:45 Execute"},
+	{class: "NotFoundError", message: "record not found", file: "search.go", line: 78, caller: "FindBySlug", stackTrace: "goroutine 1 [running]:\nsearch.go:78 FindBySlug\nhandler.go:44 ShowPage"},
+}
+
 var errorMessages = []string{
 	"connection timeout after 30s",
 	"record not found",
@@ -202,6 +239,9 @@ func main() {
 			}
 			if errorMsg != "" {
 				ctx.Error = errorMsg
+				if ed := pickStructuredError(errorMsg); ed != nil {
+					applyErrorFields(ctx, ed)
+				}
 			}
 			if rand.Float64() < 0.4 {
 				ctx.User = fmt.Sprintf("user_%d", rand.Intn(50))
@@ -216,6 +256,9 @@ func main() {
 				IsError:    isError,
 			}
 			event.SetContext(ctx)
+			if isError {
+				events.PopulateErrorFields(event, ctx)
+			}
 
 			if err := events.Create(db, event); err != nil {
 				continue
@@ -251,6 +294,9 @@ func main() {
 			}
 			if errorMsg != "" {
 				ctx.Error = errorMsg
+				if ed := pickStructuredError(errorMsg); ed != nil {
+					applyErrorFields(ctx, ed)
+				}
 			}
 
 			event := &events.Event{
@@ -262,6 +308,9 @@ func main() {
 				IsError:    isError,
 			}
 			event.SetContext(ctx)
+			if isError {
+				events.PopulateErrorFields(event, ctx)
+			}
 
 			if err := events.Create(db, event); err != nil {
 				continue
@@ -317,6 +366,9 @@ func main() {
 						ctx.User = fmt.Sprintf("user_%d", rand.Intn(50))
 					}
 				}
+				if ed := pickStructuredError(re.errorMsg); ed != nil {
+					applyErrorFields(ctx, ed)
+				}
 
 				event := &events.Event{
 					APIKeyID:   apiKey.ID,
@@ -327,6 +379,45 @@ func main() {
 					IsError:    true,
 				}
 				event.SetContext(ctx)
+				events.PopulateErrorFields(event, ctx)
+
+				if err := events.Create(db, event); err != nil {
+					continue
+				}
+				totalEvents++
+				errorCount++
+			}
+		}
+
+		// Generate errors at alternate locations (for "also happens at")
+		for _, alt := range alternateLocations {
+			count := 8 + rand.Intn(15)
+			for j := 0; j < count; j++ {
+				hoursAgo := rand.Intn(48)
+				minutesAgo := rand.Intn(60)
+				timestamp := now.Add(-time.Duration(hoursAgo)*time.Hour - time.Duration(minutesAgo)*time.Minute)
+				traceID := fmt.Sprintf("alt_%x", rand.Int63())
+				path := httpPaths[rand.Intn(len(httpPaths))]
+
+				ctx := &events.EventContext{
+					Method: "GET",
+					Path:   path,
+					Status: 500,
+					Error:  alt.message,
+					IP:     fmt.Sprintf("10.%d.%d.%d", rand.Intn(10), rand.Intn(256), rand.Intn(256)),
+				}
+				applyErrorFields(ctx, &alt)
+
+				event := &events.Event{
+					APIKeyID:   apiKey.ID,
+					Timestamp:  timestamp,
+					Message:    fmt.Sprintf("GET %s → 500", path),
+					TraceID:    traceID,
+					DurationMS: 100 + rand.Intn(3000),
+					IsError:    true,
+				}
+				event.SetContext(ctx)
+				events.PopulateErrorFields(event, ctx)
 
 				if err := events.Create(db, event); err != nil {
 					continue
@@ -407,10 +498,20 @@ func main() {
 			// workers: ProcessPayments failed (context deadline exceeded)
 			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/checkout/confirm → 200",
 				&events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 200, User: user, IP: "10.1.2.3"}, 45, false)
+			timeoutErr := pickStructuredError("connection timeout after 30s")
+			apiCtx := &events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 500, Error: "connection timeout after 30s", User: user, IP: "10.0.1.5"}
+			if timeoutErr != nil {
+				applyErrorFields(apiCtx, timeoutErr)
+			}
 			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(10*time.Millisecond), "POST /api/checkout/confirm → 500",
-				&events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 500, Error: "connection timeout after 30s", User: user, IP: "10.0.1.5"}, 30000, true)
+				apiCtx, 30000, true)
+			deadlineErr := pickStructuredError("context deadline exceeded")
+			workerCtx := &events.EventContext{Job: "ProcessPayments", Error: "context deadline exceeded"}
+			if deadlineErr != nil {
+				applyErrorFields(workerCtx, deadlineErr)
+			}
 			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(31*time.Second), "ProcessPayments failed",
-				&events.EventContext{Job: "ProcessPayments", Error: "context deadline exceeded"}, 31000, true)
+				workerCtx, 31000, true)
 			traceCount += 3
 
 		case "signup":
@@ -445,8 +546,13 @@ func main() {
 				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.2.3.4"}, 60, false)
 			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(8*time.Millisecond), "POST /api/orders → 201",
 				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.0.1.5"}, 150, false)
+			redisErr := pickStructuredError("Redis: connection refused")
+			syncCtx := &events.EventContext{Job: "SyncInventory", Error: "Redis: connection refused"}
+			if redisErr != nil {
+				applyErrorFields(syncCtx, redisErr)
+			}
 			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(1*time.Second), "SyncInventory failed",
-				&events.EventContext{Job: "SyncInventory", Error: "Redis: connection refused"}, 5000, true)
+				syncCtx, 5000, true)
 			traceCount += 3
 		}
 	}
@@ -467,5 +573,27 @@ func createTraceEvent(db *gorm.DB, apiKeyID uint, traceID string, timestamp time
 		IsError:    isError,
 	}
 	event.SetContext(ctx)
+	if isError {
+		events.PopulateErrorFields(event, ctx)
+	}
 	events.Create(db, event)
+}
+
+// pickStructuredError returns a structured error def for a given error message
+func pickStructuredError(errorMsg string) *errorDef {
+	for i := range structuredErrors {
+		if structuredErrors[i].message == errorMsg {
+			return &structuredErrors[i]
+		}
+	}
+	return nil
+}
+
+// applyErrorFields sets structured error fields on the context
+func applyErrorFields(ctx *events.EventContext, ed *errorDef) {
+	ctx.ErrorClass = ed.class
+	ctx.ErrorFile = ed.file
+	ctx.ErrorLine = ed.line
+	ctx.ErrorCaller = ed.caller
+	ctx.StackTrace = ed.stackTrace
 }

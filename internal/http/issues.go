@@ -118,6 +118,20 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 	}
 
 	occurrences, _ := events.GetIssueOccurrencesByHour(db, hash, app.ID, days)
+
+	// Get related locations (same error at other file+line combinations)
+	var alsoHappensAt []events.RelatedLocation
+	if len(issue.Entries) > 0 {
+		first := issue.Entries[0]
+		if first.ErrorHash1 != "" {
+			currentHash3 := first.ErrorHash3
+			if currentHash3 == "" {
+				currentHash3 = hash
+			}
+			alsoHappensAt, _ = events.GetRelatedLocations(db, first.ErrorHash1, currentHash3, first.ErrorFile, app.ID)
+		}
+	}
+
 	events.MarkIssueSeen(db, hash)
 
 	// Load trace siblings for the top 20 entries
@@ -137,12 +151,13 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 	}
 
 	return RenderPage(ctx.Ctx, "IssueDetail", Props{
-		"issue":        issue,
-		"occurrences":  occurrences,
-		"traces":       traces,
-		"appId":        app.ID,
-		"appName":      app.Name,
-		"applications": apps,
+		"issue":         issue,
+		"occurrences":   occurrences,
+		"traces":        traces,
+		"alsoHappensAt": alsoHappensAt,
+		"appId":         app.ID,
+		"appName":       app.Name,
+		"applications":  apps,
 	})
 }
 

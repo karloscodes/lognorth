@@ -3,18 +3,19 @@ import { formatDistanceToNow, format, eachDayOfInterval, subDays, differenceInDa
 import { router } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
 import { Mono, Code, parseContext, getConfig, methodColor, statusColor } from '@/lib/shared'
-import type { Application, IssueDetail as IssueDetailType, OccurrencePoint, LogEntry } from '@/lib/shared'
+import type { Application, IssueDetail as IssueDetailType, OccurrencePoint, LogEntry, RelatedLocation } from '@/lib/shared'
 
 interface Props {
   issue: IssueDetailType
   occurrences: OccurrencePoint[] | null
   traces: Record<string, LogEntry[]> | null
+  alsoHappensAt?: RelatedLocation[] | null
   appId: number
   appName: string
   applications?: Application[]
 }
 
-export default function IssueDetail({ issue, occurrences, traces, appId, appName, applications }: Props) {
+export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt, appId, appName, applications }: Props) {
   const toggleMute = () => {
     const url = issue.muted ? `/issues/${issue.hash}/unmute` : `/issues/${issue.hash}/mute`
     router.post(url, {}, { preserveScroll: true })
@@ -24,10 +25,13 @@ export default function IssueDetail({ issue, occurrences, traces, appId, appName
   const recentEntries = entries.slice(0, 20)
   const logPath = `/apps/${appId}/log`
 
-  // Extract error_type/error_location from first entry context
+  // Extract structured error identity from issue or first entry context
   const firstCtx = recentEntries.length > 0 ? parseContext(recentEntries[0].context) : null
-  const errorType = firstCtx?.error_type
-  const errorLocation = firstCtx?.error_location
+  const errorClass = issue.error_class || firstCtx?.error_class || firstCtx?.error_type
+  const errorFile = issue.error_file || firstCtx?.error_file
+  const errorLine = issue.error_line || firstCtx?.error_line
+  const errorCaller = firstCtx?.error_caller
+  const stackTrace = firstCtx?.stack_trace
 
   // Latest trace context: find the most recent entry with a trace
   const latestTraced = recentEntries.find((e) => e.trace_id && traces?.[e.trace_id])
@@ -50,12 +54,63 @@ export default function IssueDetail({ issue, occurrences, traces, appId, appName
                 )}
               </div>
               <Code className="text-lg leading-snug block text-black font-bold break-all">{issue.error}</Code>
-              {errorType && (
+              {(errorClass || errorFile) && (
                 <div className="mt-2 text-sm font-mono">
-                  <span className="text-black font-semibold">{errorType}</span>
-                  {errorLocation && <span className="text-black/60"> at {errorLocation}</span>}
+                  {errorClass && <span className="text-black font-semibold">{errorClass}</span>}
+                  {errorFile && (
+                    <span className="text-black/60">
+                      {errorClass ? ' at ' : ''}{errorFile}{errorLine ? `:${errorLine}` : ''}
+                    </span>
+                  )}
+                  {errorCaller && <span className="text-black/40"> in {errorCaller}</span>}
                 </div>
               )}
+              {alsoHappensAt && alsoHappensAt.length > 0 && (() => {
+                const sameFile = alsoHappensAt.filter((l) => l.same_file)
+                const diffFile = alsoHappensAt.filter((l) => !l.same_file)
+                const parts: React.ReactNode[] = []
+
+                if (sameFile.length > 0) {
+                  parts.push(
+                    <span key="sf">
+                      also at line{sameFile.length > 1 ? 's' : ''}{' '}
+                      {sameFile.slice(0, 2).map((loc, i) => (
+                        <React.Fragment key={loc.hash}>
+                          {i > 0 && ', '}
+                          <a href={`/apps/${appId}/issues/${loc.hash}`} className="underline hover:text-black/60">
+                            {loc.line}
+                          </a>
+                          {' '}({loc.count}x)
+                        </React.Fragment>
+                      ))}
+                      {sameFile.length > 2 && <span> (+{sameFile.length - 2} more)</span>}
+                    </span>
+                  )
+                }
+                if (diffFile.length > 0) {
+                  parts.push(
+                    <span key="df">
+                      {sameFile.length > 0 ? 'and in ' : 'same error in '}
+                      {diffFile.slice(0, 2).map((loc, i) => (
+                        <React.Fragment key={loc.hash}>
+                          {i > 0 && ', '}
+                          <a href={`/apps/${appId}/issues/${loc.hash}`} className="underline hover:text-black/60">
+                            {loc.file}{loc.line > 0 ? `:${loc.line}` : ''}
+                          </a>
+                          {' '}({loc.count}x)
+                        </React.Fragment>
+                      ))}
+                      {diffFile.length > 2 && <span> (+{diffFile.length - 2} more)</span>}
+                    </span>
+                  )
+                }
+
+                return (
+                  <div className="mt-1 text-sm font-mono text-black/40">
+                    {parts.map((p, i) => <React.Fragment key={i}>{i > 0 ? ', ' : ''}{p}</React.Fragment>)}
+                  </div>
+                )
+              })()}
             </div>
             <button
               onClick={toggleMute}
@@ -81,6 +136,18 @@ export default function IssueDetail({ issue, occurrences, traces, appId, appName
           </div>
         </div>
       </div>
+
+      {/* Stack Trace */}
+      {stackTrace && (
+        <details className="mb-8 border-2 border-black/10">
+          <summary className="px-4 py-3 text-sm font-black text-black uppercase tracking-wider cursor-pointer hover:bg-black/[0.02]">
+            Stack Trace
+          </summary>
+          <pre className="px-4 py-3 text-xs font-mono text-black/80 overflow-x-auto whitespace-pre border-t border-black/10 bg-black/[0.02]">
+            {stackTrace}
+          </pre>
+        </details>
+      )}
 
       {/* Frequency Heatmap */}
       <FrequencyHeatmap occurrences={occurrences} firstSeen={issue.first_seen} />

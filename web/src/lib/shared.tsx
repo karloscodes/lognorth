@@ -108,6 +108,12 @@ export interface LogContext {
   // Error grouping fields (SDK-extracted)
   error_type?: string
   error_location?: string
+  // Structured error fields (new SDKs)
+  error_class?: string
+  error_caller?: string
+  error_file?: string
+  error_line?: number
+  stack_trace?: string
   // Custom fields
   extra?: Record<string, any>
 }
@@ -122,8 +128,19 @@ export interface IssueDetail extends Issue {
   entries: LogEntry[]
 }
 
+export interface RelatedLocation {
+  file: string
+  line: number
+  count: number
+  hash: string
+  same_file: boolean // hash_2 match (same file) vs hash_1 match (different file)
+}
+
 export interface Issue {
   error: string
+  error_class?: string
+  error_file?: string
+  error_line?: number
   hash: string
   api_key_id: number
   count: number

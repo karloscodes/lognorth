@@ -20,6 +20,28 @@ type Event struct {
 	IsError    bool      `gorm:"index" json:"is_error"`
 	Context    string    `gorm:"type:text" json:"context"` // JSON with all metadata
 	CreatedAt  time.Time `json:"created_at"`
+
+	// Structured error fields — extracted from context during event processing.
+	// SDKs send error_class, error_file, error_line, error_caller, stack_trace
+	// inside the context JSON. The event processor extracts them into columns
+	// for fast SQL grouping and lookup.
+	ErrorClass   string `gorm:"size:255" json:"error_class"`
+	ErrorMessage string `gorm:"size:1000" json:"error_message"`
+	ErrorFile    string `gorm:"size:500" json:"error_file"`
+	ErrorLine    int    `gorm:"default:0" json:"error_line"`
+	ErrorCaller  string `gorm:"size:255" json:"error_caller"`
+
+	// Three-tier error hashes for issue grouping (all scoped by api_key_id):
+	//   hash_1: hash(error_class + error_message) — same error anywhere in the app
+	//   hash_2: hash_1 + error_file              — same error in the same file
+	//   hash_3: hash_1 + error_file + error_line  — exact location (primary grouping key)
+	//
+	// hash_3 is the default grouping key. When file/line are missing, falls back to hash_1.
+	// hash_1 links related locations ("also happens at") — same error, different files.
+	// Notifications use hash_3 when available, hash_1 otherwise.
+	ErrorHash1 string `gorm:"column:error_hash_1;size:64" json:"error_hash_1"`
+	ErrorHash2 string `gorm:"column:error_hash_2;size:64" json:"error_hash_2"`
+	ErrorHash3 string `gorm:"column:error_hash_3;size:64;index" json:"error_hash_3"`
 }
 
 // TableName specifies the table name
@@ -53,6 +75,13 @@ type EventContext struct {
 	// Error grouping fields (SDK-extracted)
 	ErrorType     string `json:"error_type,omitempty"`
 	ErrorLocation string `json:"error_location,omitempty"`
+
+	// Structured error fields (new SDKs)
+	ErrorClass  string `json:"error_class,omitempty"`
+	ErrorCaller string `json:"error_caller,omitempty"`
+	ErrorFile   string `json:"error_file,omitempty"`
+	ErrorLine   int    `json:"error_line,omitempty"`
+	StackTrace  string `json:"stack_trace,omitempty"`
 
 	// Custom fields (anything else)
 	Extra map[string]any `json:"extra,omitempty"`
@@ -100,10 +129,41 @@ func DeriveIsError(ctx *EventContext) bool {
 	if ctx.Error != "" {
 		return true
 	}
+	if ctx.ErrorClass != "" {
+		return true
+	}
+	if ctx.ErrorType != "" {
+		return true
+	}
 	if ctx.Status >= 500 {
 		return true
 	}
 	return false
+}
+
+// PopulateErrorFields extracts structured error fields from context and computes hashes.
+// Called during event processing for error events.
+func PopulateErrorFields(event *Event, ctx *EventContext) {
+	// ErrorClass: prefer error_class, fall back to error_type
+	event.ErrorClass = ctx.ErrorClass
+	if event.ErrorClass == "" {
+		event.ErrorClass = ctx.ErrorType
+	}
+
+	// ErrorMessage: from context.error
+	event.ErrorMessage = ctx.Error
+
+	// File, line, caller from context
+	event.ErrorFile = ctx.ErrorFile
+	event.ErrorLine = ctx.ErrorLine
+	event.ErrorCaller = ctx.ErrorCaller
+
+	// Compute three-tier hashes
+	if event.ErrorClass != "" || event.ErrorMessage != "" {
+		event.ErrorHash1, event.ErrorHash2, event.ErrorHash3 = computeErrorHashes(
+			event.ErrorClass, event.ErrorMessage, event.ErrorFile, event.ErrorLine, event.APIKeyID,
+		)
+	}
 }
 
 // Create inserts a new event
@@ -220,19 +280,27 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 		query = query.Where("timestamp <= ?", filters.EndTime)
 	}
 	if filters.ErrorHash != "" {
-		// ErrorHash requires looking up which error grouping matches, then filtering by that
-		// This is handled specially - we find the matching error pattern first
-		errorFilter := findErrorFilterByHash(db, filters.ErrorHash, filters.APIKeyID)
-		if errorFilter != nil {
-			if errorFilter.ErrorType != "" {
-				query = query.Where("json_extract(context, '$.error_type') = ? AND COALESCE(json_extract(context, '$.error_location'), '') = ?",
-					errorFilter.ErrorType, errorFilter.ErrorLocation)
-			} else {
-				query = query.Where("json_extract(context, '$.error') = ?", errorFilter.Error)
-			}
+		// Try matching by new hash columns first
+		var hashCount int64
+		db.Model(&Event{}).Where("error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?",
+			filters.ErrorHash, filters.ErrorHash, filters.ErrorHash).Count(&hashCount)
+
+		if hashCount > 0 {
+			query = query.Where("error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?",
+				filters.ErrorHash, filters.ErrorHash, filters.ErrorHash)
 		} else {
-			// Hash not found - return no results
-			query = query.Where("1 = 0")
+			// Fall back to legacy lookup for old events
+			errorFilter := findErrorFilterByHash(db, filters.ErrorHash, filters.APIKeyID)
+			if errorFilter != nil {
+				if errorFilter.ErrorType != "" {
+					query = query.Where("json_extract(context, '$.error_type') = ? AND COALESCE(json_extract(context, '$.error_location'), '') = ?",
+						errorFilter.ErrorType, errorFilter.ErrorLocation)
+				} else {
+					query = query.Where("json_extract(context, '$.error') = ?", errorFilter.Error)
+				}
+			} else {
+				query = query.Where("1 = 0")
+			}
 		}
 	}
 	if filters.TraceID != "" {

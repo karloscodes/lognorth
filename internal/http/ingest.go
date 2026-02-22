@@ -37,6 +37,7 @@ type IngestRequest struct {
 	Context    map[string]any `json:"context,omitempty"`
 
 	// Error grouping (SDK extracts from Error object)
+	// Legacy top-level fields — new SDKs send these inside context instead
 	ErrorType     string `json:"error_type,omitempty"`     // e.g., "TypeError"
 	ErrorLocation string `json:"error_location,omitempty"` // e.g., "checkout.ts:42"
 }
@@ -55,14 +56,18 @@ func (r *IngestRequest) Validate() error {
 }
 
 // DeriveIsError determines if this is an error event
-// Based on error_type, context.error, or context.status >= 500
+// Based on error_type, context.error_class, context.error, or context.status >= 500
 func (r *IngestRequest) DeriveIsError() bool {
-	// Check for error_type (SDK-extracted)
+	// Check for error_type (top-level, legacy)
 	if r.ErrorType != "" {
 		return true
 	}
 	if r.Context == nil {
 		return false
+	}
+	// Check for error_class in context (new SDKs)
+	if ec, ok := r.Context["error_class"]; ok && ec != nil && ec != "" {
+		return true
 	}
 	// Check for error field
 	if err, ok := r.Context["error"]; ok && err != nil && err != "" {
@@ -144,13 +149,17 @@ func IngestAction(ctx *cartridge.Context) error {
 			timestamp = time.Now()
 		}
 
-		// Merge error grouping fields into context
+		// Merge legacy top-level error fields into context
 		if req.ErrorType != "" {
 			if req.Context == nil {
 				req.Context = make(map[string]any)
 			}
 			req.Context["error_type"] = req.ErrorType
 			req.Context["error_location"] = req.ErrorLocation
+			// Also set error_class from error_type for backward compat
+			if req.Context["error_class"] == nil {
+				req.Context["error_class"] = req.ErrorType
+			}
 		}
 
 		// Build context JSON

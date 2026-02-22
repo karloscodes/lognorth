@@ -80,6 +80,22 @@ func (p *EventProcessor) processBatch(ctx *cartridge.JobContext, batchSize int) 
 			Timestamp:  ie.Timestamp,
 		}
 
+		// Extract structured error fields and compute hashes
+		if ie.IsError {
+			eventCtx, _ := event.GetContext()
+			if eventCtx != nil {
+				events.PopulateErrorFields(event, eventCtx)
+			}
+		}
+
+		// Backfill: if this is a re-processed error event with no hashes, populate them
+		if ie.IsError && event.ErrorHash1 == "" {
+			eventCtx, _ := event.GetContext()
+			if eventCtx != nil && (eventCtx.Error != "" || eventCtx.ErrorClass != "" || eventCtx.ErrorType != "") {
+				events.PopulateErrorFields(event, eventCtx)
+			}
+		}
+
 		if err := events.Create(db, event); err != nil {
 			ctx.Logger.Error("Failed to create event",
 				"ingested_id", ie.ID,
@@ -99,7 +115,7 @@ func (p *EventProcessor) processBatch(ctx *cartridge.JobContext, batchSize int) 
 		// Check if we need to send notifications for this error
 		if ie.IsError {
 			eventCtx, _ := event.GetContext()
-			if eventCtx != nil && eventCtx.Error != "" {
+			if eventCtx != nil && (eventCtx.Error != "" || eventCtx.ErrorClass != "") {
 				appName := "Unknown"
 				if apiKey, err := apikeys.FindByID(db, ie.APIKeyID); err == nil {
 					appName = apiKey.Name

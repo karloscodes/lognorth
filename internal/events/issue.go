@@ -32,8 +32,9 @@ func AutoMigrateIssues(db *gorm.DB) error {
 	return db.AutoMigrate(&IssueSeen{})
 }
 
-// hashError creates a consistent hash for error grouping scoped to an app
+// hashError creates a consistent hash for error grouping scoped to an app (legacy)
 // Priority: error_type+location > error message
+// Kept for backward compat with events missing the new columns.
 func hashError(ctx map[string]any, apiKeyID uint) string {
 	var input string
 
@@ -54,25 +55,70 @@ func hashError(ctx map[string]any, apiKeyID uint) string {
 	return hex.EncodeToString(h[:])
 }
 
+// computeErrorHashes returns three-tier hashes for error grouping.
+//
+//	h1: error_class + error_message (same error anywhere)
+//	h2: h1 + error_file (same error, same file)
+//	h3: h1 + error_file + error_line (exact location — primary grouping key)
+//
+// When error_class is empty, uses error_message only.
+// When error_file/error_line missing, h2 and h3 stay empty.
+func computeErrorHashes(errorClass, errorMessage, errorFile string, errorLine int, apiKeyID uint) (h1, h2, h3 string) {
+	// Build the identity part: class + message
+	identity := errorClass + ":" + errorMessage
+	if errorClass == "" {
+		identity = errorMessage
+	}
+
+	h1Input := fmt.Sprintf("%s|%d", identity, apiKeyID)
+	sum := sha256.Sum256([]byte(h1Input))
+	h1 = hex.EncodeToString(sum[:])
+
+	if errorFile == "" {
+		return h1, "", ""
+	}
+
+	h2Input := h1Input + ":" + errorFile
+	sum = sha256.Sum256([]byte(h2Input))
+	h2 = hex.EncodeToString(sum[:])
+
+	if errorLine <= 0 {
+		return h1, h2, ""
+	}
+
+	h3Input := fmt.Sprintf("%s:%d", h2Input, errorLine)
+	sum = sha256.Sum256([]byte(h3Input))
+	h3 = hex.EncodeToString(sum[:])
+
+	return h1, h2, h3
+}
+
 // IssueWithState extends Issue with seen/active state
 type IssueWithState struct {
-	Error     string   `json:"error"`
-	Hash      string   `json:"hash"`
-	APIKeyID  uint     `json:"api_key_id"`
-	Count     int64    `json:"count"`
-	FirstSeen string   `json:"first_seen"`
-	LastSeen  string   `json:"last_seen"`
-	Paths     []string `json:"paths"`
-	Unseen    bool     `json:"unseen"` // New occurrences since last viewed
-	Active    bool     `json:"active"` // Had occurrences in last 24h
-	Muted     bool     `json:"muted"`  // User muted this issue
+	Error      string   `json:"error"`
+	ErrorClass string   `json:"error_class,omitempty"`
+	ErrorFile  string   `json:"error_file,omitempty"`
+	ErrorLine  int      `json:"error_line,omitempty"`
+	Hash       string   `json:"hash"`
+	APIKeyID   uint     `json:"api_key_id"`
+	Count      int64    `json:"count"`
+	FirstSeen  string   `json:"first_seen"`
+	LastSeen   string   `json:"last_seen"`
+	Paths      []string `json:"paths"`
+	Unseen     bool     `json:"unseen"` // New occurrences since last viewed
+	Active     bool     `json:"active"` // Had occurrences in last 24h
+	Muted      bool     `json:"muted"`  // User muted this issue
 }
 
 // IssueAggregateRow represents a row from SQL aggregation
 type IssueAggregateRow struct {
 	Error         string `gorm:"column:error"`
+	ErrorClass    string `gorm:"column:error_class"`
+	ErrorFile     string `gorm:"column:error_file"`
+	ErrorLine     int    `gorm:"column:error_line"`
 	ErrorType     string `gorm:"column:error_type"`
 	ErrorLocation string `gorm:"column:error_location"`
+	GroupHash     string `gorm:"column:group_hash"`
 	APIKeyID      uint   `gorm:"column:api_key_id"`
 	Count         int64  `gorm:"column:count"`
 	FirstSeen     string `gorm:"column:first_seen"` // SQLite returns string from MIN()
@@ -82,18 +128,24 @@ type IssueAggregateRow struct {
 
 // ListIssuesWithState retrieves issues using SQL aggregation (scales to 100k+ events)
 // Issues are always scoped per-app (grouped by error + api_key_id)
+// Uses three-tier hashing: prefers error_hash_3, falls back to error_hash_2, then error_hash_1.
+// For old events without hashes, falls back to legacy json_extract grouping.
 func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithState, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 
-	// SQL aggregation - group by error_type+location or error and api_key_id
-	// Grouping key matches hashError priority: error_type:location > error
+	// SQL aggregation using the new hash columns
+	// Group by the best available hash (h3 > h2 > h1), falling back to legacy for old events
 	query := `
 		SELECT
-			json_extract(context, '$.error') as error,
+			COALESCE(NULLIF(error_message, ''), json_extract(context, '$.error')) as error,
+			error_class,
+			error_file,
+			error_line,
 			json_extract(context, '$.error_type') as error_type,
 			json_extract(context, '$.error_location') as error_location,
+			COALESCE(NULLIF(error_hash_3, ''), NULLIF(error_hash_2, ''), NULLIF(error_hash_1, '')) as group_hash,
 			api_key_id,
 			COUNT(*) as count,
 			MIN(timestamp) as first_seen,
@@ -101,10 +153,13 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 			GROUP_CONCAT(DISTINCT json_extract(context, '$.path')) as paths
 		FROM events
 		WHERE is_error = 1
-			AND (json_extract(context, '$.error') IS NOT NULL AND json_extract(context, '$.error') != ''
-				OR json_extract(context, '$.error_type') IS NOT NULL)
+			AND (
+				error_hash_1 != ''
+				OR json_extract(context, '$.error') IS NOT NULL AND json_extract(context, '$.error') != ''
+				OR json_extract(context, '$.error_type') IS NOT NULL
+			)
 	`
-	args := []interface{}{}
+	args := []any{}
 
 	if apiKeyID > 0 {
 		query += " AND api_key_id = ?"
@@ -113,6 +168,9 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 
 	query += `
 		GROUP BY COALESCE(
+			NULLIF(error_hash_3, ''),
+			NULLIF(error_hash_2, ''),
+			NULLIF(error_hash_1, ''),
 			json_extract(context, '$.error_type') || ':' || COALESCE(json_extract(context, '$.error_location'), ''),
 			json_extract(context, '$.error')
 		), api_key_id
@@ -140,13 +198,16 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 	// Build result
 	issues := make([]IssueWithState, 0, len(rows))
 	for _, row := range rows {
-		// Build context map for hashError
-		ctx := map[string]any{
-			"error":          row.Error,
-			"error_type":     row.ErrorType,
-			"error_location": row.ErrorLocation,
+		// Determine hash: use precomputed group_hash, or fall back to legacy hashError
+		hash := row.GroupHash
+		if hash == "" {
+			ctx := map[string]any{
+				"error":          row.Error,
+				"error_type":     row.ErrorType,
+				"error_location": row.ErrorLocation,
+			}
+			hash = hashError(ctx, row.APIKeyID)
 		}
-		hash := hashError(ctx, row.APIKeyID)
 
 		// Parse paths from GROUP_CONCAT result
 		paths := []string{}
@@ -158,25 +219,20 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 			}
 		}
 
-		// Parse timestamps from SQLite strings
-		lastSeenTime, _ := time.Parse(time.RFC3339, row.LastSeen)
-		if lastSeenTime.IsZero() {
-			// Try SQLite's default format
-			lastSeenTime, _ = time.Parse("2006-01-02 15:04:05.999999999-07:00", row.LastSeen)
-		}
-		if lastSeenTime.IsZero() {
-			lastSeenTime, _ = time.Parse("2006-01-02T15:04:05Z", row.LastSeen)
-		}
+		lastSeenTime := parseSQLiteTimestamp(row.LastSeen)
 
 		issue := IssueWithState{
-			Error:     row.Error,
-			Hash:      hash,
-			APIKeyID:  row.APIKeyID,
-			Count:     row.Count,
-			FirstSeen: row.FirstSeen,
-			LastSeen:  row.LastSeen,
-			Paths:     paths,
-			Active:    lastSeenTime.After(cutoff24h),
+			Error:      row.Error,
+			ErrorClass: row.ErrorClass,
+			ErrorFile:  row.ErrorFile,
+			ErrorLine:  row.ErrorLine,
+			Hash:       hash,
+			APIKeyID:   row.APIKeyID,
+			Count:      row.Count,
+			FirstSeen:  row.FirstSeen,
+			LastSeen:   row.LastSeen,
+			Paths:      paths,
+			Active:     lastSeenTime.After(cutoff24h),
 		}
 
 		// Check seen state
@@ -194,6 +250,21 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 	sortIssues(issues)
 
 	return issues, nil
+}
+
+// parseSQLiteTimestamp tries multiple formats that SQLite may return
+func parseSQLiteTimestamp(s string) time.Time {
+	for _, layout := range []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02T15:04:05Z",
+		"2006-01-02 15:04:05",
+	} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }
 
 func splitPaths(s string) []string {
@@ -233,6 +304,59 @@ func scoreIssue(i IssueWithState) int {
 	return score
 }
 
+// RelatedLocation represents another location where the same error occurs.
+//
+// SameFile is true when the related location is in the same file as the current issue
+// (hash_2 match — stronger signal). Otherwise it's a hash_1 match (same error, different file).
+type RelatedLocation struct {
+	File     string `json:"file"`
+	Line     int    `json:"line"`
+	Count    int64  `json:"count"`
+	Hash     string `json:"hash"`      // error_hash_3 for linking
+	SameFile bool   `json:"same_file"` // true = hash_2 match (same file)
+}
+
+// GetRelatedLocations finds other file+line locations where the same error (h1) occurs.
+// currentFile is used to flag hash_2 relationships (same error in the same file).
+func GetRelatedLocations(db *gorm.DB, hash1, currentHash3, currentFile string, apiKeyID uint) ([]RelatedLocation, error) {
+	if hash1 == "" {
+		return nil, nil
+	}
+
+	query := `
+		SELECT error_file, error_line, error_hash_3, COUNT(*) as count
+		FROM events
+		WHERE error_hash_1 = ? AND api_key_id = ? AND error_hash_3 != ? AND error_file != ''
+		GROUP BY error_file, error_line
+		ORDER BY count DESC
+		LIMIT 10
+	`
+
+	type row struct {
+		ErrorFile  string `gorm:"column:error_file"`
+		ErrorLine  int    `gorm:"column:error_line"`
+		ErrorHash3 string `gorm:"column:error_hash_3"`
+		Count      int64  `gorm:"column:count"`
+	}
+
+	var rows []row
+	if err := db.Raw(query, hash1, apiKeyID, currentHash3).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	locations := make([]RelatedLocation, 0, len(rows))
+	for _, r := range rows {
+		locations = append(locations, RelatedLocation{
+			File:     r.ErrorFile,
+			Line:     r.ErrorLine,
+			Count:    r.Count,
+			Hash:     r.ErrorHash3,
+			SameFile: currentFile != "" && r.ErrorFile == currentFile,
+		})
+	}
+	return locations, nil
+}
+
 // IssueDetail contains full issue info with log entries
 type IssueDetail struct {
 	IssueWithState
@@ -240,94 +364,119 @@ type IssueDetail struct {
 	Entries  []Event `json:"entries"`
 }
 
-// GetIssueByHash retrieves a single issue with all its events using SQL
+// GetIssueByHash retrieves a single issue with all its events.
+// Tries new hash columns first, falls back to legacy scan for old events.
 func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, error) {
-	// Get distinct error groupings with their api_key_ids to find the one matching this hash
-	query := `
-		SELECT DISTINCT
-			json_extract(context, '$.error') as error,
-			json_extract(context, '$.error_type') as error_type,
-			json_extract(context, '$.error_location') as error_location,
-			api_key_id
-		FROM events
-		WHERE is_error = 1
-			AND (json_extract(context, '$.error') IS NOT NULL AND json_extract(context, '$.error') != ''
-				OR json_extract(context, '$.error_type') IS NOT NULL)
-	`
-	args := []any{}
+	// Try matching by new hash columns first (fast path)
+	eventsQuery := db.Model(&Event{}).Where("is_error = ?", true)
 	if apiKeyID > 0 {
-		query += " AND api_key_id = ?"
-		args = append(args, apiKeyID)
+		eventsQuery = eventsQuery.Where("api_key_id = ?", apiKeyID)
 	}
+	eventsQuery = eventsQuery.Where("error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?", hash, hash, hash)
 
-	type errorWithApp struct {
-		Error         string `gorm:"column:error"`
-		ErrorType     string `gorm:"column:error_type"`
-		ErrorLocation string `gorm:"column:error_location"`
-		APIKeyID      uint   `gorm:"column:api_key_id"`
-	}
-	var errorRows []errorWithApp
-	if err := db.Raw(query, args...).Scan(&errorRows).Error; err != nil {
+	var matchingEvents []Event
+	if err := eventsQuery.Order("timestamp DESC").Limit(100).Find(&matchingEvents).Error; err != nil {
 		return nil, err
 	}
 
-	// Find the error grouping that matches this hash
-	var targetRow *errorWithApp
-	var targetAPIKeyID uint
-	for i, row := range errorRows {
-		checkAPIKeyID := apiKeyID
-		if apiKeyID == 0 {
-			checkAPIKeyID = row.APIKeyID
-		}
-		ctx := map[string]any{
-			"error":          row.Error,
-			"error_type":     row.ErrorType,
-			"error_location": row.ErrorLocation,
-		}
-		if hashError(ctx, checkAPIKeyID) == hash {
-			targetRow = &errorRows[i]
-			targetAPIKeyID = checkAPIKeyID
-			break
-		}
+	// If no results from new hashes, try legacy lookup
+	if len(matchingEvents) == 0 {
+		return getIssueByHashLegacy(db, hash, apiKeyID)
 	}
 
-	if targetRow == nil {
+	// Determine apiKeyID from first result if not scoped
+	if apiKeyID == 0 {
+		apiKeyID = matchingEvents[0].APIKeyID
+	}
+
+	// Get aggregation data
+	aggQuery := db.Model(&Event{}).Where("is_error = ? AND api_key_id = ?", true, apiKeyID).
+		Where("error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?", hash, hash, hash)
+
+	var count int64
+	aggQuery.Count(&count)
+
+	var aggResult struct {
+		FirstSeen string `gorm:"column:first_seen"`
+		LastSeen  string `gorm:"column:last_seen"`
+		Paths     string `gorm:"column:paths"`
+	}
+	db.Raw(`
+		SELECT
+			MIN(timestamp) as first_seen,
+			MAX(timestamp) as last_seen,
+			GROUP_CONCAT(DISTINCT json_extract(context, '$.path')) as paths
+		FROM events
+		WHERE is_error = 1 AND api_key_id = ?
+			AND (error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?)
+	`, apiKeyID, hash, hash, hash).Scan(&aggResult)
+
+	paths := splitPaths(aggResult.Paths)
+	if len(paths) > 10 {
+		paths = paths[:10]
+	}
+
+	lastSeenTime := parseSQLiteTimestamp(aggResult.LastSeen)
+	now := time.Now()
+	active := lastSeenTime.After(now.Add(-24 * time.Hour))
+
+	var seenRecord IssueSeen
+	db.Where("error_hash = ?", hash).First(&seenRecord)
+	unseen := seenRecord.ID == 0 || lastSeenTime.After(seenRecord.SeenAt)
+
+	first := matchingEvents[0]
+	return &IssueDetail{
+		IssueWithState: IssueWithState{
+			Error:      first.ErrorMessage,
+			ErrorClass: first.ErrorClass,
+			ErrorFile:  first.ErrorFile,
+			ErrorLine:  first.ErrorLine,
+			Hash:       hash,
+			Count:      count,
+			FirstSeen:  aggResult.FirstSeen,
+			LastSeen:   aggResult.LastSeen,
+			Paths:      paths,
+			Unseen:     unseen,
+			Active:     active,
+			Muted:      seenRecord.Muted,
+		},
+		APIKeyID: apiKeyID,
+		Entries:  matchingEvents,
+	}, nil
+}
+
+// getIssueByHashLegacy handles lookup for old events without hash columns
+func getIssueByHashLegacy(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, error) {
+	errorFilter := findErrorFilterByHash(db, hash, apiKeyID)
+	if errorFilter == nil {
 		return nil, nil
 	}
 
-	// Use the found apiKeyID for subsequent queries
-	if apiKeyID == 0 {
-		apiKeyID = targetAPIKeyID
-	}
-
-	// Build query conditions based on how this issue groups
-	// Priority: error_type+location > error
 	eventsQuery := db.Model(&Event{}).
-		Where("is_error = ?", true).
-		Where("api_key_id = ?", apiKeyID)
-
-	var whereClause string
-	var whereArgs []any
-	if targetRow.ErrorType != "" {
-		whereClause = "json_extract(context, '$.error_type') = ? AND COALESCE(json_extract(context, '$.error_location'), '') = ?"
-		whereArgs = []any{targetRow.ErrorType, targetRow.ErrorLocation}
-	} else {
-		whereClause = "json_extract(context, '$.error') = ?"
-		whereArgs = []any{targetRow.Error}
+		Where("is_error = ?", true)
+	if apiKeyID > 0 {
+		eventsQuery = eventsQuery.Where("api_key_id = ?", apiKeyID)
 	}
 
-	eventsQuery = eventsQuery.Where(whereClause, whereArgs...).Order("timestamp DESC")
+	if errorFilter.ErrorType != "" {
+		eventsQuery = eventsQuery.Where("json_extract(context, '$.error_type') = ? AND COALESCE(json_extract(context, '$.error_location'), '') = ?",
+			errorFilter.ErrorType, errorFilter.ErrorLocation)
+	} else {
+		eventsQuery = eventsQuery.Where("json_extract(context, '$.error') = ?", errorFilter.Error)
+	}
 
 	var matchingEvents []Event
-	if err := eventsQuery.Limit(100).Find(&matchingEvents).Error; err != nil {
+	if err := eventsQuery.Order("timestamp DESC").Limit(100).Find(&matchingEvents).Error; err != nil {
 		return nil, err
 	}
-
 	if len(matchingEvents) == 0 {
 		return nil, nil
 	}
 
-	// Get count and paths via aggregation
+	if apiKeyID == 0 {
+		apiKeyID = matchingEvents[0].APIKeyID
+	}
+
 	var aggResult struct {
 		Count     int64  `gorm:"column:count"`
 		FirstSeen string `gorm:"column:first_seen"`
@@ -335,42 +484,30 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 		Paths     string `gorm:"column:paths"`
 	}
 
-	aggQuery := fmt.Sprintf(`
-		SELECT
-			COUNT(*) as count,
-			MIN(timestamp) as first_seen,
-			MAX(timestamp) as last_seen,
-			GROUP_CONCAT(DISTINCT json_extract(context, '$.path')) as paths
-		FROM events
-		WHERE is_error = 1
-			AND api_key_id = ?
-			AND %s
-	`, whereClause)
-	aggArgs := append([]any{apiKeyID}, whereArgs...)
-
-	if err := db.Raw(aggQuery, aggArgs...).Scan(&aggResult).Error; err != nil {
-		return nil, err
+	var whereClause string
+	var whereArgs []any
+	if errorFilter.ErrorType != "" {
+		whereClause = "json_extract(context, '$.error_type') = ? AND COALESCE(json_extract(context, '$.error_location'), '') = ?"
+		whereArgs = []any{errorFilter.ErrorType, errorFilter.ErrorLocation}
+	} else {
+		whereClause = "json_extract(context, '$.error') = ?"
+		whereArgs = []any{errorFilter.Error}
 	}
 
-	// Parse paths
+	aggQuery := fmt.Sprintf(`
+		SELECT COUNT(*) as count, MIN(timestamp) as first_seen, MAX(timestamp) as last_seen,
+			GROUP_CONCAT(DISTINCT json_extract(context, '$.path')) as paths
+		FROM events WHERE is_error = 1 AND api_key_id = ? AND %s
+	`, whereClause)
+	db.Raw(aggQuery, append([]any{apiKeyID}, whereArgs...)...).Scan(&aggResult)
+
 	paths := splitPaths(aggResult.Paths)
 	if len(paths) > 10 {
 		paths = paths[:10]
 	}
 
-	// Parse last_seen for state checks
-	lastSeenTime, _ := time.Parse(time.RFC3339, aggResult.LastSeen)
-	if lastSeenTime.IsZero() {
-		lastSeenTime, _ = time.Parse("2006-01-02 15:04:05.999999999-07:00", aggResult.LastSeen)
-	}
-	if lastSeenTime.IsZero() {
-		lastSeenTime, _ = time.Parse("2006-01-02T15:04:05Z", aggResult.LastSeen)
-	}
-
-	// Check seen state
-	now := time.Now()
-	cutoff24h := now.Add(-24 * time.Hour)
-	active := lastSeenTime.After(cutoff24h)
+	lastSeenTime := parseSQLiteTimestamp(aggResult.LastSeen)
+	active := lastSeenTime.After(time.Now().Add(-24 * time.Hour))
 
 	var seenRecord IssueSeen
 	db.Where("error_hash = ?", hash).First(&seenRecord)
@@ -378,7 +515,7 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 
 	return &IssueDetail{
 		IssueWithState: IssueWithState{
-			Error:     targetRow.Error,
+			Error:     errorFilter.Error,
 			Hash:      hash,
 			Count:     aggResult.Count,
 			FirstSeen: aggResult.FirstSeen,
@@ -386,6 +523,7 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 			Paths:     paths,
 			Unseen:    unseen,
 			Active:    active,
+			Muted:     seenRecord.Muted,
 		},
 		APIKeyID: apiKeyID,
 		Entries:  matchingEvents,
@@ -457,13 +595,34 @@ func GetIssueOccurrencesByHour(db *gorm.DB, hash string, apiKeyID uint, days int
 		days = 7
 	}
 
-	// First find the issue to get its grouping criteria
+	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format("2006-01-02 15:04:05")
+
+	// Try new hash columns first
+	var hashCount int64
+	db.Model(&Event{}).Where("(error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?) AND api_key_id = ?",
+		hash, hash, hash, apiKeyID).Count(&hashCount)
+
+	if hashCount > 0 {
+		query := `
+			SELECT strftime('%Y-%m-%d %H', timestamp) as hour, COUNT(*) as count
+			FROM events
+			WHERE is_error = 1 AND api_key_id = ? AND datetime(timestamp) >= datetime(?)
+				AND (error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?)
+			GROUP BY strftime('%Y-%m-%d %H', timestamp)
+			ORDER BY hour ASC
+		`
+		var points []OccurrencePoint
+		if err := db.Raw(query, apiKeyID, cutoff, hash, hash, hash).Scan(&points).Error; err != nil {
+			return nil, err
+		}
+		return points, nil
+	}
+
+	// Legacy fallback: find the issue to get its grouping criteria
 	issue, err := GetIssueByHash(db, hash, apiKeyID)
 	if err != nil || issue == nil {
 		return nil, err
 	}
-
-	// Find the first entry to determine grouping key
 	if len(issue.Entries) == 0 {
 		return nil, nil
 	}
@@ -474,10 +633,8 @@ func GetIssueOccurrencesByHour(db *gorm.DB, hash string, apiKeyID uint, days int
 		return nil, err
 	}
 
-	// Build WHERE clause matching the issue grouping logic
 	var whereClause string
 	var whereArgs []any
-
 	if ctx.ErrorType != "" {
 		whereClause = "json_extract(context, '$.error_type') = ? AND COALESCE(json_extract(context, '$.error_location'), '') = ?"
 		whereArgs = []any{ctx.ErrorType, ctx.ErrorLocation}
@@ -486,36 +643,39 @@ func GetIssueOccurrencesByHour(db *gorm.DB, hash string, apiKeyID uint, days int
 		whereArgs = []any{ctx.Error}
 	}
 
-	cutoff := time.Now().AddDate(0, 0, -days).UTC().Format("2006-01-02 15:04:05")
-
 	query := fmt.Sprintf(`
-		SELECT
-			strftime('%%Y-%%m-%%d %%H', timestamp) as hour,
-			COUNT(*) as count
+		SELECT strftime('%%Y-%%m-%%d %%H', timestamp) as hour, COUNT(*) as count
 		FROM events
-		WHERE is_error = 1
-			AND api_key_id = ?
-			AND datetime(timestamp) >= datetime(?)
-			AND %s
+		WHERE is_error = 1 AND api_key_id = ? AND datetime(timestamp) >= datetime(?) AND %s
 		GROUP BY strftime('%%Y-%%m-%%d %%H', timestamp)
 		ORDER BY hour ASC
 	`, whereClause)
 
 	args := append([]any{apiKeyID, cutoff}, whereArgs...)
-
 	var points []OccurrencePoint
 	if err := db.Raw(query, args...).Scan(&points).Error; err != nil {
 		return nil, err
 	}
-
 	return points, nil
 }
 
-// GetIssueHashForEvent computes the issue hash for an error event
+// GetIssueHashForEvent returns the best available issue hash for an error event.
+// Prefers new hash columns, falls back to legacy computation.
 func GetIssueHashForEvent(event *Event) string {
 	if !event.IsError {
 		return ""
 	}
+	// Prefer precomputed hashes
+	if event.ErrorHash3 != "" {
+		return event.ErrorHash3
+	}
+	if event.ErrorHash2 != "" {
+		return event.ErrorHash2
+	}
+	if event.ErrorHash1 != "" {
+		return event.ErrorHash1
+	}
+	// Legacy fallback
 	ctx, err := event.GetContext()
 	if err != nil {
 		return ""
