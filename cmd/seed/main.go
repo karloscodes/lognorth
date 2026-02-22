@@ -160,35 +160,46 @@ func main() {
 			}
 
 			// 30% chance of creating a traced request (multiple events with same trace_id)
+			// A trace = one HTTP request + internal operations (DB, cache, external APIs)
 			if rand.Float64() < 0.3 {
-				// Event 1: DB query
+				// Internal operation 1: DB query (no HTTP context - it's internal)
+				dbQueries := []string{
+					"SELECT * FROM users WHERE id = ?",
+					"SELECT * FROM orders WHERE user_id = ?",
+					"INSERT INTO audit_log (action, user_id) VALUES (?, ?)",
+					"UPDATE sessions SET last_seen = ? WHERE id = ?",
+				}
 				dbEvent := &events.Event{
 					APIKeyID:   apiKey.ID,
 					Timestamp:  timestamp.Add(-50 * time.Millisecond),
-					Message:    "SELECT * FROM users WHERE id = ?",
+					Message:    dbQueries[rand.Intn(len(dbQueries))],
 					TraceID:    traceID,
 					DurationMS: 5 + rand.Intn(20),
 					IsError:    false,
 				}
-				dbCtx := &events.EventContext{Path: path, Method: method}
-				dbEvent.SetContext(dbCtx)
+				dbEvent.SetContext(&events.EventContext{}) // No HTTP context
 				if err := events.Create(db, dbEvent); err == nil {
 					totalEvents++
 				}
 
-				// Event 2: External API call (sometimes)
+				// Internal operation 2: External API or cache call (sometimes)
 				if rand.Float64() < 0.5 {
-					apiEvent := &events.Event{
+					externalCalls := []string{
+						"Redis GET session:user_123",
+						"Redis SET cart:user_123",
+						"POST https://api.stripe.com/v1/charges",
+						"GET https://api.sendgrid.com/v3/mail/send",
+					}
+					extEvent := &events.Event{
 						APIKeyID:   apiKey.ID,
 						Timestamp:  timestamp.Add(-20 * time.Millisecond),
-						Message:    "POST https://api.stripe.com/v1/charges",
+						Message:    externalCalls[rand.Intn(len(externalCalls))],
 						TraceID:    traceID,
-						DurationMS: 50 + rand.Intn(150),
+						DurationMS: 10 + rand.Intn(100),
 						IsError:    false,
 					}
-					apiCtx := &events.EventContext{Path: path, Method: method}
-					apiEvent.SetContext(apiCtx)
-					if err := events.Create(db, apiEvent); err == nil {
+					extEvent.SetContext(&events.EventContext{}) // No HTTP context
+					if err := events.Create(db, extEvent); err == nil {
 						totalEvents++
 					}
 				}

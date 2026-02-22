@@ -236,18 +236,29 @@ func main() {
 			}
 
 			// 25% chance of creating a traced request (multiple events with same trace_id)
+			// A trace = one HTTP request + internal operations (DB, cache, external APIs)
 			if rand.Float64() < 0.25 {
-				// Event 1: DB query
-				dbCtx := &events.EventContext{Path: path, Method: method}
+				// Internal operation: DB query (no HTTP context - it's internal)
+				dbQueries := []string{
+					"SELECT * FROM users WHERE id = ?",
+					"SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC",
+					"INSERT INTO audit_log (action, user_id, metadata) VALUES (?, ?, ?)",
+					"UPDATE sessions SET last_seen_at = NOW() WHERE token = ?",
+				}
 				createTraceEvent(db, apiKey.ID, traceID, timestamp.Add(-30*time.Millisecond),
-					"SELECT * FROM users WHERE id = ?", dbCtx, 3+rand.Intn(15), false)
+					dbQueries[rand.Intn(len(dbQueries))], &events.EventContext{}, 3+rand.Intn(15), false)
 				totalEvents++
 
-				// Event 2: External API call (50% of traced requests)
+				// Internal operation: External API or cache call (50% of traced requests)
 				if rand.Float64() < 0.5 {
-					apiCtx := &events.EventContext{Path: path, Method: method}
+					externalCalls := []string{
+						"Redis GET session:user_" + fmt.Sprintf("%d", rand.Intn(1000)),
+						"Redis SETEX cart:user_" + fmt.Sprintf("%d", rand.Intn(1000)),
+						"Stripe POST /v1/charges",
+						"SendGrid POST /v3/mail/send",
+					}
 					createTraceEvent(db, apiKey.ID, traceID, timestamp.Add(-15*time.Millisecond),
-						"POST https://api.stripe.com/v1/charges", apiCtx, 40+rand.Intn(120), false)
+						externalCalls[rand.Intn(len(externalCalls))], &events.EventContext{}, 40+rand.Intn(120), false)
 					totalEvents++
 				}
 			}
