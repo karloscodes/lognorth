@@ -40,7 +40,7 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
   return (
     <Layout currentPath="/issues" appId={appId} appName={appName} applications={applications}>
       {/* Header Card */}
-      <div className="border-2 border-black/20 overflow-hidden mb-8">
+      <div className="border border-black/10 overflow-hidden mb-8">
         <div className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -114,14 +114,14 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
             </div>
             <button
               onClick={toggleMute}
-              className="shrink-0 px-4 py-2 text-sm font-bold border-2 border-black/20 hover:border-black text-black hover:bg-black hover:text-white transition-colors"
+              className="shrink-0 px-4 py-2 text-sm font-bold border border-black/10 hover:border-black/20 text-black/70 hover:text-black transition-colors"
             >
               {issue.muted ? 'Unmute' : 'Mute'}
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 border-t-2 border-black/10 divide-x-2 divide-black/10 bg-black/[0.02]">
+        <div className="grid grid-cols-3 border-t border-black/10 divide-x divide-black/10 bg-black/[0.02]">
           <div className="px-5 py-3">
             <div className="text-xs text-black/70 font-bold mb-1">Times</div>
             <Mono className="text-2xl font-black text-[#e11d48]">{issue.count}</Mono>
@@ -139,7 +139,7 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
 
       {/* Stack Trace */}
       {stackTrace && (
-        <details className="mb-8 border-2 border-black/10">
+        <details className="mb-8 border border-black/10">
           <summary className="px-4 py-3 text-sm font-black text-black uppercase tracking-wider cursor-pointer hover:bg-black/[0.02]">
             Stack Trace
           </summary>
@@ -194,7 +194,7 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
       <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
         In Context
       </h3>
-      <div className="border-2 border-black/20 overflow-hidden">
+      <div className="border border-black/10 overflow-hidden">
 
         {/* Log entries before */}
         {before.length > 0 && (
@@ -209,7 +209,7 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
         )}
 
         {/* Current occurrence — prominent */}
-        <div className="bg-[#e11d48]/10 border-y-2 border-[#e11d48]/40 px-4 py-4">
+        <div className="bg-[#e11d48]/10 border-y border-[#e11d48]/30 px-4 py-4">
           <a href={`${logPath}/${errorEntry.id}`} className="block hover:opacity-80 transition-opacity">
             <div className="flex items-center gap-2 mb-2">
               <span className="bg-[#e11d48] text-white px-1.5 py-0.5 text-[10px] font-black">ERROR</span>
@@ -247,7 +247,7 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
         {/* View full trace */}
         <a
           href={`${logPath}?trace=${errorEntry.trace_id}`}
-          className="flex items-center justify-between px-4 py-2.5 border-t-2 border-black/20 text-xs font-mono font-bold text-black/80 hover:text-black transition-colors"
+          className="flex items-center justify-between px-4 py-2.5 border-t border-black/10 text-xs font-mono font-bold text-black/60 hover:text-black transition-colors"
         >
           <span>{traceEntries.length} {traceEntries.length === 1 ? 'entry' : 'entries'} in trace</span>
           <span>View full trace →</span>
@@ -425,7 +425,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
       <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
         Frequency
       </h3>
-      <div className="border-2 border-black/10 p-4">
+      <div className="border border-black/10 p-4">
         <div className="flex">
           {/* Row labels */}
           <div className="shrink-0 pr-2" style={{ width: LABEL_WIDTH }}>

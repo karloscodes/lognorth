@@ -159,18 +159,8 @@ function LogRow({ entry, appId, compact }: { entry: LogEntry; appId?: number; co
 function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
   const [expanded, setExpanded] = useState(false)
   const { mainEntry, entries, traceId } = group
-  const hasMultiple = entries.length > 1
   const totalDuration = entries.reduce((sum, e) => sum + e.duration_ms, 0)
   const hasError = entries.some(e => e.is_error)
-
-  // If only one entry, render as normal row
-  if (!hasMultiple) {
-    return (
-      <div className="border-b border-black/10 last:border-b-0">
-        <LogRow entry={mainEntry} appId={appId} />
-      </div>
-    )
-  }
 
   return (
     <div className="border-b border-black/10 last:border-b-0">
@@ -186,9 +176,9 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
           {formatDistanceToNow(new Date(mainEntry.timestamp), { addSuffix: true }).replace('about ', '').replace(' ago', '')}
         </span>
         <span className="text-xs text-black/40">·</span>
-        <span className="text-xs text-black/50">{entries.length} events</span>
+        <span className="text-xs text-black/50">{entries.length} event{entries.length !== 1 ? 's' : ''}</span>
         <span className="flex-1" />
-        <span className="font-mono text-xs text-black/50 tabular-nums">{totalDuration}ms total</span>
+        <span className="font-mono text-xs text-black/50 tabular-nums">{totalDuration}ms</span>
       </button>
 
       {/* Expanded children */}
