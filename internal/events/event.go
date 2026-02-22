@@ -436,12 +436,9 @@ type HistogramBucket struct {
 	Errors    int64     `json:"errors"`
 }
 
-// GetHistogram returns hourly volume buckets for the given time range
-func GetHistogram(db *gorm.DB, apiKeyID uint, startTime, endTime time.Time, buckets int) []HistogramBucket {
-	if buckets <= 0 {
-		buckets = 24 // default to 24 buckets
-	}
-
+// GetHistogram returns volume buckets for the given time range with dynamic granularity
+// Minimum granularity is 1 hour, scales up for longer time ranges
+func GetHistogram(db *gorm.DB, apiKeyID uint, startTime, endTime time.Time, _ int) []HistogramBucket {
 	// Default time range: last 24 hours
 	now := time.Now()
 	if endTime.IsZero() {
@@ -451,11 +448,29 @@ func GetHistogram(db *gorm.DB, apiKeyID uint, startTime, endTime time.Time, buck
 		startTime = endTime.Add(-24 * time.Hour)
 	}
 
-	// Calculate bucket duration
+	// Calculate total duration and choose appropriate bucket size
 	totalDuration := endTime.Sub(startTime)
-	bucketDuration := totalDuration / time.Duration(buckets)
-	if bucketDuration < time.Minute {
-		bucketDuration = time.Minute
+
+	// Choose bucket duration based on time range (minimum 1 hour)
+	var bucketDuration time.Duration
+	switch {
+	case totalDuration <= 48*time.Hour:
+		bucketDuration = time.Hour // 1 hour buckets for up to 2 days
+	case totalDuration <= 14*24*time.Hour:
+		bucketDuration = 6 * time.Hour // 6 hour buckets for up to 2 weeks
+	case totalDuration <= 60*24*time.Hour:
+		bucketDuration = 24 * time.Hour // daily buckets for up to 2 months
+	default:
+		bucketDuration = 7 * 24 * time.Hour // weekly buckets for longer
+	}
+
+	// Calculate number of buckets
+	buckets := int(totalDuration / bucketDuration)
+	if buckets < 1 {
+		buckets = 1
+	}
+	if buckets > 100 {
+		buckets = 100 // cap at 100 buckets
 	}
 
 	// Initialize buckets
