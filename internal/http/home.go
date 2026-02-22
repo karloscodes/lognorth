@@ -45,8 +45,8 @@ func HomePageAction(ctx *cartridge.Context) error {
 		}
 	}
 
-	// Get recent issues across all apps (for dashboard focus on errors)
-	recentIssues, _ := events.ListIssuesWithState(db, 0, 10)
+	// Get all issues across all apps for accurate counts
+	recentIssues, _ := events.ListIssuesWithState(db, 0, 200)
 
 	return RenderPage(ctx.Ctx, "Home", Props{
 		"applications":  apps,

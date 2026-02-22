@@ -108,6 +108,8 @@ type IssueWithState struct {
 	Unseen     bool     `json:"unseen"` // New occurrences since last viewed
 	Active     bool     `json:"active"` // Had occurrences in last 24h
 	Muted      bool     `json:"muted"`  // User muted this issue
+	IsNew      bool     `json:"is_new"` // First seen < 24h ago
+	Trend      string   `json:"trend"`  // "up", "down", "stable"
 }
 
 // IssueAggregateRow represents a row from SQL aggregation
@@ -195,6 +197,15 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 	now := time.Now()
 	cutoff24h := now.Add(-24 * time.Hour)
 
+	// Collect hashes for trend computation
+	hashes := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.GroupHash != "" {
+			hashes = append(hashes, row.GroupHash)
+		}
+	}
+	trends := computeTrends(db, apiKeyID, hashes)
+
 	// Build result
 	issues := make([]IssueWithState, 0, len(rows))
 	for _, row := range rows {
@@ -220,6 +231,13 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 		}
 
 		lastSeenTime := parseSQLiteTimestamp(row.LastSeen)
+		firstSeenTime := parseSQLiteTimestamp(row.FirstSeen)
+
+		// Compute trend for this issue
+		trend := "stable"
+		if t, ok := trends[hash]; ok {
+			trend = t
+		}
 
 		issue := IssueWithState{
 			Error:      row.Error,
@@ -233,6 +251,8 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 			LastSeen:   row.LastSeen,
 			Paths:      paths,
 			Active:     lastSeenTime.After(cutoff24h),
+			IsNew:      firstSeenTime.After(cutoff24h),
+			Trend:      trend,
 		}
 
 		// Check seen state
@@ -302,6 +322,63 @@ func scoreIssue(i IssueWithState) int {
 		score += 1
 	}
 	return score
+}
+
+// trendCounts holds recent vs previous occurrence counts for trend calculation
+type trendCounts struct {
+	Hash     string
+	Recent   int64 // last 2 hours
+	Previous int64 // 2-4 hours ago
+}
+
+// computeTrends calculates trend for issues by comparing recent (0-2h) vs previous (2-4h) occurrences
+func computeTrends(db *gorm.DB, apiKeyID uint, hashes []string) map[string]string {
+	if len(hashes) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	recent := now.Add(-2 * time.Hour).UTC().Format("2006-01-02 15:04:05")
+	previous := now.Add(-4 * time.Hour).UTC().Format("2006-01-02 15:04:05")
+
+	// Build hash conditions for all three hash columns
+	hashConditions := make([]string, 0, len(hashes)*3)
+	for _, h := range hashes {
+		hashConditions = append(hashConditions, h)
+	}
+
+	query := `
+		SELECT
+			COALESCE(NULLIF(error_hash_3, ''), NULLIF(error_hash_2, ''), NULLIF(error_hash_1, '')) as hash,
+			SUM(CASE WHEN datetime(timestamp) >= datetime(?) THEN 1 ELSE 0 END) as recent,
+			SUM(CASE WHEN datetime(timestamp) >= datetime(?) AND datetime(timestamp) < datetime(?) THEN 1 ELSE 0 END) as previous
+		FROM events
+		WHERE is_error = 1
+			AND COALESCE(NULLIF(error_hash_3, ''), NULLIF(error_hash_2, ''), NULLIF(error_hash_1, '')) IN (?)
+	`
+	args := []any{recent, previous, recent, hashConditions}
+
+	if apiKeyID > 0 {
+		query += " AND api_key_id = ?"
+		args = append(args, apiKeyID)
+	}
+
+	query += " GROUP BY hash"
+
+	var rows []trendCounts
+	db.Raw(query, args...).Scan(&rows)
+
+	result := make(map[string]string)
+	for _, row := range rows {
+		if row.Recent > row.Previous*2 && row.Recent >= 3 {
+			result[row.Hash] = "up"
+		} else if row.Previous > row.Recent*2 && row.Previous >= 3 {
+			result[row.Hash] = "down"
+		} else {
+			result[row.Hash] = "stable"
+		}
+	}
+	return result
 }
 
 // RelatedLocation represents another location where the same error occurs.

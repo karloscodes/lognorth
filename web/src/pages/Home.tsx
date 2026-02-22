@@ -1,3 +1,4 @@
+import { TrendingUp } from 'lucide-react'
 import { Layout } from '@/components/layout'
 import { Mono } from '@/lib/shared'
 import type { Application, Issue } from '@/lib/shared'
@@ -32,14 +33,27 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
     )
   }
 
-  // Count issues per app
-  const issueCountByApp = new Map<number, number>()
+  // Aggregate issue stats per app
+  const appStats = new Map<number, { count: number; unseenCount: number; trending: boolean }>()
   for (const issue of recentIssues) {
-    issueCountByApp.set(issue.api_key_id, (issueCountByApp.get(issue.api_key_id) || 0) + 1)
+    const current = appStats.get(issue.api_key_id) || { count: 0, unseenCount: 0, trending: false }
+    current.count++
+    if (issue.unseen) current.unseenCount++
+    if (issue.trend === 'up') current.trending = true
+    appStats.set(issue.api_key_id, current)
   }
 
-  const appsWithIssues = applications.filter(app => issueCountByApp.has(app.id))
-  const healthyApps = applications.filter(app => !issueCountByApp.has(app.id))
+  const appsWithIssues = applications.filter(app => appStats.has(app.id))
+  const healthyApps = applications.filter(app => !appStats.has(app.id))
+
+  // Sort: trending first, then by unseen count, then by total count
+  appsWithIssues.sort((a, b) => {
+    const statsA = appStats.get(a.id)!
+    const statsB = appStats.get(b.id)!
+    if (statsA.trending !== statsB.trending) return statsA.trending ? -1 : 1
+    if (statsA.unseenCount !== statsB.unseenCount) return statsB.unseenCount - statsA.unseenCount
+    return statsB.count - statsA.count
+  })
 
   return (
     <Layout currentPath="/" applications={applications}>
@@ -67,7 +81,7 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
       {appsWithIssues.length > 0 && (
         <div className="mb-6 space-y-3">
           {appsWithIssues.map((app) => {
-            const issueCount = issueCountByApp.get(app.id) || 0
+            const stats = appStats.get(app.id)!
 
             return (
               <a
@@ -76,7 +90,19 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
                 className="flex items-center justify-between p-4 border-2 border-[#e11d48] bg-rose-50 hover:bg-rose-100 transition-all"
               >
                 <span className="font-bold text-black text-lg">{app.name}</span>
-                <Mono className="text-2xl font-black text-[#e11d48]">{issueCount}</Mono>
+                <div className="flex items-center gap-3">
+                  {stats.unseenCount > 0 && (
+                    <span className="text-xs font-bold text-[#e11d48] uppercase">
+                      {stats.unseenCount} new
+                    </span>
+                  )}
+                  <div className="flex items-center">
+                    <span className="w-5 flex justify-center">
+                      {stats.trending && <TrendingUp className="w-4 h-4 text-[#e11d48]" />}
+                    </span>
+                    <Mono className="text-2xl font-black text-[#e11d48] w-12 text-right">{stats.count}</Mono>
+                  </div>
+                </div>
               </a>
             )
           })}

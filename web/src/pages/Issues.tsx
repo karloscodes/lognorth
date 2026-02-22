@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
-import { Clock, Check } from 'lucide-react'
+import { Clock, Check, TrendingUp, TrendingDown } from 'lucide-react'
 import { router } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
 import { Mono, Code, PageHeader, EmptyState } from '@/lib/shared'
@@ -127,15 +127,22 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
     >
       {/* Main content - clickable link */}
       <a href={issuePath} className="flex-1 min-w-0 py-1">
-        <Code className={`leading-snug block ${
-          isUnseen && !issue.muted
-            ? 'font-semibold text-black'
-            : stale || issue.muted
-              ? 'text-black/50'
-              : 'text-black/80'
-        }`}>
-          {issue.error}
-        </Code>
+        <div className="flex items-center gap-2">
+          <Code className={`leading-snug ${
+            isUnseen && !issue.muted
+              ? 'font-semibold text-black'
+              : stale || issue.muted
+                ? 'text-black/50'
+                : 'text-black/80'
+          }`}>
+            {issue.error}
+          </Code>
+          {issue.is_new && !stale && (
+            <span className="text-[10px] font-bold text-[#e11d48] uppercase tracking-wide">
+              New
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-2 text-xs text-black/40">
           {appName && (
             <>
@@ -168,18 +175,28 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
           {issue.muted ? 'Unmute' : 'Mute'}
         </button>
 
-        <Mono
-          className={`text-xl font-black w-16 text-right ${
-            isUnseen && !issue.muted
-              ? 'text-[#e11d48]'
-              : stale || issue.muted
-                ? 'text-black/30'
-                : 'text-black'
-          }`}
-          title={`${issue.count} occurrences`}
-        >
-          {issue.count}×
-        </Mono>
+        <div className="flex items-center">
+          <span className="w-5 flex justify-center">
+            {issue.trend === 'up' && !stale && (
+              <TrendingUp className="w-4 h-4 text-[#e11d48]" />
+            )}
+            {issue.trend === 'down' && !stale && (
+              <TrendingDown className="w-4 h-4 text-black/30" />
+            )}
+          </span>
+          <Mono
+            className={`text-xl font-black w-16 text-right ${
+              isUnseen && !issue.muted
+                ? 'text-[#e11d48]'
+                : stale || issue.muted
+                  ? 'text-black/30'
+                  : 'text-black'
+            }`}
+            title={`${issue.count} occurrences`}
+          >
+            {issue.count}×
+          </Mono>
+        </div>
       </div>
     </div>
   )

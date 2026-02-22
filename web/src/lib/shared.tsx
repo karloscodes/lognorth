@@ -150,6 +150,8 @@ export interface Issue {
   unseen: boolean  // New occurrences since last viewed
   active: boolean  // Had occurrences in last 24h
   muted: boolean   // User muted this issue
+  is_new: boolean  // First seen < 24h ago
+  trend: 'up' | 'down' | 'stable'  // Trend direction
 }
 
 // === Error Config ===
