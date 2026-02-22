@@ -426,7 +426,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
       <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
         Frequency
       </h3>
-      <div className="border border-black/10 p-4">
+      <div className="border border-black/10 p-4 relative">
         <div className="flex">
           {/* Row labels */}
           <div className="shrink-0 pr-2" style={{ width: LABEL_WIDTH }}>
@@ -503,9 +503,9 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
           </div>
         </div>
 
-        {/* Hover tooltip */}
+        {/* Hover tooltip - floating */}
         {hoveredCell && (
-          <div className="mt-2 text-xs text-center">
+          <div className="absolute bottom-2 left-0 right-0 text-xs text-center pointer-events-none">
             <span className="bg-black text-white px-2 py-1">
               {format(hoveredCell.day, 'EEE, MMM d')} {hoveredCell.bucket.label}
               <span className="mx-2">·</span>
