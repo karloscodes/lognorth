@@ -126,7 +126,7 @@ function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; 
   return (
     <a
       href={href}
-      className={`relative flex items-center gap-3 py-3 px-5 transition-colors hover:bg-black/[0.02] ${showErrorBorder ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
+      className={`relative flex items-center gap-3 py-3 px-5 overflow-hidden transition-colors hover:bg-black/[0.02] ${showErrorBorder ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
     >
       {/* Timestamp */}
       <span className="text-xs text-black/40 tabular-nums shrink-0 font-mono" style={{ width: '145px' }}>
@@ -194,7 +194,7 @@ function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; 
             {ctx.path}
           </span>
         ) : (
-          <span className={`font-mono text-sm shrink-0 truncate ${isError ? 'text-[#e11d48] font-semibold' : 'text-black/60'}`} style={{ maxWidth: '50%' }}>
+          <span className={`font-mono text-sm truncate ${isError ? 'text-[#e11d48] font-semibold' : 'text-black/60'}`} style={{ maxWidth: '50%' }}>
             {entry.message || ctx.job || '—'}
           </span>
         )}

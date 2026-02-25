@@ -193,6 +193,13 @@ func main() {
 		totalEvents := 0
 		errorCount := 0
 
+		// Collect HTTP trace IDs for request-linked jobs
+		type httpTrace struct {
+			traceID   string
+			timestamp time.Time
+		}
+		var httpTraceIDs []httpTrace
+
 		// Generate HTTP request events spread over 7 days (some with trace groups)
 		httpCount := int(float64(app.requestCount) * 0.75)
 		for i := 0; i < httpCount; i++ {
@@ -299,6 +306,11 @@ func main() {
 				continue
 			}
 			totalEvents++
+
+			// Collect successful request traces for linking to jobs later
+			if !isError && status < 400 {
+				httpTraceIDs = append(httpTraceIDs, httpTrace{traceID: traceID, timestamp: timestamp})
+			}
 		}
 
 		// Generate background job events
@@ -309,8 +321,18 @@ func main() {
 			timestamp := now.Add(-time.Duration(hoursAgo)*time.Hour - time.Duration(minutesAgo)*time.Minute)
 
 			jobName := jobNames[rand.Intn(len(jobNames))]
-			traceID := fmt.Sprintf("job_%x", rand.Int63())
 			duration := 500 + rand.Intn(15000)
+
+			// ~30% of jobs are linked to an HTTP request (request triggered the job)
+			var traceID string
+			if rand.Float64() < 0.3 && len(httpTraceIDs) > 0 {
+				linked := httpTraceIDs[rand.Intn(len(httpTraceIDs))]
+				traceID = linked.traceID
+				// Job starts shortly after the request
+				timestamp = linked.timestamp.Add(time.Duration(200+rand.Intn(2000)) * time.Millisecond)
+			} else {
+				traceID = fmt.Sprintf("job_%x", rand.Int63())
+			}
 
 			isError := rand.Float64() < app.errorRate
 			var message string
@@ -322,6 +344,16 @@ func main() {
 				errorCount++
 			} else {
 				message = fmt.Sprintf("%s completed", jobName)
+			}
+
+			// Add 1-2 child log events within the job's duration
+			childCount := 1 + rand.Intn(2)
+			for c := 0; c < childCount; c++ {
+				childOffset := time.Duration(rand.Intn(duration)) * time.Millisecond
+				childMsg := pickJobChildMessage(jobName, c)
+				createTraceEvent(db, apiKey.ID, traceID, timestamp.Add(childOffset),
+					childMsg, &events.EventContext{Job: jobName}, 0, false)
+				totalEvents++
 			}
 
 			ctx := &events.EventContext{
@@ -631,4 +663,25 @@ func applyErrorFields(ctx *events.EventContext, ed *errorDef) {
 	ctx.ErrorLine = ed.line
 	ctx.ErrorCaller = ed.caller
 	ctx.StackTrace = ed.stackTrace
+}
+
+var jobChildMessages = map[string][]string{
+	"SendWeeklyDigest":         {"fetching subscriber list", "rendering email template for %d users", "queued %d emails for delivery"},
+	"ProcessPayments":          {"processing payment for user_%d", "charging $%d.99 via Stripe", "updating order status"},
+	"SyncInventory":            {"syncing %d items from warehouse", "updating stock levels", "flagging %d low-stock items"},
+	"GenerateDailyReport":      {"aggregating metrics for %d endpoints", "computing p95 latencies", "writing report to S3"},
+	"CleanupExpiredSessions":   {"scanning sessions older than 24h", "deleting %d expired sessions", "freed %d MB of storage"},
+	"RefreshSearchIndex":       {"rebuilding index for %d documents", "optimizing search segments", "index refresh complete"},
+	"SendAbandonedCartEmails":  {"found %d abandoned carts", "rendering reminder emails", "queued %d cart reminders"},
+	"ProcessRefunds":           {"processing refund for order_%d", "issuing $%d.00 refund via Stripe", "notifying customer"},
+}
+
+func pickJobChildMessage(jobName string, index int) string {
+	msgs, ok := jobChildMessages[jobName]
+	if !ok {
+		return "processing"
+	}
+	msg := msgs[index%len(msgs)]
+	// Replace %d placeholders with random numbers for variety
+	return fmt.Sprintf(msg, 10+rand.Intn(200))
 }
