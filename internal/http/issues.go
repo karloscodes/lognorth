@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -142,11 +143,23 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		limit = len(issue.Entries)
 	}
 	for _, entry := range issue.Entries[:limit] {
-		if entry.TraceID != "" && !seen[entry.TraceID] {
-			seen[entry.TraceID] = true
-			if siblings, err := events.FindByTraceID(db, entry.TraceID); err == nil && len(siblings) > 0 {
-				traces[entry.TraceID] = siblings
+		key := entry.TraceID
+		if key == "" {
+			key = fmt.Sprintf("nearby-%d", entry.ID)
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		if entry.TraceID != "" {
+			if siblings, err := events.FindByTraceID(db, entry.TraceID); err == nil && len(siblings) > 1 {
+				traces[key] = siblings
+				continue
 			}
+		}
+		if nearby, err := events.FindNearby(db, app.ID, &entry); err == nil && len(nearby) > 1 {
+			traces[key] = nearby
 		}
 	}
 

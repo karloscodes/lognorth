@@ -192,6 +192,28 @@ func FindByTraceID(db *gorm.DB, traceID string) ([]Event, error) {
 	return events, nil
 }
 
+// FindNearby retrieves events around a given event by timestamp (3 before, 3 after)
+func FindNearby(db *gorm.DB, appID uint, event *Event) ([]Event, error) {
+	var before []Event
+	db.Where("app_id = ? AND id != ? AND timestamp <= ?", appID, event.ID, event.Timestamp).
+		Order("timestamp DESC, id DESC").Limit(3).Find(&before)
+
+	var after []Event
+	db.Where("app_id = ? AND id != ? AND timestamp >= ?", appID, event.ID, event.Timestamp).
+		Order("timestamp ASC, id ASC").Limit(3).Find(&after)
+
+	// Reverse before so it's chronological
+	for i, j := 0, len(before)-1; i < j; i, j = i+1, j-1 {
+		before[i], before[j] = before[j], before[i]
+	}
+
+	result := make([]Event, 0, len(before)+1+len(after))
+	result = append(result, before...)
+	result = append(result, *event)
+	result = append(result, after...)
+	return result, nil
+}
+
 // errorFilterMatch holds the criteria to match events for a specific error hash
 type errorFilterMatch struct {
 	Error         string

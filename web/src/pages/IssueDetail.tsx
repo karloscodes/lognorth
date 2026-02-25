@@ -180,117 +180,104 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
 }
 
 // --- In Context Section ---
-// Shows what happened before/after this error in the same request trace
+// Shows the request wrapper and child events from the same trace
 function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: LogEntry; traceEntries: LogEntry[]; logPath: string }) {
   const errorIdx = traceEntries.findIndex((e) => e.id === errorEntry.id)
   if (errorIdx < 0) return null
 
-  const errorCtx = parseContext(errorEntry.context)
-  const before = traceEntries.slice(Math.max(0, errorIdx - 3), errorIdx)
-  const after = traceEntries.slice(errorIdx + 1, errorIdx + 4)
+  const isRequest = (e: LogEntry) => {
+    const c = parseContext(e.context)
+    return c.method && c.status && c.path
+  }
+
+  const requestEntry = traceEntries.find(e => isRequest(e))
+  const childEntries = requestEntry
+    ? traceEntries.filter(e => e.id !== requestEntry.id)
+    : traceEntries.filter(e => e.id !== errorEntry.id)
+
+  const requestCtx = requestEntry ? parseContext(requestEntry.context) : null
+  const requestConfig = requestEntry ? getConfig(requestEntry.is_error) : null
 
   return (
     <div className="mb-8">
       <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
-        In Context
+        Request Context
       </h3>
-      <div className="border border-black/10 overflow-hidden">
-
-        {/* Log entries before */}
-        {before.length > 0 && (
-          <>
-            <div className="px-4 py-1.5 border-b border-black/10">
-              <span className="text-[10px] font-mono font-black text-black/70 uppercase">Before this error</span>
-            </div>
-            {before.map((e) => (
-              <TraceRow key={e.id} entry={e} logPath={logPath} />
-            ))}
-          </>
-        )}
-
-        {/* Current occurrence — prominent */}
-        <div className="bg-[#e11d48]/10 border-y border-[#e11d48]/30 px-4 py-4">
-          <a href={`${logPath}/${errorEntry.id}`} className="block hover:opacity-80 transition-opacity">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="bg-[#e11d48] text-white px-1.5 py-0.5 text-[10px] font-black">ERROR</span>
-              <Mono className="text-xs text-black/70 font-semibold">{format(parseSqliteDate(errorEntry.timestamp), 'MMM d, HH:mm:ss')}</Mono>
-              <Mono className="text-xs text-black/60">{errorEntry.duration_ms}ms</Mono>
-            </div>
-            <Code className="text-sm text-[#e11d48] font-bold block break-all">{errorCtx.error || errorEntry.message}</Code>
-            {errorCtx.method && errorCtx.path && (
-              <div className="flex items-center gap-2 mt-1.5 text-xs font-mono text-black/70">
-                <span className="font-bold">{errorCtx.method}</span>
-                <span>{errorCtx.status}</span>
-                <span>{errorCtx.path}</span>
+      <div className="border-2 border-black/10 overflow-hidden font-mono text-xs">
+        {/* Request wrapper header */}
+        {requestEntry && requestCtx && requestConfig && (() => {
+          const ReqIcon = requestConfig.icon
+          return (
+            <a
+              href={`${logPath}/${requestEntry.id}`}
+              className="flex items-center gap-2 px-4 py-2.5 bg-black/[0.02] border-b border-black/10 hover:bg-black/[0.04] transition-colors"
+            >
+              <div className={`p-1 ${requestConfig.colors}`}>
+                <ReqIcon className="w-3 h-3" />
               </div>
-            )}
-            {errorCtx.job && (
-              <div className="mt-1.5 text-xs font-mono text-black/70">
-                Job: <span className="font-bold">{errorCtx.job}</span>
-              </div>
-            )}
-          </a>
-        </div>
+              {requestCtx.method && <span className={`font-bold ${methodColor(requestCtx.method)}`}>{requestCtx.method}</span>}
+              <span className="text-black/70">{requestCtx.path}</span>
+              {requestCtx.status && <span className={`font-bold ${statusColor(requestCtx.status)}`}>{requestCtx.status}</span>}
+              <span className="text-black/40 ml-auto shrink-0">{requestEntry.duration_ms}ms</span>
+            </a>
+          )
+        })()}
 
-        {/* Log entries after */}
-        {after.length > 0 && (
-          <>
-            <div className="px-4 py-1.5 border-b border-black/10">
-              <span className="text-[10px] font-mono font-black text-black/70 uppercase">After this error</span>
-            </div>
-            {after.map((e) => (
-              <TraceRow key={e.id} entry={e} logPath={logPath} />
-            ))}
-          </>
-        )}
+        {/* Child events */}
+        {childEntries.map((e, i) => {
+          const isCurrent = e.id === errorEntry.id
+          const eConfig = getConfig(e.is_error)
+          const EIcon = eConfig.icon
+          const eCtx = parseContext(e.context)
+          const isLast = i === childEntries.length - 1
+          const borderClass = !isLast ? 'border-b border-black/5' : ''
+          const indent = requestEntry ? 'pl-8' : 'pl-4'
+
+          const content = (
+            <>
+              <div className={`p-1 ${eConfig.colors}`}>
+                <EIcon className="w-3 h-3" />
+              </div>
+              <span className={`truncate ${isCurrent ? 'text-black font-bold' : 'text-black/70'}`}>{eCtx.path || e.message}</span>
+              {eCtx.error_file && <span className="text-black/40">{eCtx.error_file}{eCtx.error_line ? `:${eCtx.error_line}` : ''}</span>}
+              {eCtx.method && <span className={`font-bold ${methodColor(eCtx.method)}`}>{eCtx.method}</span>}
+              {eCtx.status && <span className={`font-bold ${statusColor(eCtx.status)}`}>{eCtx.status}</span>}
+              {e.duration_ms > 0 && <span className="text-black/40 ml-auto shrink-0">{e.duration_ms}ms</span>}
+            </>
+          )
+
+          if (isCurrent) {
+            return (
+              <div key={e.id} className={`relative flex items-center gap-2 ${indent} pr-4 py-2.5 bg-black/[0.04] ${borderClass}`}>
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-black" />
+                {content}
+              </div>
+            )
+          }
+
+          return (
+            <a
+              key={e.id}
+              href={`${logPath}/${e.id}`}
+              className={`flex items-center gap-2 ${indent} pr-4 py-2.5 hover:bg-black/[0.02] transition-colors ${borderClass}`}
+            >
+              {content}
+            </a>
+          )
+        })}
 
         {/* View full trace */}
-        <a
-          href={`${logPath}?trace=${errorEntry.trace_id}`}
-          className="flex items-center justify-between px-4 py-2.5 border-t border-black/10 text-xs font-mono font-bold text-black/60 hover:text-black transition-colors"
-        >
-          <span>{traceEntries.length} {traceEntries.length === 1 ? 'entry' : 'entries'} in trace</span>
-          <span>View full trace →</span>
-        </a>
+        {errorEntry.trace_id && (
+          <a
+            href={`${logPath}?trace=${errorEntry.trace_id}`}
+            className="flex items-center justify-between px-4 py-2.5 border-t border-black/10 font-mono text-xs font-bold text-black/60 hover:text-black transition-colors"
+          >
+            <span>{traceEntries.length} {traceEntries.length === 1 ? 'entry' : 'entries'} in this trace</span>
+            <span>View full trace →</span>
+          </a>
+        )}
       </div>
     </div>
-  )
-}
-
-function TraceRow({ entry, logPath }: { entry: LogEntry; logPath: string }) {
-  const ctx = parseContext(entry.context)
-  const config = getConfig(entry.is_error)
-  const Icon = config.icon
-  const isJob = !!ctx.job
-
-  return (
-    <a
-      href={`${logPath}/${entry.id}`}
-      className="flex items-center gap-3 px-4 py-2.5 hover:bg-black/[0.03] transition-colors border-b border-black/10 last:border-b-0"
-    >
-      <div className={`p-1 ${config.colors}`}>
-        <Icon className="w-3 h-3" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          {isJob ? (
-            <span className="font-mono text-sm font-bold text-black">{ctx.job}</span>
-          ) : (
-            <>
-              {ctx.method && (
-                <span className={`font-mono text-sm font-bold ${methodColor(ctx.method)}`}>{ctx.method}</span>
-              )}
-              {ctx.status && (
-                <span className={`font-mono text-sm font-bold ${statusColor(ctx.status)}`}>{ctx.status}</span>
-              )}
-              <Code className="text-sm text-black/80 truncate">{ctx.path || entry.message}</Code>
-            </>
-          )}
-        </div>
-      </div>
-      <Mono className="text-xs text-black/60 shrink-0">{entry.duration_ms}ms</Mono>
-      <Mono className="text-xs text-black/60 shrink-0 w-16 text-right">{format(parseSqliteDate(entry.timestamp), 'HH:mm:ss')}</Mono>
-    </a>
   )
 }
 

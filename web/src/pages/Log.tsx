@@ -1,26 +1,52 @@
 import { useState, useEffect } from 'react'
 import { router } from '@inertiajs/react'
-import { formatDistanceToNow } from 'date-fns'
-import { Search, Inbox, ChevronRight, Layers } from 'lucide-react'
-
-// Short time format: "18 minutes" → "18m", "2 hours" → "2h"
-const shortTime = (date: Date) => {
-  const diff = Date.now() - date.getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'now'
-  if (mins < 60) return `${mins}m`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h`
-  const days = Math.floor(hours / 24)
-  return `${days}d`
-}
+import { Search, Inbox, Layers } from 'lucide-react'
 import { Layout } from '@/components/layout'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { getConfig, statusColor, methodColor, parseContext, PageHeader, Mono, Code } from '@/lib/shared'
+import { getConfig, statusColor, methodColor, parseContext, PageHeader, Mono } from '@/lib/shared'
 import type { Application, LogEntry } from '@/lib/shared'
+
+// Format as "Feb 25 20:15:07.152"
+const formatTime = (date: Date) => {
+  const mon = date.toLocaleDateString('en-US', { month: 'short' })
+  const day = date.getDate()
+  const h = String(date.getHours()).padStart(2, '0')
+  const m = String(date.getMinutes()).padStart(2, '0')
+  const s = String(date.getSeconds()).padStart(2, '0')
+  const ms = String(date.getMilliseconds()).padStart(3, '0')
+  return `${mon} ${day} ${h}:${m}:${s}.${ms}`
+}
+
+// Known LogContext keys — anything else is user context worth showing
+const KNOWN_CONTEXT_KEYS = new Set([
+  'method', 'path', 'status', 'job', 'error', 'user', 'ip', 'user_agent',
+  'headers', 'body', 'error_type', 'error_location', 'error_class',
+  'error_caller', 'error_file', 'error_line', 'stack_trace', 'extra',
+])
+
+const getExtraContext = (entry: LogEntry): [string, any][] => {
+  if (!entry.context) return []
+  try {
+    const parsed = JSON.parse(entry.context)
+    if (!parsed || typeof parsed !== 'object') return []
+    // Collect from explicit extra field
+    const pairs: [string, any][] = []
+    if (parsed.extra && typeof parsed.extra === 'object') {
+      pairs.push(...Object.entries(parsed.extra))
+    }
+    // Collect unknown top-level keys
+    for (const [k, v] of Object.entries(parsed)) {
+      if (!KNOWN_CONTEXT_KEYS.has(k) && typeof v !== 'object') {
+        pairs.push([k, v])
+      }
+    }
+    return pairs
+  } catch {
+    return []
+  }
+}
 
 interface Filters {
   is_error?: boolean
@@ -85,65 +111,106 @@ const groupByTraceId = (entries: LogEntry[]): LogGroup[] => {
     .sort((a, b) => b.firstTimestamp.getTime() - a.firstTimestamp.getTime())
 }
 
-function LogRow({ entry, appId, compact, hideErrorBorder }: { entry: LogEntry; appId?: number; compact?: boolean; hideErrorBorder?: boolean }) {
-  const config = getConfig(entry.is_error)
-  const Icon = config.icon
+function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; appId?: number; hideErrorBorder?: boolean; treeLine?: 'parent' | 'first-child' | 'child' | 'last-child' | 'only-child' }) {
   const href = appId ? `/apps/${appId}/log/${entry.id}` : `/log/${entry.id}`
   const ctx = parseContext(entry.context)
-
-  if (compact) {
-    return (
-      <a
-        href={href}
-        className="flex items-center gap-3 py-2 px-3 transition-colors hover:bg-black/[0.03] text-sm"
-      >
-        <span className="font-mono text-xs text-black/60 truncate flex-1">
-          {entry.message || ctx.path || ctx.job || '—'}
-        </span>
-        {ctx.status && (
-          <span className={`font-mono text-xs font-medium ${statusColor(ctx.status)}`}>
-            {ctx.status}
-          </span>
-        )}
-        <span className="text-black/40 text-xs tabular-nums">{entry.duration_ms}ms</span>
-      </a>
-    )
-  }
-
+  const isRequest = !!(ctx.method && ctx.path)
   const isError = entry.is_error
   const showErrorBorder = isError && !hideErrorBorder
+  const isChild = treeLine === 'first-child' || treeLine === 'child' || treeLine === 'last-child' || treeLine === 'only-child'
+  const extraPairs = getExtraContext(entry)
+  // GET badge center x ≈ 28px, dot x = 50px (right of badge, shows hierarchy)
+  const badgeCenterX = 28
+  const dotX = 50
 
   return (
     <a
       href={href}
-      className={`flex items-center gap-3 py-3 px-5 transition-colors hover:bg-black/[0.02] ${showErrorBorder ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
+      className={`relative flex items-center gap-3 py-3 px-5 transition-colors hover:bg-black/[0.02] ${showErrorBorder ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
     >
       {/* Timestamp */}
-      <span className="text-xs text-black/50 tabular-nums w-16 shrink-0">
-        {shortTime(new Date(entry.timestamp))}
+      <span className="text-xs text-black/40 tabular-nums shrink-0 font-mono" style={{ width: '145px' }}>
+        {formatTime(new Date(entry.timestamp))}
       </span>
 
-      {/* Type badge */}
-      <span className="w-14 shrink-0">
-        {ctx.method ? (
-          <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+      {/* Type badge + Tree connector */}
+      <div className="w-14 shrink-0 relative flex items-center justify-center" style={{ height: '20px' }}>
+        {treeLine === 'parent' && (
+          /* Vertical line down from GET badge center */
+          <span className="absolute w-px bg-black/15" style={{ left: badgeCenterX, top: '50%', bottom: '-16px' }} />
+        )}
+        {treeLine === 'first-child' && (
+          <>
+            {/* L-shape: vertical from parent down, then horizontal to dot */}
+            <span className="absolute w-px bg-black/15" style={{ left: badgeCenterX, top: '-16px', bottom: '50%' }} />
+            <span className="absolute h-px bg-black/15" style={{ left: badgeCenterX, top: '50%', width: dotX - badgeCenterX }} />
+            {/* Vertical line continues down to next children */}
+            <span className="absolute w-px bg-black/15" style={{ left: dotX, top: '50%', bottom: '-16px' }} />
+            {/* Dot */}
+            <span className="absolute w-[5px] h-[5px] rounded-full bg-black/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
+          </>
+        )}
+        {treeLine === 'only-child' && (
+          <>
+            {/* L-shape only, no line continuing down */}
+            <span className="absolute w-px bg-black/15" style={{ left: badgeCenterX, top: '-16px', bottom: '50%' }} />
+            <span className="absolute h-px bg-black/15" style={{ left: badgeCenterX, top: '50%', width: dotX - badgeCenterX }} />
+            {/* Dot */}
+            <span className="absolute w-[5px] h-[5px] rounded-full bg-black/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
+          </>
+        )}
+        {treeLine === 'child' && (
+          <>
+            {/* Vertical line through dot position */}
+            <span className="absolute w-px bg-black/15" style={{ left: dotX, top: '-16px', bottom: '-16px' }} />
+            {/* Dot */}
+            <span className="absolute w-[5px] h-[5px] rounded-full bg-black/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
+          </>
+        )}
+        {treeLine === 'last-child' && (
+          <>
+            {/* Vertical line from top to dot center */}
+            <span className="absolute w-px bg-black/15" style={{ left: dotX, top: '-16px', bottom: '50%' }} />
+            {/* Dot */}
+            <span className="absolute w-[5px] h-[5px] rounded-full bg-black/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
+          </>
+        )}
+        {ctx.method && (
+          <span className="relative font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
             {ctx.method}
           </span>
-        ) : ctx.job ? (
-          <span className="font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+        )}
+        {ctx.job && !ctx.method && (
+          <span className="relative font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
             JOB
           </span>
-        ) : null}
-      </span>
+        )}
+      </div>
 
-      {/* Path + Error inline */}
-      <div className="flex-1 min-w-0 flex items-center gap-3">
-        <span className="font-mono text-sm text-black font-semibold truncate">
-          {ctx.path || ctx.job || entry.message}
-        </span>
-        {isError && ctx.error && (
-          <span className="font-mono text-xs text-[#e11d48] truncate">
+      {/* Path / Message + inline metadata — entire section truncates */}
+      <div className="flex-1 min-w-0 flex items-center gap-3 overflow-hidden">
+        {isRequest ? (
+          <span className="font-mono text-sm text-black font-semibold truncate shrink-0" style={{ maxWidth: '40%' }}>
+            {ctx.path}
+          </span>
+        ) : (
+          <span className={`font-mono text-sm shrink-0 truncate ${isError ? 'text-[#e11d48] font-semibold' : 'text-black/60'}`} style={{ maxWidth: '50%' }}>
+            {entry.message || ctx.job || '—'}
+          </span>
+        )}
+        {isError && ctx.error && isRequest && (
+          <span className="font-mono text-xs text-[#e11d48] truncate min-w-0">
             {ctx.error}
+          </span>
+        )}
+        {ctx.error_file && (
+          <span className="font-mono text-xs text-black/30 truncate min-w-0">
+            {ctx.error_file}{ctx.error_line ? `:${ctx.error_line}` : ''}
+          </span>
+        )}
+        {extraPairs.length > 0 && (
+          <span className="font-mono text-xs text-black/25 truncate min-w-0">
+            {extraPairs.slice(0, 3).map(([k, v]) => `${k}=${String(v)}`).join('  ')}
           </span>
         )}
       </div>
@@ -161,49 +228,57 @@ function LogRow({ entry, appId, compact, hideErrorBorder }: { entry: LogEntry; a
         ) : (
           <span className="w-10" />
         )}
-        <span className="font-mono text-xs text-black/50 tabular-nums w-14 text-right">
-          {entry.duration_ms}ms
-        </span>
+        {entry.duration_ms > 0 ? (
+          <span className="font-mono text-xs text-black/50 tabular-nums w-14 text-right">
+            {entry.duration_ms}ms
+          </span>
+        ) : (
+          <span className="w-14" />
+        )}
       </div>
     </a>
   )
 }
 
 function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
-  const [expanded, setExpanded] = useState(true)
-  const { mainEntry, entries, traceId } = group
-  const totalDuration = entries.reduce((sum, e) => sum + e.duration_ms, 0)
+  const { entries } = group
   const hasError = entries.some(e => e.is_error)
+  const isGroup = entries.length > 1
+
+  // Find the request entry (has method+path) — it's the parent
+  const requestIdx = isGroup
+    ? entries.findIndex(e => {
+        const c = parseContext(e.context)
+        return c.method && c.path
+      })
+    : -1
+
+  // Find last child index
+  const childIndices = entries.map((_, i) => i).filter(i => i !== requestIdx)
+  const lastChildIdx = childIndices.length > 0 ? childIndices[childIndices.length - 1] : -1
+
+  const firstChildIdx = childIndices.length > 0 ? childIndices[0] : -1
+
+  const getTreeLine = (i: number): 'parent' | 'first-child' | 'child' | 'last-child' | 'only-child' | undefined => {
+    if (!isGroup) return undefined
+    if (i === requestIdx) return childIndices.length > 0 ? 'parent' : undefined
+    if (childIndices.length === 1) return 'only-child'
+    if (i === firstChildIdx) return 'first-child'
+    if (i === lastChildIdx) return 'last-child'
+    return 'child'
+  }
 
   return (
-    <div className="border-b border-black/10 last:border-b-0">
-      {/* Group header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className={`w-full flex items-center gap-3 py-3 px-5 text-left bg-black/[0.02] hover:bg-black/[0.04] transition-colors ${hasError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
-      >
-        <ChevronRight className={`w-4 h-4 text-black/40 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`} />
-        <span className="font-mono text-xs text-black/50">{traceId.slice(0, 12)}...</span>
-        <span className="text-xs text-black/40">·</span>
-        <span className="text-xs text-black/50">
-          {shortTime(new Date(mainEntry.timestamp))}
-        </span>
-        <span className="text-xs text-black/40">·</span>
-        <span className="text-xs text-black/50">{entries.length} event{entries.length !== 1 ? 's' : ''}</span>
-        <span className="flex-1" />
-        <span className="font-mono text-xs text-black/50 tabular-nums">{totalDuration}ms</span>
-      </button>
-
-      {/* Expanded children */}
-      {expanded && (
-        <div className="border-t border-black/5">
-          {entries.map((entry) => (
-            <div key={entry.id} className="pl-8">
-              <LogRow entry={entry} appId={appId} hideErrorBorder />
-            </div>
-          ))}
-        </div>
-      )}
+    <div className={`border-b border-black/10 last:border-b-0 ${hasError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}>
+      {entries.map((entry, i) => (
+        <LogRow
+          key={entry.id}
+          entry={entry}
+          appId={appId}
+          hideErrorBorder
+          treeLine={getTreeLine(i)}
+        />
+      ))}
     </div>
   )
 }
@@ -221,6 +296,10 @@ function LogHistogram({ buckets: rawBuckets }: { buckets: HistogramBucket[] }) {
   const buckets = lastNonEmpty >= 0 ? rawBuckets.slice(0, lastNonEmpty + 1) : rawBuckets
 
   if (buckets.length === 0) return null
+
+  // Hide chart when less than 10% of buckets have data — mostly empty charts waste space
+  const nonEmptyCount = buckets.filter(b => b.total > 0).length
+  if (nonEmptyCount < buckets.length * 0.1) return null
 
   const maxTotal = Math.max(...buckets.map(b => b.total), 1)
   const hoveredBucket = hoveredIdx !== null ? buckets[hoveredIdx] : null
@@ -321,7 +400,8 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
   const [datePreset, setDatePreset] = useState<DatePreset>(() => getDatePresetFromFilters(filters))
   const [groupEnabled, setGroupEnabled] = useState(() => {
     try {
-      return localStorage.getItem('log_group_by_trace') === 'true'
+      const stored = localStorage.getItem('log_group_by_trace')
+      return stored === null ? true : stored === 'true'
     } catch {
       return false
     }
@@ -434,6 +514,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             {traceFilter && (
               <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-black text-white text-xs font-semibold font-mono align-middle">
                 Trace: {traceFilter.slice(0, 8)}...
+                <button onClick={() => router.visit(basePath)} className="ml-1 hover:text-white/60 transition-colors">&times;</button>
               </span>
             )}
           </>
@@ -541,7 +622,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
       ) : groupEnabled ? (
         <div className="bg-white border border-black/10 overflow-hidden">
           <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
-            <span className="w-16">Time</span>
+            <span style={{ width: '145px' }}>Time</span>
             <span className="w-14"></span>
             <span className="flex-1">Path</span>
             <span className="w-10 text-right">Code</span>
@@ -554,7 +635,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
       ) : (
         <div className="bg-white border border-black/10 overflow-hidden">
           <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
-            <span className="w-16">Time</span>
+            <span style={{ width: '145px' }}>Time</span>
             <span className="w-14"></span>
             <span className="flex-1">Path</span>
             <span className="w-10 text-right">Code</span>

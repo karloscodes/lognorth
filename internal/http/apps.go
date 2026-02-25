@@ -131,9 +131,12 @@ func AppLogDetailPageAction(ctx *cartridge.Context) error {
 		return ctx.Ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Not found"})
 	}
 
-	var relatedEntries []events.Event
+	relatedEntries := []events.Event{}
 	if entry.TraceID != "" {
 		relatedEntries, _ = events.FindByTraceID(db, entry.TraceID)
+	}
+	if len(relatedEntries) <= 1 {
+		relatedEntries, _ = events.FindNearby(db, app.ID, entry)
 	}
 
 	entryContext, _ := entry.GetContext()

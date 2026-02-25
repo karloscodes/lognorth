@@ -155,6 +155,7 @@ func MountRoutes(server *cartridge.Server) {
 		CustomMiddleware:   []fiber.Handler{ingestRateLimiter},
 	}
 	server.Post("/api/v1/events", lbhttp.IngestAction, apiConfig)
+	server.Post("/api/v1/events/batch", lbhttp.IngestAction, apiConfig)
 
 	// SSE endpoint (no middleware needed)
 	apiReadConfig := &cartridge.RouteConfig{
