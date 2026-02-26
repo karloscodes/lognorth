@@ -399,14 +399,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
     filters.is_error === true ? 'errors' : filters.is_error === false ? 'success' : 'all'
   )
   const [datePreset, setDatePreset] = useState<DatePreset>(() => getDatePresetFromFilters(filters))
-  const [groupEnabled, setGroupEnabled] = useState(() => {
-    try {
-      const stored = localStorage.getItem('log_group_by_trace')
-      return stored !== 'false'
-    } catch {
-      return true
-    }
-  })
+  const [groupEnabled, setGroupEnabled] = useState(true)
   const [liveEnabled, setLiveEnabled] = useState(false)
 
   const basePath = appId ? `/apps/${appId}/log` : '/log'
@@ -450,11 +443,6 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
 
   const toggleGrouping = (checked: boolean) => {
     setGroupEnabled(checked)
-    try {
-      localStorage.setItem('log_group_by_trace', String(checked))
-    } catch {
-      // ignore
-    }
   }
 
   const toggleLive = (checked: boolean) => {
