@@ -610,7 +610,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             </Button>
           )}
         </div>
-      ) : groupEnabled ? (
+      ) : groupEnabled && !filters.trace ? (
         <div className="bg-white border border-black/10 overflow-hidden">
           <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
             <span style={{ width: '145px' }}>Time</span>
