@@ -100,7 +100,7 @@ const groupByTraceId = (entries: LogEntry[]): LogGroup[] => {
 
   return Array.from(groupMap.entries())
     .map(([traceId, groupEntries]) => {
-      const sorted = groupEntries.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      const sorted = groupEntries.sort((a, b) => a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0)
       return {
         traceId,
         entries: sorted,
@@ -410,7 +410,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
   const [liveEnabled, setLiveEnabled] = useState(false)
 
   const basePath = appId ? `/apps/${appId}/log` : '/log'
-  const logGroups = groupEnabled ? groupByTraceId(entries) : []
+  const logGroups = groupEnabled && !filters.trace ? groupByTraceId(entries) : []
 
   // Live polling - fetch latest and merge with existing
   useEffect(() => {
@@ -583,18 +583,20 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
         <div className="flex-1" />
 
         {/* Group by trace */}
-        <button
-          onClick={() => !liveEnabled && toggleGrouping(!groupEnabled)}
-          disabled={liveEnabled}
-          className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold transition-all ${
-            groupEnabled
-              ? 'bg-black text-white'
-              : 'text-black/50 hover:text-black hover:bg-black/[0.02]'
-          } ${liveEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <Layers className="w-4 h-4" />
-          Traces
-        </button>
+        {!filters.trace && (
+          <button
+            onClick={() => !liveEnabled && toggleGrouping(!groupEnabled)}
+            disabled={liveEnabled}
+            className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold transition-all ${
+              groupEnabled
+                ? 'bg-black text-white'
+                : 'text-black/50 hover:text-black hover:bg-black/[0.02]'
+            } ${liveEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <Layers className="w-4 h-4" />
+            Traces
+          </button>
+        )}
       </div>
 
       {/* Volume Histogram */}
@@ -643,7 +645,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             <span className="w-14 text-right">Duration</span>
           </div>
           <div className="divide-y divide-black/10">
-            {entries.filter(e => e && e.id).map((entry) => (
+            {(filters.trace ? [...entries].sort((a, b) => a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0) : entries).filter(e => e && e.id).map((entry) => (
               <LogRow key={entry.id} entry={entry} appId={appId} />
             ))}
           </div>
