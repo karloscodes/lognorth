@@ -363,7 +363,8 @@ function LogHistogram({ buckets: rawBuckets }: { buckets: HistogramBucket[] }) {
 type DatePreset = 'all' | 'today' | '7d' | '30d'
 
 const getDatePresetFromFilters = (filters: Filters): DatePreset => {
-  if (!filters.start_time) return '7d' // Default is 7 days
+  if (filters.start_time === 'all') return 'all'
+  if (!filters.start_time) return '7d' // Server default is 7 days
   const start = new Date(filters.start_time)
   const now = new Date()
   const diffDays = Math.round((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
@@ -374,7 +375,7 @@ const getDatePresetFromFilters = (filters: Filters): DatePreset => {
 }
 
 const getStartTimeForPreset = (preset: DatePreset): string | undefined => {
-  if (preset === 'all') return undefined
+  if (preset === 'all') return 'all'
   const now = new Date()
   if (preset === 'today') {
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -401,9 +402,9 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
   const [groupEnabled, setGroupEnabled] = useState(() => {
     try {
       const stored = localStorage.getItem('log_group_by_trace')
-      return stored === null ? true : stored === 'true'
+      return stored !== 'false'
     } catch {
-      return false
+      return true
     }
   })
   const [liveEnabled, setLiveEnabled] = useState(false)

@@ -79,7 +79,12 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 			"search":     filters.Search,
 			"error":      filters.ErrorHash,
 			"trace":      filters.TraceID,
-			"start_time": formatTimeOrEmpty(filters.StartTime),
+			"start_time": func() string {
+				if ctx.Ctx.Query("start_time") == "all" {
+					return "all"
+				}
+				return formatTimeOrEmpty(filters.StartTime)
+			}(),
 			"end_time":   formatTimeOrEmpty(filters.EndTime),
 		},
 		"pagination": fiber.Map{
@@ -230,7 +235,9 @@ func parseAppFilters(c *fiber.Ctx, appID uint) events.ListFilters {
 	if offset, err := strconv.Atoi(c.Query("offset")); err == nil && offset > 0 {
 		filters.Offset = offset
 	}
-	if startTime := c.Query("start_time"); startTime != "" {
+	if startTime := c.Query("start_time"); startTime == "all" {
+		// Explicit "all time" — no time filter
+	} else if startTime != "" {
 		if t, err := time.Parse(time.RFC3339, startTime); err == nil {
 			filters.StartTime = t
 		}
