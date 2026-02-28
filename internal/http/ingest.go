@@ -99,8 +99,8 @@ func IngestAction(ctx *cartridge.Context) error {
 		})
 	}
 
-	// Validate API key
-	validatedKey, err := apikeys.Validate(db, apiKey)
+	// Validate API key (must be an app key, not agent key)
+	validatedKey, err := apikeys.ValidateAppKey(db, apiKey)
 	if err != nil {
 		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid API key",

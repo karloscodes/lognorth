@@ -267,6 +267,11 @@ func MountRoutes(server *cartridge.Server) {
 	server.Post("/settings", lbhttp.UpdateSettingsAction, protectedConfig)
 	server.Post("/settings/test", lbhttp.TestNotificationAction, protectedConfig)
 	server.Post("/settings/test-smtp", lbhttp.TestSMTPAction, protectedConfig)
+
+	// Agent API key management
+	server.Post("/settings/agent-key", lbhttp.CreateAgentKeyAction, protectedConfig)
+	server.Post("/settings/agent-key/regenerate", lbhttp.RegenerateAgentKeyAction, protectedConfig)
+	server.Post("/settings/agent-key/revoke", lbhttp.RevokeAgentKeyAction, protectedConfig)
 }
 
 // onboardingCheckMiddleware redirects to setup if no users exist

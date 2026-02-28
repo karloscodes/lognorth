@@ -573,7 +573,11 @@ func TestCompleteSystemFlow(t *testing.T) {
 func TestAgentAPIAuth(t *testing.T) {
 	db := setupTestDB(t)
 
-	_, fullKey, _ := apikeys.Create(db, "Test App")
+	// Create app key (should NOT work for agent API)
+	_, appKey, _ := apikeys.Create(db, "Test App")
+
+	// Create agent key (should work for agent API)
+	_, agentKey, _ := apikeys.CreateAgent(db)
 
 	// Create test event
 	event := &events.Event{
@@ -590,13 +594,14 @@ func TestAgentAPIAuth(t *testing.T) {
 			return c.Status(401).JSON(fiber.Map{"error": "API key required"})
 		}
 		if len(authHeader) < 8 {
-			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
+			return c.Status(401).JSON(fiber.Map{"error": "Invalid agent key"})
 		}
 		apiKey := authHeader[7:]
 
-		_, err := apikeys.Validate(db, apiKey)
+		// Must be an agent key, not an app key
+		_, err := apikeys.ValidateAgentKey(db, apiKey)
 		if err != nil {
-			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
+			return c.Status(401).JSON(fiber.Map{"error": "Invalid agent key"})
 		}
 
 		eventList, total, _ := events.List(db, events.ListFilters{Limit: 50})
@@ -624,9 +629,20 @@ func TestAgentAPIAuth(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts valid key", func(t *testing.T) {
+	t.Run("rejects app key", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/api/v1/agent/events", nil)
-		req.Header.Set("Authorization", "Bearer "+fullKey)
+		req.Header.Set("Authorization", "Bearer "+appKey)
+
+		resp, _ := app.Test(req)
+
+		if resp.StatusCode != 401 {
+			t.Errorf("Expected 401 for app key, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("accepts agent key", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/agent/events", nil)
+		req.Header.Set("Authorization", "Bearer "+agentKey)
 
 		resp, _ := app.Test(req)
 

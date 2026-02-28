@@ -93,8 +93,8 @@ func AgentIssuesAction(ctx *cartridge.Context) error {
 	})
 }
 
-// validateAgentAuth checks for valid API key in Authorization header
-// Any valid key grants read access to all data
+// validateAgentAuth checks for valid agent API key in Authorization header
+// Only agent keys (lna_ prefix) are accepted, not app keys
 func validateAgentAuth(ctx *cartridge.Context) error {
 	authHeader := ctx.Ctx.Get("Authorization")
 	apiKey := strings.TrimPrefix(authHeader, "Bearer ")
@@ -105,10 +105,10 @@ func validateAgentAuth(ctx *cartridge.Context) error {
 		})
 	}
 
-	_, err := apikeys.Validate(ctx.DB(), apiKey)
+	_, err := apikeys.ValidateAgentKey(ctx.DB(), apiKey)
 	if err != nil {
 		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid API key",
+			"error": "Invalid agent key",
 		})
 	}
 

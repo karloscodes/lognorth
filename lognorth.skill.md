@@ -13,7 +13,9 @@ Query your LogNorth instance to see errors, logs, and traces.
 
 Requires:
 - `LOGNORTH_URL` - Your LogNorth instance (e.g., `https://logs.yoursite.com`)
-- `LOGNORTH_API_KEY` - API key from Apps page
+- `LOGNORTH_API_KEY` - Agent API key from Settings page (starts with `lna_`)
+
+Note: Agent keys are read-only and separate from app keys (`lb_`) used for ingestion.
 
 ## Data Model
 

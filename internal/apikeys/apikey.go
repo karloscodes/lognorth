@@ -9,12 +9,21 @@ import (
 	"gorm.io/gorm"
 )
 
-// APIKey represents an API key for event ingestion
+// KeyType distinguishes between app keys (write) and agent keys (read-only)
+type KeyType string
+
+const (
+	KeyTypeApp   KeyType = "app"   // lb_ prefix, write to one app
+	KeyTypeAgent KeyType = "agent" // lna_ prefix, read all apps
+)
+
+// APIKey represents an API key for event ingestion or agent access
 type APIKey struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Name      string    `gorm:"size:100;not null" json:"name"`
 	Key       string    `gorm:"uniqueIndex;size:64;not null" json:"-"`
-	KeyPrefix string    `gorm:"size:11;not null" json:"key_prefix"` // "lb_" + 8 hex chars
+	KeyPrefix string    `gorm:"size:12;not null" json:"key_prefix"` // "lb_" or "lna_" + 8 hex chars
+	KeyType   KeyType   `gorm:"size:10;not null;default:'app'" json:"key_type"`
 	Active    bool      `gorm:"default:true" json:"active"`
 	LastUsed  time.Time `json:"last_used,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
@@ -31,18 +40,18 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(&APIKey{})
 }
 
-// Generate creates a new random API key
-func Generate() (string, error) {
+// Generate creates a new random API key with the given prefix
+func Generate(prefix string) (string, error) {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
-	return "lb_" + hex.EncodeToString(bytes), nil
+	return prefix + hex.EncodeToString(bytes), nil
 }
 
-// Create generates and saves a new API key
+// Create generates and saves a new app API key (for event ingestion)
 func Create(db *gorm.DB, name string) (*APIKey, string, error) {
-	key, err := Generate()
+	key, err := Generate("lb_")
 	if err != nil {
 		return nil, "", err
 	}
@@ -51,6 +60,7 @@ func Create(db *gorm.DB, name string) (*APIKey, string, error) {
 		Name:      name,
 		Key:       key,
 		KeyPrefix: key[:11], // "lb_" + first 8 hex chars
+		KeyType:   KeyTypeApp,
 		Active:    true,
 	}
 
@@ -61,7 +71,48 @@ func Create(db *gorm.DB, name string) (*APIKey, string, error) {
 	return apiKey, key, nil
 }
 
-// Validate checks if an API key is valid and active
+// CreateAgent generates and saves a new agent API key (read-only access)
+func CreateAgent(db *gorm.DB) (*APIKey, string, error) {
+	key, err := Generate("lna_")
+	if err != nil {
+		return nil, "", err
+	}
+
+	apiKey := &APIKey{
+		Name:      "Agent API",
+		Key:       key,
+		KeyPrefix: key[:12], // "lna_" + first 8 hex chars
+		KeyType:   KeyTypeAgent,
+		Active:    true,
+	}
+
+	if err := db.Create(apiKey).Error; err != nil {
+		return nil, "", err
+	}
+
+	return apiKey, key, nil
+}
+
+// GetAgentKey retrieves the active agent key if one exists
+func GetAgentKey(db *gorm.DB) (*APIKey, error) {
+	var key APIKey
+	err := db.Where("key_type = ? AND active = ?", KeyTypeAgent, true).First(&key).Error
+	if err != nil {
+		return nil, err
+	}
+	return &key, nil
+}
+
+// RegenerateAgentKey revokes existing agent key and creates a new one
+func RegenerateAgentKey(db *gorm.DB) (*APIKey, string, error) {
+	// Revoke any existing agent keys
+	db.Model(&APIKey{}).Where("key_type = ?", KeyTypeAgent).Update("active", false)
+
+	// Create new one
+	return CreateAgent(db)
+}
+
+// Validate checks if an API key is valid and active (any type)
 func Validate(db *gorm.DB, key string) (*APIKey, error) {
 	var apiKey APIKey
 	if err := db.Where("key = ? AND active = ?", key, true).First(&apiKey).Error; err != nil {
@@ -69,6 +120,30 @@ func Validate(db *gorm.DB, key string) (*APIKey, error) {
 	}
 
 	// Update last used timestamp
+	db.Model(&apiKey).Update("last_used", time.Now())
+
+	return &apiKey, nil
+}
+
+// ValidateAppKey checks if an API key is valid, active, and is an app key (for ingestion)
+func ValidateAppKey(db *gorm.DB, key string) (*APIKey, error) {
+	var apiKey APIKey
+	if err := db.Where("key = ? AND active = ? AND key_type = ?", key, true, KeyTypeApp).First(&apiKey).Error; err != nil {
+		return nil, err
+	}
+
+	db.Model(&apiKey).Update("last_used", time.Now())
+
+	return &apiKey, nil
+}
+
+// ValidateAgentKey checks if an API key is valid, active, and is an agent key (read-only)
+func ValidateAgentKey(db *gorm.DB, key string) (*APIKey, error) {
+	var apiKey APIKey
+	if err := db.Where("key = ? AND active = ? AND key_type = ?", key, true, KeyTypeAgent).First(&apiKey).Error; err != nil {
+		return nil, err
+	}
+
 	db.Model(&apiKey).Update("last_used", time.Now())
 
 	return &apiKey, nil
