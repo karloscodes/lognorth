@@ -6,7 +6,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
-	"github.com/karloscodes/cartridge/flash"
 
 	"lognorth/internal/config"
 	"lognorth/internal/settings"
@@ -180,12 +179,11 @@ func CreateAgentKeyAction(ctx *cartridge.Context) error {
 
 	fullKey, err := settings.CreateAgentKey(db)
 	if err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "Agent key already exists. Use regenerate to create a new one.")
-		return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "Agent key already exists. Use regenerate to create a new one."})
 	}
 
-	flash.SetFlash(ctx.Ctx, "newAgentKey", fullKey)
-	return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
+	s, _ := settings.Get(db)
+	return ctx.Ctx.JSON(fiber.Map{"success": true, "key": fullKey, "prefix": s.AgentKeyPrefix})
 }
 
 // RegenerateAgentKeyAction handles POST /settings/agent-key/regenerate
@@ -194,12 +192,11 @@ func RegenerateAgentKeyAction(ctx *cartridge.Context) error {
 
 	fullKey, err := settings.RegenerateAgentKey(db)
 	if err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "Failed to regenerate agent key")
-		return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "Failed to regenerate agent key"})
 	}
 
-	flash.SetFlash(ctx.Ctx, "newAgentKey", fullKey)
-	return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
+	s, _ := settings.Get(db)
+	return ctx.Ctx.JSON(fiber.Map{"success": true, "key": fullKey, "prefix": s.AgentKeyPrefix})
 }
 
 // RevokeAgentKeyAction handles POST /settings/agent-key/revoke
@@ -207,10 +204,8 @@ func RevokeAgentKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
 	if err := settings.RevokeAgentKey(db); err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "Failed to revoke agent key")
-		return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "Failed to revoke agent key"})
 	}
 
-	flash.SetFlash(ctx.Ctx, "success", "Agent key revoked")
-	return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
+	return ctx.Ctx.JSON(fiber.Map{"success": true})
 }
