@@ -341,9 +341,13 @@ func (s *Settings) HasAgentKey() bool {
 }
 
 // GetRetentionDuration returns the data retention period as time.Duration
+// Returns 0 if retention is disabled (keep forever)
 func (s *Settings) GetRetentionDuration() time.Duration {
+	if s.RetentionDays == 0 {
+		return 0 // forever - no deletion
+	}
 	days := s.RetentionDays
-	if days <= 0 {
+	if days < 0 {
 		days = 90 // default to 3 months
 	}
 	return time.Duration(days) * 24 * time.Hour

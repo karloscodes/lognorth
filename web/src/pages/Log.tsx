@@ -403,7 +403,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
   const [liveEnabled, setLiveEnabled] = useState(false)
 
   const basePath = appId ? `/apps/${appId}/log` : '/log'
-  const logGroups = groupEnabled && !filters.trace ? groupByTraceId(entries) : []
+  const logGroups = groupEnabled && !filters.trace && !filters.search ? groupByTraceId(entries) : []
 
   // Live polling - fetch latest and merge with existing
   useEffect(() => {
@@ -571,7 +571,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
         <div className="flex-1" />
 
         {/* Group by trace */}
-        {!filters.trace && (
+        {!filters.trace && !filters.search && (
           <button
             onClick={() => !liveEnabled && toggleGrouping(!groupEnabled)}
             disabled={liveEnabled}
@@ -610,7 +610,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             </Button>
           )}
         </div>
-      ) : groupEnabled && !filters.trace ? (
+      ) : groupEnabled && !filters.trace && !filters.search ? (
         <div className="bg-white border border-black/10 overflow-hidden">
           <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
             <span style={{ width: '145px' }}>Time</span>

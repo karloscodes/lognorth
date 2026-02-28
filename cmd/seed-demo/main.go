@@ -1,4 +1,4 @@
-// Seed command to populate LogNorth demo with realistic data
+// Seed command to populate LogNorth demo with realistic Rails app data
 package main
 
 import (
@@ -18,112 +18,417 @@ import (
 	"lognorth/internal/users"
 )
 
-var httpPaths = []string{
-	"/api/users",
-	"/api/users/:id",
-	"/api/users/:id/profile",
-	"/api/orders",
-	"/api/orders/:id",
-	"/api/orders/:id/refund",
-	"/api/products",
-	"/api/products/:id",
-	"/api/products/search",
-	"/api/auth/login",
-	"/api/auth/logout",
-	"/api/auth/refresh",
-	"/api/cart",
-	"/api/cart/items",
-	"/api/checkout",
-	"/api/checkout/confirm",
-	"/api/payments/webhook",
-	"/api/webhooks/stripe",
-	"/api/notifications",
-	"/api/search",
-	"/api/uploads",
-	"/api/settings",
-	"/health",
-	"/api/analytics/events",
-	"/api/reports/daily",
+// Realistic Rails SaaS endpoints
+var endpoints = []endpoint{
+	// Auth - high volume, low errors
+	{method: "POST", path: "/sessions", name: "sign_in", weight: 15, errorRate: 0.01},
+	{method: "DELETE", path: "/sessions", name: "sign_out", weight: 8, errorRate: 0.001},
+	{method: "POST", path: "/registrations", name: "sign_up", weight: 5, errorRate: 0.025}, // duplicate emails
+	{method: "POST", path: "/passwords", name: "forgot_password", weight: 2, errorRate: 0.005},
+
+	// Core CRUD - the meat of the app
+	{method: "GET", path: "/projects", name: "list_projects", weight: 25, errorRate: 0.002},
+	{method: "POST", path: "/projects", name: "create_project", weight: 8, errorRate: 0.008},
+	{method: "GET", path: "/projects/:id", name: "show_project", weight: 20, errorRate: 0.003},
+	{method: "PATCH", path: "/projects/:id", name: "update_project", weight: 6, errorRate: 0.005},
+	{method: "DELETE", path: "/projects/:id", name: "delete_project", weight: 2, errorRate: 0.002},
+
+	// Todos within projects
+	{method: "GET", path: "/projects/:id/todos", name: "list_todos", weight: 18, errorRate: 0.002},
+	{method: "POST", path: "/projects/:id/todos", name: "create_todo", weight: 12, errorRate: 0.005},
+	{method: "PATCH", path: "/todos/:id", name: "update_todo", weight: 15, errorRate: 0.003},
+	{method: "DELETE", path: "/todos/:id", name: "delete_todo", weight: 4, errorRate: 0.002},
+	{method: "POST", path: "/todos/:id/complete", name: "complete_todo", weight: 10, errorRate: 0.002},
+
+	// Comments
+	{method: "POST", path: "/todos/:id/comments", name: "create_comment", weight: 8, errorRate: 0.003},
+	{method: "DELETE", path: "/comments/:id", name: "delete_comment", weight: 2, errorRate: 0.002},
+
+	// Dashboard and search
+	{method: "GET", path: "/dashboard", name: "dashboard", weight: 20, errorRate: 0.005},
+	{method: "GET", path: "/search", name: "search", weight: 10, errorRate: 0.008},
+
+	// Payments - higher error rate (card declines are normal)
+	{method: "POST", path: "/checkout", name: "checkout", weight: 3, errorRate: 0.04},
+	{method: "POST", path: "/subscriptions", name: "create_subscription", weight: 2, errorRate: 0.03},
+	{method: "DELETE", path: "/subscriptions/:id", name: "cancel_subscription", weight: 1, errorRate: 0.01},
+
+	// Webhooks - occasional external failures
+	{method: "POST", path: "/webhooks/stripe", name: "stripe_webhook", weight: 4, errorRate: 0.015},
+
+	// Settings
+	{method: "GET", path: "/settings", name: "show_settings", weight: 5, errorRate: 0.001},
+	{method: "PATCH", path: "/settings", name: "update_settings", weight: 3, errorRate: 0.005},
+	{method: "GET", path: "/settings/billing", name: "billing_settings", weight: 3, errorRate: 0.002},
+
+	// Team
+	{method: "POST", path: "/invitations", name: "invite_member", weight: 2, errorRate: 0.01},
+	{method: "GET", path: "/team", name: "list_team", weight: 4, errorRate: 0.001},
 }
 
-var methods = []string{"GET", "GET", "GET", "POST", "PUT", "DELETE"} // GET-heavy like real traffic
-
-var jobNames = []string{
-	"SendWeeklyDigest",
-	"ProcessPayments",
-	"SyncInventory",
-	"GenerateDailyReport",
-	"CleanupExpiredSessions",
-	"RefreshSearchIndex",
-	"SendAbandonedCartEmails",
-	"ProcessRefunds",
+type endpoint struct {
+	method    string
+	path      string
+	name      string
+	weight    int // relative frequency
+	errorRate float64
 }
 
-// errorDef defines a structured error with class, message, file, line, caller, and stack trace
-type errorDef struct {
-	class      string
-	message    string
-	file       string
-	line       int
-	caller     string
-	stackTrace string
+// Jobs with realistic child events
+var jobs = []jobDef{
+	{
+		name:      "SendWelcomeEmail",
+		weight:    5,
+		errorRate: 0.02,
+		duration:  [2]int{800, 2000},
+		children: []string{
+			"Loading user profile",
+			"Rendering welcome template",
+			"Sending via SendGrid",
+		},
+	},
+	{
+		name:      "ProcessPayment",
+		weight:    3,
+		errorRate: 0.05,
+		duration:  [2]int{1500, 4000},
+		children: []string{
+			"Validating payment method",
+			"Charging card via Stripe",
+			"Creating invoice record",
+			"Sending receipt email",
+		},
+	},
+	{
+		name:      "SendInvitation",
+		weight:    2,
+		errorRate: 0.015,
+		duration:  [2]int{600, 1500},
+		children: []string{
+			"Generating invitation token",
+			"Rendering invitation email",
+			"Sending via SendGrid",
+		},
+	},
+	{
+		name:      "GenerateDailyDigest",
+		weight:    4,
+		errorRate: 0.03,
+		duration:  [2]int{3000, 8000},
+		children: []string{
+			"Fetching active projects",
+			"Aggregating activity for 127 users",
+			"Rendering digest templates",
+			"Queuing 89 emails for delivery",
+			"Digest generation complete",
+		},
+	},
+	{
+		name:      "SyncSubscription",
+		weight:    3,
+		errorRate: 0.04,
+		duration:  [2]int{1000, 3000},
+		children: []string{
+			"Fetching subscription from Stripe",
+			"Updating local subscription record",
+			"Syncing usage metrics",
+		},
+	},
+	{
+		name:      "CleanupExpiredSessions",
+		weight:    2,
+		errorRate: 0.01,
+		duration:  [2]int{500, 2000},
+		children: []string{
+			"Scanning sessions older than 30 days",
+			"Deleting 342 expired sessions",
+			"Freed 12MB of storage",
+		},
+	},
+	{
+		name:      "ProcessWebhook",
+		weight:    4,
+		errorRate: 0.025,
+		duration:  [2]int{200, 800},
+		children: []string{
+			"Verifying webhook signature",
+			"Processing event: invoice.paid",
+			"Updating subscription status",
+		},
+	},
+	{
+		name:      "GenerateInvoice",
+		weight:    2,
+		errorRate: 0.02,
+		duration:  [2]int{2000, 5000},
+		children: []string{
+			"Calculating usage for billing period",
+			"Generating invoice PDF",
+			"Uploading to S3",
+			"Sending invoice email",
+		},
+	},
 }
 
+type jobDef struct {
+	name      string
+	weight    int
+	errorRate float64
+	duration  [2]int // min, max ms
+	children  []string
+}
+
+// Structured errors with realistic Rails stack traces
 var structuredErrors = []errorDef{
-	{class: "TimeoutError", message: "connection timeout after 30s", file: "db.go", line: 142, caller: "QueryContext", stackTrace: "goroutine 1 [running]:\ndb.go:142 QueryContext\nrepository.go:87 FindUser\nhandler.go:34 GetUser"},
-	{class: "NotFoundError", message: "record not found", file: "repository.go", line: 55, caller: "FindByID", stackTrace: "goroutine 1 [running]:\nrepository.go:55 FindByID\nhandler.go:22 GetUser"},
-	{class: "AuthError", message: "invalid authentication token", file: "auth.go", line: 89, caller: "ValidateToken", stackTrace: "goroutine 1 [running]:\nauth.go:89 ValidateToken\nmiddleware.go:45 AuthMiddleware"},
-	{class: "PaymentError", message: "Stripe: card_declined", file: "payments.go", line: 203, caller: "ChargeCard", stackTrace: "goroutine 1 [running]:\npayments.go:203 ChargeCard\ncheckout.go:67 ProcessCheckout"},
-	{class: "RateLimitError", message: "rate limit exceeded (429)", file: "client.go", line: 78, caller: "DoRequest", stackTrace: "goroutine 1 [running]:\nclient.go:78 DoRequest\napi.go:34 FetchData"},
-	{class: "IOError", message: "unexpected EOF", file: "reader.go", line: 34, caller: "ReadBody", stackTrace: "goroutine 1 [running]:\nreader.go:34 ReadBody\nhandler.go:112 ParseRequest"},
-	{class: "ConnectionError", message: "Redis: connection refused", file: "cache.go", line: 23, caller: "Connect", stackTrace: "goroutine 1 [running]:\ncache.go:23 Connect\nsession.go:45 GetSession"},
-	{class: "ParseError", message: "JSON: unexpected token at position 42", file: "parser.go", line: 67, caller: "ParseJSON", stackTrace: "goroutine 1 [running]:\nparser.go:67 ParseJSON\nhandler.go:89 HandleWebhook"},
-	{class: "PermissionError", message: "permission denied", file: "authz.go", line: 34, caller: "CheckPermission", stackTrace: "goroutine 1 [running]:\nauthz.go:34 CheckPermission\nhandler.go:56 UpdateUser"},
-	{class: "ConflictError", message: "duplicate key: email already exists", file: "repository.go", line: 112, caller: "Create", stackTrace: "goroutine 1 [running]:\nrepository.go:112 Create\nhandler.go:78 CreateUser"},
-	{class: "TimeoutError", message: "context deadline exceeded", file: "worker.go", line: 45, caller: "ProcessJob", stackTrace: "goroutine 1 [running]:\nworker.go:45 ProcessJob\nqueue.go:123 RunWorker"},
-	{class: "TLSError", message: "TLS handshake timeout", file: "client.go", line: 156, caller: "DialTLS", stackTrace: "goroutine 1 [running]:\nclient.go:156 DialTLS\npayments.go:34 ConnectStripe"},
+	// Database errors
+	{
+		class:   "ActiveRecord::RecordNotFound",
+		message: "Couldn't find Project with 'id'=42",
+		file:    "app/controllers/projects_controller.rb",
+		line:    23,
+		caller:  "show",
+		stack: `/app/app/controllers/projects_controller.rb:23:in 'block in show'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/relation/finder_methods.rb:234:in 'find'
+/app/app/controllers/projects_controller.rb:22:in 'show'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/basic_implicit_render.rb:6:in 'send_action'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/implicit_render.rb:4:in 'send_action'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/abstract_controller/base.rb:226:in 'process_action'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/rendering.rb:165:in 'process_action'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/abstract_controller/callbacks.rb:234:in 'block in process_action'
+/usr/local/bundle/gems/activesupport-7.1.3/lib/active_support/callbacks.rb:118:in 'block in run_callbacks'`,
+	},
+	{
+		class:   "ActiveRecord::RecordNotUnique",
+		message: "PG::UniqueViolation: duplicate key value violates unique constraint \"users_email_key\"",
+		file:    "app/models/user.rb",
+		line:    12,
+		caller:  "create!",
+		stack: `/app/app/models/user.rb:12:in 'create!'
+/app/app/controllers/registrations_controller.rb:18:in 'create'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/basic_implicit_render.rb:6:in 'send_action'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/implicit_render.rb:4:in 'send_action'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/abstract_controller/base.rb:226:in 'process_action'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/connection_adapters/postgresql_adapter.rb:768:in 'exec_params'`,
+	},
+	{
+		class:   "ActiveRecord::ConnectionTimeoutError",
+		message: "could not obtain a connection from the pool within 5.000 seconds (waited 5.001 seconds); all pooled connections were in use",
+		file:    "lib/active_record/connection_adapters/abstract/connection_pool.rb",
+		line:    293,
+		caller:  "checkout",
+		stack: `/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/connection_adapters/abstract/connection_pool.rb:293:in 'checkout'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/connection_adapters/abstract/connection_pool.rb:112:in 'connection'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/connection_handling.rb:265:in 'retrieve_connection'
+/app/app/models/project.rb:45:in 'find_with_todos'
+/app/app/controllers/projects_controller.rb:8:in 'show'`,
+	},
+
+	// Redis errors
+	{
+		class:   "Redis::CannotConnectError",
+		message: "Error connecting to Redis on redis:6379 (Errno::ECONNREFUSED)",
+		file:    "app/services/session_store.rb",
+		line:    18,
+		caller:  "get",
+		stack: `/app/app/services/session_store.rb:18:in 'get'
+/app/app/controllers/application_controller.rb:34:in 'current_user'
+/app/app/controllers/application_controller.rb:28:in 'authenticate_user!'
+/usr/local/bundle/gems/activesupport-7.1.3/lib/active_support/callbacks.rb:118:in 'block in run_callbacks'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/abstract_controller/callbacks.rb:234:in 'block in process_action'
+/usr/local/bundle/gems/redis-5.0.8/lib/redis/client.rb:168:in 'connect'`,
+	},
+	{
+		class:   "Redis::TimeoutError",
+		message: "Connection timed out",
+		file:    "app/services/cache_service.rb",
+		line:    42,
+		caller:  "fetch",
+		stack: `/app/app/services/cache_service.rb:42:in 'fetch'
+/app/app/controllers/dashboard_controller.rb:12:in 'index'
+/usr/local/bundle/gems/redis-5.0.8/lib/redis/client.rb:134:in 'call_v'
+/usr/local/bundle/gems/redis-5.0.8/lib/redis.rb:156:in 'get'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/basic_implicit_render.rb:6:in 'send_action'`,
+	},
+
+	// Payment errors
+	{
+		class:   "Stripe::CardError",
+		message: "Your card was declined. Your request was in live mode, but used a known test card.",
+		file:    "app/services/payment_service.rb",
+		line:    67,
+		caller:  "charge!",
+		stack: `/app/app/services/payment_service.rb:67:in 'charge!'
+/app/app/controllers/checkout_controller.rb:23:in 'create'
+/usr/local/bundle/gems/stripe-10.1.0/lib/stripe/api_operations/request.rb:43:in 'execute_resource_request'
+/usr/local/bundle/gems/stripe-10.1.0/lib/stripe/api_resource.rb:76:in 'request_stripe_object'
+/usr/local/bundle/gems/stripe-10.1.0/lib/stripe/resources/payment_intent.rb:38:in 'create'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/basic_implicit_render.rb:6:in 'send_action'`,
+	},
+	{
+		class:   "Stripe::InvalidRequestError",
+		message: "No such customer: 'cus_OxR4pVmVc8DKxY'; a]similar object exists in live mode, but a test mode key was used to make this request.",
+		file:    "app/services/subscription_service.rb",
+		line:    34,
+		caller:  "sync!",
+		stack: `/app/app/services/subscription_service.rb:34:in 'sync!'
+/app/app/jobs/sync_subscription_job.rb:12:in 'perform'
+/usr/local/bundle/gems/stripe-10.1.0/lib/stripe/api_operations/request.rb:43:in 'execute_resource_request'
+/usr/local/bundle/gems/activejob-7.1.3/lib/active_job/execution.rb:49:in 'block in perform_now'
+/usr/local/bundle/gems/sidekiq-7.2.0/lib/sidekiq/job_retry.rb:97:in 'local'`,
+	},
+	{
+		class:   "Stripe::APIConnectionError",
+		message: "Could not connect to Stripe (api.stripe.com). Please check your internet connection and try again.",
+		file:    "app/services/payment_service.rb",
+		line:    45,
+		caller:  "create_payment_intent",
+		stack: `/app/app/services/payment_service.rb:45:in 'create_payment_intent'
+/app/app/controllers/checkout_controller.rb:18:in 'create'
+/usr/local/bundle/gems/stripe-10.1.0/lib/stripe/connection_manager.rb:134:in 'request'
+/usr/local/bundle/gems/stripe-10.1.0/lib/stripe/stripe_client.rb:543:in 'execute_request_with_rescues'
+/usr/local/bundle/gems/faraday-2.7.12/lib/faraday/connection.rb:456:in 'run_request'
+/usr/local/bundle/gems/net-http-0.4.0/lib/net/http.rb:1512:in 'request'`,
+	},
+
+	// Auth errors
+	{
+		class:   "JWT::DecodeError",
+		message: "Signature verification failed",
+		file:    "app/services/auth_service.rb",
+		line:    23,
+		caller:  "decode_token",
+		stack: `/app/app/services/auth_service.rb:23:in 'decode_token'
+/app/app/controllers/api/base_controller.rb:15:in 'authenticate_api_user!'
+/usr/local/bundle/gems/jwt-2.7.1/lib/jwt/decode.rb:45:in 'verify_signature'
+/usr/local/bundle/gems/jwt-2.7.1/lib/jwt/decode.rb:27:in 'decode_segments'
+/usr/local/bundle/gems/activesupport-7.1.3/lib/active_support/callbacks.rb:118:in 'block in run_callbacks'`,
+	},
+	{
+		class:   "ActionController::InvalidAuthenticityToken",
+		message: "Can't verify CSRF token authenticity.",
+		file:    "actionpack/lib/action_controller/metal/request_forgery_protection.rb",
+		line:    245,
+		caller:  "handle_unverified_request",
+		stack: `/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/request_forgery_protection.rb:245:in 'handle_unverified_request'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/request_forgery_protection.rb:287:in 'verify_authenticity_token'
+/usr/local/bundle/gems/activesupport-7.1.3/lib/active_support/callbacks.rb:118:in 'block in run_callbacks'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/abstract_controller/callbacks.rb:234:in 'block in process_action'`,
+	},
+
+	// External service errors
+	{
+		class:   "Net::OpenTimeout",
+		message: "execution expired",
+		file:    "app/services/sendgrid_service.rb",
+		line:    28,
+		caller:  "deliver!",
+		stack: `/app/app/services/sendgrid_service.rb:28:in 'deliver!'
+/app/app/jobs/send_email_job.rb:15:in 'perform'
+/usr/local/bundle/gems/net-http-0.4.0/lib/net/http.rb:1001:in 'connect'
+/usr/local/bundle/gems/net-http-0.4.0/lib/net/http.rb:983:in 'do_start'
+/usr/local/bundle/gems/activejob-7.1.3/lib/active_job/execution.rb:49:in 'block in perform_now'
+/usr/local/bundle/gems/sidekiq-7.2.0/lib/sidekiq/job_retry.rb:97:in 'local'`,
+	},
+	{
+		class:   "Faraday::ConnectionFailed",
+		message: "Connection refused - connect(2) for \"api.sendgrid.com\" port 443 (api.sendgrid.com:443)",
+		file:    "app/services/email_service.rb",
+		line:    34,
+		caller:  "send_email",
+		stack: `/app/app/services/email_service.rb:34:in 'send_email'
+/app/app/jobs/send_welcome_email_job.rb:8:in 'perform'
+/usr/local/bundle/gems/faraday-2.7.12/lib/faraday/adapter/net_http.rb:118:in 'request_via_request_method'
+/usr/local/bundle/gems/faraday-2.7.12/lib/faraday/adapter.rb:52:in 'connection'
+/usr/local/bundle/gems/activejob-7.1.3/lib/active_job/execution.rb:49:in 'block in perform_now'`,
+	},
+
+	// Validation errors
+	{
+		class:   "ActiveRecord::RecordInvalid",
+		message: "Validation failed: Email has already been taken",
+		file:    "app/controllers/registrations_controller.rb",
+		line:    15,
+		caller:  "create",
+		stack: `/app/app/controllers/registrations_controller.rb:15:in 'create'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/validations.rb:80:in 'raise_validation_error'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/validations.rb:53:in 'save!'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/transactions.rb:313:in 'block in save!'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/transactions.rb:365:in 'with_transaction_returning_status'`,
+	},
+	{
+		class:   "ActiveRecord::RecordInvalid",
+		message: "Validation failed: Name can't be blank, Name is too short (minimum is 3 characters)",
+		file:    "app/controllers/projects_controller.rb",
+		line:    34,
+		caller:  "create",
+		stack: `/app/app/controllers/projects_controller.rb:34:in 'create'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/validations.rb:80:in 'raise_validation_error'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/validations.rb:53:in 'save!'
+/usr/local/bundle/gems/activerecord-7.1.3/lib/active_record/persistence.rb:579:in 'create!'
+/usr/local/bundle/gems/actionpack-7.1.3/lib/action_controller/metal/basic_implicit_render.rb:6:in 'send_action'`,
+	},
+
+	// Job errors
+	{
+		class:   "Sidekiq::Shutdown",
+		message: "Sidekiq is shutting down",
+		file:    "app/jobs/generate_digest_job.rb",
+		line:    45,
+		caller:  "perform",
+		stack: `/app/app/jobs/generate_digest_job.rb:45:in 'perform'
+/usr/local/bundle/gems/sidekiq-7.2.0/lib/sidekiq/processor.rb:123:in 'process'
+/usr/local/bundle/gems/sidekiq-7.2.0/lib/sidekiq/processor.rb:89:in 'run'
+/usr/local/bundle/gems/activejob-7.1.3/lib/active_job/execution.rb:49:in 'block in perform_now'
+/usr/local/bundle/gems/activejob-7.1.3/lib/active_job/callbacks.rb:99:in 'block in run_callbacks'`,
+	},
+	{
+		class:   "ActiveJob::DeserializationError",
+		message: "Error while trying to deserialize arguments: Couldn't find User with 'id'=999",
+		file:    "app/jobs/send_welcome_email_job.rb",
+		line:    8,
+		caller:  "perform",
+		stack: `/app/app/jobs/send_welcome_email_job.rb:8:in 'perform'
+/usr/local/bundle/gems/activejob-7.1.3/lib/active_job/arguments.rb:82:in 'deserialize'
+/usr/local/bundle/gems/activejob-7.1.3/lib/active_job/arguments.rb:45:in 'deserialize'
+/usr/local/bundle/gems/activejob-7.1.3/lib/active_job/core.rb:131:in 'deserialize_arguments'
+/usr/local/bundle/gems/sidekiq-7.2.0/lib/sidekiq/job_retry.rb:97:in 'local'`,
+	},
 }
 
-// Same errors at alternate locations (for "also happens at").
-// These share error_class + error_message with structuredErrors above,
-// so they get the same hash_1 but different hash_3.
-var alternateLocations = []errorDef{
-	{class: "TimeoutError", message: "connection timeout after 30s", file: "api_client.go", line: 88, caller: "FetchRemote", stackTrace: "goroutine 1 [running]:\napi_client.go:88 FetchRemote\nsync.go:34 SyncData"},
-	{class: "TimeoutError", message: "connection timeout after 30s", file: "webhook.go", line: 55, caller: "DeliverWebhook", stackTrace: "goroutine 1 [running]:\nwebhook.go:55 DeliverWebhook\njobs.go:12 ProcessJob"},
-	{class: "ConnectionError", message: "Redis: connection refused", file: "pubsub.go", line: 12, caller: "Subscribe", stackTrace: "goroutine 1 [running]:\npubsub.go:12 Subscribe\nnotifier.go:78 StartListening"},
-	{class: "ConnectionError", message: "Redis: connection refused", file: "rate_limiter.go", line: 34, caller: "CheckLimit", stackTrace: "goroutine 1 [running]:\nrate_limiter.go:34 CheckLimit\nmiddleware.go:22 RateLimit"},
-	{class: "TimeoutError", message: "context deadline exceeded", file: "scheduler.go", line: 201, caller: "RunTask", stackTrace: "goroutine 1 [running]:\nscheduler.go:201 RunTask\ncron.go:45 Execute"},
-	{class: "NotFoundError", message: "record not found", file: "search.go", line: 78, caller: "FindBySlug", stackTrace: "goroutine 1 [running]:\nsearch.go:78 FindBySlug\nhandler.go:44 ShowPage"},
+type errorDef struct {
+	class   string
+	message string
+	file    string
+	line    int
+	caller  string
+	stack   string
 }
 
-var errorMessages = []string{
-	"connection timeout after 30s",
-	"record not found",
-	"invalid authentication token",
-	"Stripe: card_declined",
-	"rate limit exceeded (429)",
-	"unexpected EOF",
-	"Redis: connection refused",
-	"JSON: unexpected token at position 42",
-	"permission denied",
-	"duplicate key: email already exists",
-	"context deadline exceeded",
-	"TLS handshake timeout",
+// Error mapping for endpoints
+var endpointErrors = map[string][]int{
+	"sign_in":             {8, 9},        // JWT, CSRF
+	"sign_up":             {1, 12},       // duplicate email, validation
+	"show_project":        {0},           // not found
+	"update_project":      {0, 13},       // not found, validation
+	"delete_project":      {0},           // not found
+	"checkout":            {5, 6, 7},     // Stripe errors
+	"create_subscription": {5, 6, 7},     // Stripe errors
+	"stripe_webhook":      {7, 10},       // Stripe API, timeout
+	"dashboard":           {2, 3, 4},     // DB pool, Redis
+	"search":              {2, 4},        // DB pool, Redis timeout
+	"invite_member":       {10, 11},      // SendGrid errors
 }
 
-var userAgents = []string{
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-	"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)",
-	"curl/8.1.2",
-	"PostmanRuntime/7.32.3",
-	"axios/1.6.0",
-}
-
-type appConfig struct {
-	name         string
-	requestCount int
-	errorRate    float64
+// Error mapping for jobs
+var jobErrors = map[string][]int{
+	"SendWelcomeEmail":        {10, 11, 15}, // SendGrid, deserialization
+	"ProcessPayment":          {5, 6, 7},    // Stripe errors
+	"SendInvitation":          {10, 11},     // SendGrid errors
+	"GenerateDailyDigest":     {2, 14},      // DB pool, Sidekiq shutdown
+	"SyncSubscription":        {6, 7},       // Stripe errors
+	"CleanupExpiredSessions":  {2},          // DB pool
+	"ProcessWebhook":          {6, 7},       // Stripe errors
+	"GenerateInvoice":         {6, 10},      // Stripe, timeout
 }
 
 func main() {
@@ -151,7 +456,7 @@ func main() {
 		if err := users.CreateUser(db, "demo@lognorth.com", "demo"); err != nil {
 			log.Printf("Failed to create demo user: %v", err)
 		} else {
-			fmt.Println("Created demo user (demo@lognorth.com)")
+			fmt.Println("Created demo user (demo@lognorth.com / demo)")
 		}
 	}
 
@@ -162,475 +467,476 @@ func main() {
 		return
 	}
 
-	apps := []appConfig{
-		{name: "acme-api", requestCount: 2000, errorRate: 0.08},
-		{name: "acme-web", requestCount: 800, errorRate: 0.05},
-		{name: "acme-workers", requestCount: 400, errorRate: 0.12},
-	}
-
-	fmt.Println("Seeding demo data...")
-	fmt.Println()
-
-	// Create all API keys first (needed for cross-app traces)
-	apiKeyMap := make(map[string]*apikeys.APIKey)
-	for _, app := range apps {
-		apiKey, _, err := apikeys.Create(db, app.name)
-		if err != nil {
-			log.Printf("Failed to create API key for %s: %v", app.name, err)
-			continue
-		}
-		apiKeyMap[app.name] = apiKey
-	}
-
 	now := time.Now()
 
-	for _, app := range apps {
-		apiKey := apiKeyMap[app.name]
-		if apiKey == nil {
+	fmt.Println("Seeding realistic Rails app data...")
+	fmt.Println()
+
+	// One app - like a real Rails app with Sidekiq workers
+	appName := "rails-demo"
+	apiKey, _, err := apikeys.Create(db, appName)
+	if err != nil {
+		log.Fatalf("Failed to create API key: %v", err)
+	}
+	fmt.Printf("  Created app: %s\n", appName)
+	fmt.Println()
+
+	// Build weighted endpoint list
+	var weightedEndpoints []endpoint
+	for _, ep := range endpoints {
+		for i := 0; i < ep.weight; i++ {
+			weightedEndpoints = append(weightedEndpoints, ep)
+		}
+	}
+
+	// Build weighted job list
+	var weightedJobs []jobDef
+	for _, j := range jobs {
+		for i := 0; i < j.weight; i++ {
+			weightedJobs = append(weightedJobs, j)
+		}
+	}
+
+	fmt.Println("  Generating HTTP events...")
+	httpCount := 0
+	httpErrors := 0
+	httpTarget := 52000
+
+	// Define an incident window: Redis went down 3 days ago for 2 hours
+	incidentStart := now.Add(-72 * time.Hour)
+	incidentEnd := incidentStart.Add(2 * time.Hour)
+
+	// Generate 60 days of data
+	daysBack := 60
+
+	for i := 0; i < httpTarget; i++ {
+		// Timestamp distribution: more recent = more likely
+		// Use exponential decay - most events in last 7 days
+		dayOffset := int(float64(daysBack) * (1 - rand.Float64()*rand.Float64()))
+		hourOffset := rand.Intn(24)
+		minuteOffset := rand.Intn(60)
+		timestamp := now.Add(-time.Duration(dayOffset)*24*time.Hour -
+			time.Duration(hourOffset)*time.Hour -
+			time.Duration(minuteOffset)*time.Minute)
+
+		// Traffic patterns
+		hour := timestamp.Hour()
+		weekday := timestamp.Weekday()
+		skipChance := 0.0
+
+		// Night traffic is sparse (2am-6am)
+		if hour >= 2 && hour < 6 {
+			skipChance = 0.85
+		}
+		// Weekend traffic is lighter
+		if weekday == time.Saturday || weekday == time.Sunday {
+			skipChance = skipChance + 0.4
+			if skipChance > 0.9 {
+				skipChance = 0.9
+			}
+		}
+
+		if rand.Float64() < skipChance {
 			continue
 		}
 
-		totalEvents := 0
-		errorCount := 0
+		ep := weightedEndpoints[rand.Intn(len(weightedEndpoints))]
+		traceID := fmt.Sprintf("req_%x", rand.Int63())
 
-		// Collect HTTP trace IDs for request-linked jobs
-		type httpTrace struct {
-			traceID   string
-			timestamp time.Time
+		// Duration: mostly fast, some slow
+		duration := 10 + rand.Intn(80)
+		if rand.Float64() < 0.08 {
+			duration = 150 + rand.Intn(500) // slower requests
 		}
-		var httpTraceIDs []httpTrace
+		if rand.Float64() < 0.02 {
+			duration = 500 + rand.Intn(2000) // very slow
+		}
 
-		// Generate HTTP request events spread over 7 days (some with trace groups)
-		httpCount := int(float64(app.requestCount) * 0.75)
-		for i := 0; i < httpCount; i++ {
-			// More recent events are more likely (realistic traffic pattern)
-			hoursAgo := int(float64(rand.Intn(168)) * float64(rand.Intn(100)) / 100.0)
-			if hoursAgo > 168 {
-				hoursAgo = 168
-			}
-			minutesAgo := rand.Intn(60)
-			timestamp := now.Add(-time.Duration(hoursAgo)*time.Hour - time.Duration(minutesAgo)*time.Minute)
+		// Error rate - check for incident window
+		errorRate := ep.errorRate
+		isInIncident := timestamp.After(incidentStart) && timestamp.Before(incidentEnd)
+		if isInIncident && (ep.name == "sign_in" || ep.name == "dashboard" || ep.name == "show_project") {
+			errorRate = 0.35 // Redis down = session failures
+		}
 
-			method := methods[rand.Intn(len(methods))]
-			path := httpPaths[rand.Intn(len(httpPaths))]
-			traceID := fmt.Sprintf("req_%x", rand.Int63())
+		isError := rand.Float64() < errorRate
 
-			// Realistic duration distribution: mostly fast, some slow
-			duration := 5 + rand.Intn(50)
-			if rand.Float64() < 0.1 {
-				duration = 200 + rand.Intn(2000) // slow requests
-			}
-
-			isError := rand.Float64() < app.errorRate
-			var status int
-			var errorMsg string
-
-			if isError {
-				status = []int{500, 502, 503, 500, 500}[rand.Intn(5)] // 500 most common
-				errorMsg = errorMessages[rand.Intn(len(errorMessages))]
-				errorCount++
-				duration = duration * 3 // errors tend to be slower
-			} else if rand.Float64() < 0.08 {
-				status = []int{400, 401, 403, 404, 429}[rand.Intn(5)]
+		var status int
+		if isError {
+			status = []int{500, 500, 500, 502, 503}[rand.Intn(5)]
+			duration = duration * 3
+			httpErrors++
+		} else if rand.Float64() < 0.03 {
+			status = []int{400, 401, 403, 404, 422}[rand.Intn(5)]
+		} else {
+			if ep.method == "POST" {
+				status = []int{200, 201, 201}[rand.Intn(3)]
+			} else if ep.method == "DELETE" {
+				status = 204
 			} else {
-				status = []int{200, 200, 200, 201, 204}[rand.Intn(5)] // 200 most common
-			}
-
-			ip := fmt.Sprintf("10.%d.%d.%d", rand.Intn(10), rand.Intn(256), rand.Intn(256))
-			user := ""
-			if rand.Float64() < 0.4 {
-				user = fmt.Sprintf("user_%d", rand.Intn(50))
-			}
-
-			// 25% chance of creating a traced request (multiple events with same trace_id)
-			// A trace = one HTTP request + internal operations (DB, cache, external APIs)
-			if rand.Float64() < 0.25 {
-				// Internal operation: DB query (no HTTP context - it's internal)
-				dbQueries := []string{
-					"SELECT * FROM users WHERE id = ?",
-					"SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC",
-					"INSERT INTO audit_log (action, user_id, metadata) VALUES (?, ?, ?)",
-					"UPDATE sessions SET last_seen_at = NOW() WHERE token = ?",
-				}
-				createTraceEvent(db, apiKey.ID, traceID, timestamp.Add(-30*time.Millisecond),
-					dbQueries[rand.Intn(len(dbQueries))], &events.EventContext{}, 3+rand.Intn(15), false)
-				totalEvents++
-
-				// Internal operation: External API or cache call (50% of traced requests)
-				if rand.Float64() < 0.5 {
-					externalCalls := []string{
-						"Redis GET session:user_" + fmt.Sprintf("%d", rand.Intn(1000)),
-						"Redis SETEX cart:user_" + fmt.Sprintf("%d", rand.Intn(1000)),
-						"Stripe POST /v1/charges",
-						"SendGrid POST /v3/mail/send",
-					}
-					createTraceEvent(db, apiKey.ID, traceID, timestamp.Add(-15*time.Millisecond),
-						externalCalls[rand.Intn(len(externalCalls))], &events.EventContext{}, 40+rand.Intn(120), false)
-					totalEvents++
-				}
-			}
-
-			// Main request event
-			message := fmt.Sprintf("%s %s → %d", method, path, status)
-
-			ctx := &events.EventContext{
-				Method: method,
-				Path:   path,
-				Status: status,
-				IP:     ip,
-			}
-			if errorMsg != "" {
-				ctx.Error = errorMsg
-				if ed := pickStructuredError(errorMsg); ed != nil {
-					applyErrorFields(ctx, ed)
-				}
-			}
-			if user != "" {
-				ctx.User = user
-			}
-
-			event := &events.Event{
-				APIKeyID:   apiKey.ID,
-				Timestamp:  timestamp,
-				Message:    message,
-				TraceID:    traceID,
-				DurationMS: duration,
-				IsError:    isError,
-			}
-			event.SetContext(ctx)
-			if isError {
-				events.PopulateErrorFields(event, ctx)
-			}
-
-			if err := events.Create(db, event); err != nil {
-				continue
-			}
-			totalEvents++
-
-			// Collect successful request traces for linking to jobs later
-			if !isError && status < 400 {
-				httpTraceIDs = append(httpTraceIDs, httpTrace{traceID: traceID, timestamp: timestamp})
+				status = 200
 			}
 		}
 
-		// Generate background job events
-		jobCount := app.requestCount - httpCount
-		for i := 0; i < jobCount; i++ {
-			hoursAgo := rand.Intn(168)
-			minutesAgo := rand.Intn(60)
-			timestamp := now.Add(-time.Duration(hoursAgo)*time.Hour - time.Duration(minutesAgo)*time.Minute)
+		message := fmt.Sprintf("%s %s → %d", ep.method, ep.path, status)
 
-			jobName := jobNames[rand.Intn(len(jobNames))]
-			duration := 500 + rand.Intn(15000)
+		ctx := &events.EventContext{
+			Method: ep.method,
+			Path:   ep.path,
+			Status: status,
+			IP:     randomIP(),
+		}
 
-			// ~30% of jobs are linked to an HTTP request (request triggered the job)
-			var traceID string
-			if rand.Float64() < 0.3 && len(httpTraceIDs) > 0 {
-				linked := httpTraceIDs[rand.Intn(len(httpTraceIDs))]
-				traceID = linked.traceID
-				// Job starts shortly after the request
-				timestamp = linked.timestamp.Add(time.Duration(200+rand.Intn(2000)) * time.Millisecond)
-			} else {
-				traceID = fmt.Sprintf("job_%x", rand.Int63())
-			}
+		if rand.Float64() < 0.6 {
+			ctx.User = fmt.Sprintf("user_%d", rand.Intn(200))
+		}
 
-			isError := rand.Float64() < app.errorRate
-			var message string
-			var errorMsg string
+		if isError {
+			errDef := pickEndpointError(ep.name, isInIncident)
+			ctx.Error = errDef.message
+			ctx.ErrorClass = errDef.class
+			ctx.ErrorFile = errDef.file
+			ctx.ErrorLine = errDef.line
+			ctx.ErrorCaller = errDef.caller
+			ctx.StackTrace = errDef.stack
+		}
 
-			if isError {
-				message = fmt.Sprintf("%s failed", jobName)
-				errorMsg = errorMessages[rand.Intn(len(errorMessages))]
-				errorCount++
-			} else {
-				message = fmt.Sprintf("%s completed", jobName)
-			}
+		// Create main request event FIRST
+		event := &events.Event{
+			APIKeyID:   apiKey.ID,
+			Timestamp:  timestamp,
+			Message:    message,
+			TraceID:    traceID,
+			DurationMS: duration,
+			IsError:    isError,
+		}
+		event.SetContext(ctx)
+		if isError {
+			events.PopulateErrorFields(event, ctx)
+		}
 
-			// Add 1-2 child log events within the job's duration
-			childCount := 1 + rand.Intn(2)
+		if err := events.Create(db, event); err != nil {
+			continue
+		}
+		httpCount++
+
+		// Add trace children AFTER the request (DB queries, cache, etc.)
+		if rand.Float64() < 0.3 {
+			childCount := 1 + rand.Intn(3)
 			for c := 0; c < childCount; c++ {
-				childOffset := time.Duration(rand.Intn(duration)) * time.Millisecond
-				childMsg := pickJobChildMessage(jobName, c)
-				createTraceEvent(db, apiKey.ID, traceID, timestamp.Add(childOffset),
-					childMsg, &events.EventContext{Job: jobName}, 0, false)
-				totalEvents++
-			}
-
-			ctx := &events.EventContext{
-				Job: jobName,
-			}
-			if errorMsg != "" {
-				ctx.Error = errorMsg
-				if ed := pickStructuredError(errorMsg); ed != nil {
-					applyErrorFields(ctx, ed)
-				}
-			}
-
-			event := &events.Event{
-				APIKeyID:   apiKey.ID,
-				Timestamp:  timestamp,
-				Message:    message,
-				TraceID:    traceID,
-				DurationMS: duration,
-				IsError:    isError,
-			}
-			event.SetContext(ctx)
-			if isError {
-				events.PopulateErrorFields(event, ctx)
-			}
-
-			if err := events.Create(db, event); err != nil {
-				continue
-			}
-			totalEvents++
-		}
-
-		// Generate clusters of recent errors (makes issues page interesting)
-		recentErrorClusters := []struct {
-			errorMsg string
-			path     string
-			method   string
-			isJob    bool
-			jobName  string
-			count    int
-			hoursAgo int
-		}{
-			{errorMsg: "connection timeout after 30s", path: "/api/users/:id", method: "GET", count: 23, hoursAgo: 1},
-			{errorMsg: "Stripe: card_declined", path: "/api/checkout/confirm", method: "POST", count: 8, hoursAgo: 3},
-			{errorMsg: "Redis: connection refused", path: "/api/cart", method: "GET", count: 45, hoursAgo: 0},
-			{errorMsg: "context deadline exceeded", isJob: true, jobName: "ProcessPayments", count: 12, hoursAgo: 2},
-			{errorMsg: "duplicate key: email already exists", path: "/api/users", method: "POST", count: 6, hoursAgo: 5},
-			{errorMsg: "TLS handshake timeout", path: "/api/payments/webhook", method: "POST", count: 15, hoursAgo: 0},
-		}
-
-		for _, re := range recentErrorClusters {
-			for j := 0; j < re.count; j++ {
-				// Cluster errors close together in time (realistic)
-				minutesSpread := rand.Intn(45)
-				timestamp := now.Add(-time.Duration(re.hoursAgo)*time.Hour - time.Duration(minutesSpread)*time.Minute)
-				traceID := fmt.Sprintf("err_%x", rand.Int63())
-				duration := 100 + rand.Intn(3000)
-
-				var message string
-				var ctx *events.EventContext
-
-				if re.isJob {
-					message = fmt.Sprintf("%s failed", re.jobName)
-					ctx = &events.EventContext{
-						Job:   re.jobName,
-						Error: re.errorMsg,
-					}
-				} else {
-					message = fmt.Sprintf("%s %s → 500", re.method, re.path)
-					ctx = &events.EventContext{
-						Method: re.method,
-						Path:   re.path,
-						Status: 500,
-						Error:  re.errorMsg,
-						IP:     fmt.Sprintf("10.%d.%d.%d", rand.Intn(10), rand.Intn(256), rand.Intn(256)),
-					}
-					if rand.Float64() < 0.5 {
-						ctx.User = fmt.Sprintf("user_%d", rand.Intn(50))
-					}
-				}
-				if ed := pickStructuredError(re.errorMsg); ed != nil {
-					applyErrorFields(ctx, ed)
-				}
-
-				event := &events.Event{
-					APIKeyID:   apiKey.ID,
-					Timestamp:  timestamp,
-					Message:    message,
-					TraceID:    traceID,
-					DurationMS: duration,
-					IsError:    true,
-				}
-				event.SetContext(ctx)
-				events.PopulateErrorFields(event, ctx)
-
-				if err := events.Create(db, event); err != nil {
-					continue
-				}
-				totalEvents++
-				errorCount++
+				// Children happen AFTER parent starts (offset 10-50% of duration)
+				childOffset := time.Duration(10+rand.Intn(duration/2)) * time.Millisecond
+				childMsg := pickInternalOperation()
+				childDuration := 1 + rand.Intn(30)
+				createEvent(db, apiKey.ID, traceID, timestamp.Add(childOffset), childMsg, &events.EventContext{}, childDuration, false)
 			}
 		}
 
-		// Generate errors at alternate locations (for "also happens at")
-		for _, alt := range alternateLocations {
-			count := 8 + rand.Intn(15)
-			for j := 0; j < count; j++ {
-				hoursAgo := rand.Intn(48)
-				minutesAgo := rand.Intn(60)
-				timestamp := now.Add(-time.Duration(hoursAgo)*time.Hour - time.Duration(minutesAgo)*time.Minute)
-				traceID := fmt.Sprintf("alt_%x", rand.Int63())
-				path := httpPaths[rand.Intn(len(httpPaths))]
+		// Some requests trigger background jobs
+		if !isError && status < 300 {
+			if (ep.name == "sign_up" && rand.Float64() < 0.9) ||
+				(ep.name == "checkout" && rand.Float64() < 0.8) ||
+				(ep.name == "invite_member" && rand.Float64() < 0.85) {
 
-				ctx := &events.EventContext{
-					Method: "GET",
-					Path:   path,
-					Status: 500,
-					Error:  alt.message,
-					IP:     fmt.Sprintf("10.%d.%d.%d", rand.Intn(10), rand.Intn(256), rand.Intn(256)),
+				jobName := ""
+				switch ep.name {
+				case "sign_up":
+					jobName = "SendWelcomeEmail"
+				case "checkout":
+					jobName = "ProcessPayment"
+				case "invite_member":
+					jobName = "SendInvitation"
 				}
-				applyErrorFields(ctx, &alt)
 
-				event := &events.Event{
-					APIKeyID:   apiKey.ID,
-					Timestamp:  timestamp,
-					Message:    fmt.Sprintf("GET %s → 500", path),
-					TraceID:    traceID,
-					DurationMS: 100 + rand.Intn(3000),
-					IsError:    true,
+				if jobName != "" {
+					createLinkedJob(db, apiKey.ID, traceID, timestamp.Add(100*time.Millisecond), jobName, isInIncident)
 				}
-				event.SetContext(ctx)
-				events.PopulateErrorFields(event, ctx)
-
-				if err := events.Create(db, event); err != nil {
-					continue
-				}
-				totalEvents++
-				errorCount++
 			}
 		}
 
-		fmt.Printf("  %s: %d events (%d errors)\n", app.name, totalEvents, errorCount)
+		if httpCount%10000 == 0 {
+			fmt.Printf("    %d HTTP events...\n", httpCount)
+		}
 	}
 
-	// Generate correlated traces that span multiple apps
-	// These make the trace view interesting — a request flows through web → api → workers
+	fmt.Printf("  Generated %d HTTP events (%d errors)\n", httpCount, httpErrors)
 	fmt.Println()
-	fmt.Println("  Generating cross-app traces...")
 
-	traceScenarios := []struct {
-		name     string
-		isError  bool
-		hoursAgo int
+	// Generate standalone job events (periodic jobs not triggered by HTTP)
+	fmt.Println("  Generating background job events...")
+	jobCount := 0
+	jobErrorCount := 0
+	jobTarget := 12000
+
+	for i := 0; i < jobTarget; i++ {
+		dayOffset := int(float64(daysBack) * (1 - rand.Float64()*rand.Float64()))
+		hourOffset := rand.Intn(24)
+		minuteOffset := rand.Intn(60)
+		timestamp := now.Add(-time.Duration(dayOffset)*24*time.Hour -
+			time.Duration(hourOffset)*time.Hour -
+			time.Duration(minuteOffset)*time.Minute)
+
+		job := weightedJobs[rand.Intn(len(weightedJobs))]
+		traceID := fmt.Sprintf("job_%x", rand.Int63())
+
+		isInIncident := timestamp.After(incidentStart) && timestamp.Before(incidentEnd)
+		errorRate := job.errorRate
+		if isInIncident && (job.name == "GenerateDailyDigest" || job.name == "CleanupExpiredSessions") {
+			errorRate = 0.4 // DB pool exhausted during incident
+		}
+
+		isError := rand.Float64() < errorRate
+		duration := job.duration[0] + rand.Intn(job.duration[1]-job.duration[0])
+
+		if isError {
+			duration = duration * 2
+			jobErrorCount++
+		}
+
+		// Create child events
+		for c, childMsg := range job.children {
+			childOffset := time.Duration(c*duration/len(job.children)) * time.Millisecond
+			childDuration := 50 + rand.Intn(300)
+
+			// Last child might be the error
+			childIsError := isError && c == len(job.children)-1
+
+			childCtx := &events.EventContext{Job: job.name}
+			if childIsError {
+				errDef := pickJobError(job.name)
+				childCtx.Error = errDef.message
+				childCtx.ErrorClass = errDef.class
+				childCtx.ErrorFile = errDef.file
+				childCtx.ErrorLine = errDef.line
+				childCtx.ErrorCaller = errDef.caller
+				childCtx.StackTrace = errDef.stack
+			}
+
+			createEvent(db, apiKey.ID, traceID, timestamp.Add(childOffset), childMsg, childCtx, childDuration, childIsError)
+		}
+
+		// Create main job event
+		var message string
+		if isError {
+			message = fmt.Sprintf("%s failed", job.name)
+		} else {
+			message = fmt.Sprintf("%s completed", job.name)
+		}
+
+		ctx := &events.EventContext{Job: job.name}
+		if isError {
+			errDef := pickJobError(job.name)
+			ctx.Error = errDef.message
+			ctx.ErrorClass = errDef.class
+			ctx.ErrorFile = errDef.file
+			ctx.ErrorLine = errDef.line
+			ctx.ErrorCaller = errDef.caller
+			ctx.StackTrace = errDef.stack
+		}
+
+		event := &events.Event{
+			APIKeyID:   apiKey.ID,
+			Timestamp:  timestamp.Add(time.Duration(duration) * time.Millisecond),
+			Message:    message,
+			TraceID:    traceID,
+			DurationMS: duration,
+			IsError:    isError,
+		}
+		event.SetContext(ctx)
+		if isError {
+			events.PopulateErrorFields(event, ctx)
+		}
+
+		if err := events.Create(db, event); err != nil {
+			continue
+		}
+		jobCount++
+
+		if jobCount%5000 == 0 {
+			fmt.Printf("    %d job events...\n", jobCount)
+		}
+	}
+
+	fmt.Printf("  Generated %d job events (%d errors)\n", jobCount, jobErrorCount)
+	fmt.Println()
+
+	// Generate rich traces in the last 10 minutes (visible at top of logs)
+	fmt.Println("  Generating recent rich traces...")
+	recentTraceCount := 0
+
+	recentTraces := []struct {
+		endpoint   string
+		method     string
+		path       string
+		status     int
+		duration   int
+		children   []string
+		triggerJob string
 	}{
-		// Successful checkout flow
-		{name: "checkout", hoursAgo: 1},
-		{name: "checkout", hoursAgo: 4},
-		{name: "checkout", hoursAgo: 12},
-		{name: "checkout", hoursAgo: 36},
-		{name: "checkout", hoursAgo: 72},
-		// User signup flow
-		{name: "signup", hoursAgo: 2},
-		{name: "signup", hoursAgo: 8},
-		{name: "signup", hoursAgo: 48},
-		// Failed checkout (payment timeout)
-		{name: "checkout_fail", isError: true, hoursAgo: 0},
-		{name: "checkout_fail", isError: true, hoursAgo: 3},
-		// Order processing
-		{name: "order", hoursAgo: 6},
-		{name: "order", hoursAgo: 18},
-		{name: "order", hoursAgo: 24},
-		{name: "order", hoursAgo: 50},
-		// Failed order (inventory sync error)
-		{name: "order_fail", isError: true, hoursAgo: 5},
+		{
+			endpoint: "checkout",
+			method:   "POST",
+			path:     "/checkout",
+			status:   201,
+			duration: 850,
+			children: []string{
+				"Loading user profile",
+				"Fetching cart items",
+				"Validating session",
+				"Creating payment intent",
+				"Recording order",
+			},
+			triggerJob: "ProcessPayment",
+		},
+		{
+			endpoint: "sign_up",
+			method:   "POST",
+			path:     "/registrations",
+			status:   201,
+			duration: 320,
+			children: []string{
+				"Checking email availability",
+				"Creating user account",
+				"Initializing session",
+			},
+			triggerJob: "SendWelcomeEmail",
+		},
+		{
+			endpoint: "dashboard",
+			method:   "GET",
+			path:     "/dashboard",
+			status:   200,
+			duration: 180,
+			children: []string{
+				"Loading cached dashboard",
+				"Fetching recent projects",
+				"Counting pending todos",
+			},
+		},
+		{
+			endpoint: "project_show",
+			method:   "GET",
+			path:     "/projects/:id",
+			status:   200,
+			duration: 95,
+			children: []string{
+				"Loading project",
+				"Fetching todos",
+				"Loading project stats",
+			},
+		},
+		{
+			endpoint: "create_todo",
+			method:   "POST",
+			path:     "/projects/:id/todos",
+			status:   201,
+			duration: 120,
+			children: []string{
+				"Checking project access",
+				"Creating todo",
+				"Invalidating cache",
+			},
+		},
 	}
 
-	webKey := apiKeyMap["acme-web"]
-	apiKeyRef := apiKeyMap["acme-api"]
-	workersKey := apiKeyMap["acme-workers"]
-	traceCount := 0
+	for i := 0; i < 15; i++ {
+		trace := recentTraces[i%len(recentTraces)]
+		minutesAgo := i / 2 // spread over ~8 minutes
+		secondsAgo := (i % 2) * 30
+		timestamp := now.Add(-time.Duration(minutesAgo)*time.Minute - time.Duration(secondsAgo)*time.Second)
+		traceID := fmt.Sprintf("recent_%x", rand.Int63())
+		user := fmt.Sprintf("user_%d", rand.Intn(200))
 
-	for _, scenario := range traceScenarios {
-		if webKey == nil || apiKeyRef == nil || workersKey == nil {
-			break
+		// Main HTTP request FIRST (when the request starts)
+		message := fmt.Sprintf("%s %s → %d", trace.method, trace.path, trace.status)
+		ctx := &events.EventContext{
+			Method: trace.method,
+			Path:   trace.path,
+			Status: trace.status,
+			IP:     randomIP(),
+			User:   user,
+		}
+		event := &events.Event{
+			APIKeyID:   apiKey.ID,
+			Timestamp:  timestamp,
+			Message:    message,
+			TraceID:    traceID,
+			DurationMS: trace.duration,
+			IsError:    false,
+		}
+		event.SetContext(ctx)
+		events.Create(db, event)
+		recentTraceCount++
+
+		// Child events happen AFTER the request starts
+		for c, childMsg := range trace.children {
+			childOffset := time.Duration((c+1)*trace.duration/(len(trace.children)+1)) * time.Millisecond
+			childDuration := 5 + rand.Intn(50)
+			createEvent(db, apiKey.ID, traceID, timestamp.Add(childOffset), childMsg, &events.EventContext{}, childDuration, false)
+			recentTraceCount++
 		}
 
-		traceID := fmt.Sprintf("trace_%x", rand.Int63())
-		baseTime := now.Add(-time.Duration(scenario.hoursAgo)*time.Hour - time.Duration(rand.Intn(60))*time.Minute)
-		user := fmt.Sprintf("user_%d", rand.Intn(50))
-
-		switch scenario.name {
-		case "checkout":
-			// web: POST /api/checkout/confirm → 200 (50ms)
-			// api: POST /api/checkout/confirm → 200 (120ms, does the work)
-			// api: POST /api/payments/webhook → 200 (80ms, Stripe callback)
-			// workers: ProcessPayments completed (2s)
-			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/checkout/confirm → 200",
-				&events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 200, User: user, IP: "10.1.2.3"}, 50, false)
-			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(10*time.Millisecond), "POST /api/checkout/confirm → 200",
-				&events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 200, User: user, IP: "10.0.1.5"}, 120, false)
-			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(2*time.Second), "POST /api/payments/webhook → 200",
-				&events.EventContext{Method: "POST", Path: "/api/payments/webhook", Status: 200, IP: "10.0.0.1"}, 80, false)
-			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(3*time.Second), "ProcessPayments completed",
-				&events.EventContext{Job: "ProcessPayments"}, 1800+rand.Intn(1000), false)
-			traceCount += 4
-
-		case "checkout_fail":
-			// web: POST /api/checkout/confirm → 200 (50ms)
-			// api: POST /api/checkout/confirm → 500 (30s timeout)
-			// workers: ProcessPayments failed (context deadline exceeded)
-			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/checkout/confirm → 200",
-				&events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 200, User: user, IP: "10.1.2.3"}, 45, false)
-			timeoutErr := pickStructuredError("connection timeout after 30s")
-			apiCtx := &events.EventContext{Method: "POST", Path: "/api/checkout/confirm", Status: 500, Error: "connection timeout after 30s", User: user, IP: "10.0.1.5"}
-			if timeoutErr != nil {
-				applyErrorFields(apiCtx, timeoutErr)
-			}
-			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(10*time.Millisecond), "POST /api/checkout/confirm → 500",
-				apiCtx, 30000, true)
-			deadlineErr := pickStructuredError("context deadline exceeded")
-			workerCtx := &events.EventContext{Job: "ProcessPayments", Error: "context deadline exceeded"}
-			if deadlineErr != nil {
-				applyErrorFields(workerCtx, deadlineErr)
-			}
-			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(31*time.Second), "ProcessPayments failed",
-				workerCtx, 31000, true)
-			traceCount += 3
-
-		case "signup":
-			// web: POST /api/users → 201 (80ms)
-			// api: POST /api/users → 201 (200ms)
-			// workers: SendWeeklyDigest completed (1s, welcome email)
-			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/users → 201",
-				&events.EventContext{Method: "POST", Path: "/api/users", Status: 201, User: user, IP: "10.3.4.5"}, 80, false)
-			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(5*time.Millisecond), "POST /api/users → 201",
-				&events.EventContext{Method: "POST", Path: "/api/users", Status: 201, User: user, IP: "10.0.1.5"}, 200, false)
-			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(500*time.Millisecond), "SendWeeklyDigest completed",
-				&events.EventContext{Job: "SendWeeklyDigest"}, 900+rand.Intn(500), false)
-			traceCount += 3
-
-		case "order":
-			// web: POST /api/orders → 201 (60ms)
-			// api: POST /api/orders → 201 (150ms)
-			// workers: SyncInventory completed (3s)
-			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/orders → 201",
-				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.2.3.4"}, 60, false)
-			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(8*time.Millisecond), "POST /api/orders → 201",
-				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.0.1.5"}, 150, false)
-			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(1*time.Second), "SyncInventory completed",
-				&events.EventContext{Job: "SyncInventory"}, 2500+rand.Intn(2000), false)
-			traceCount += 3
-
-		case "order_fail":
-			// web: POST /api/orders → 201 (60ms)
-			// api: POST /api/orders → 201 (150ms)
-			// workers: SyncInventory failed (Redis connection refused)
-			createTraceEvent(db, webKey.ID, traceID, baseTime, "POST /api/orders → 201",
-				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.2.3.4"}, 60, false)
-			createTraceEvent(db, apiKeyRef.ID, traceID, baseTime.Add(8*time.Millisecond), "POST /api/orders → 201",
-				&events.EventContext{Method: "POST", Path: "/api/orders", Status: 201, User: user, IP: "10.0.1.5"}, 150, false)
-			redisErr := pickStructuredError("Redis: connection refused")
-			syncCtx := &events.EventContext{Job: "SyncInventory", Error: "Redis: connection refused"}
-			if redisErr != nil {
-				applyErrorFields(syncCtx, redisErr)
-			}
-			createTraceEvent(db, workersKey.ID, traceID, baseTime.Add(1*time.Second), "SyncInventory failed",
-				syncCtx, 5000, true)
-			traceCount += 3
+		// Trigger job if applicable (after request completes)
+		if trace.triggerJob != "" {
+			createLinkedJob(db, apiKey.ID, traceID, timestamp.Add(time.Duration(trace.duration+100)*time.Millisecond), trace.triggerJob, false)
+			recentTraceCount++
 		}
 	}
 
-	fmt.Printf("  cross-app traces: %d events across %d traces\n", traceCount, len(traceScenarios))
+	fmt.Printf("  Generated %d recent trace events\n", recentTraceCount)
+	fmt.Println()
+
+	// Generate a recent error burst (makes Issues page interesting)
+	fmt.Println("  Generating recent error burst...")
+	burstCount := 0
+
+	// Stripe API issues in the last hour
+	for i := 0; i < 45; i++ {
+		minutesAgo := rand.Intn(60)
+		timestamp := now.Add(-time.Duration(minutesAgo) * time.Minute)
+		traceID := fmt.Sprintf("burst_%x", rand.Int63())
+
+		errDef := structuredErrors[7] // Stripe::APIConnectionError
+
+		ctx := &events.EventContext{
+			Method:      "POST",
+			Path:        "/checkout",
+			Status:      500,
+			IP:          randomIP(),
+			Error:       errDef.message,
+			ErrorClass:  errDef.class,
+			ErrorFile:   errDef.file,
+			ErrorLine:   errDef.line,
+			ErrorCaller: errDef.caller,
+			StackTrace:  errDef.stack,
+		}
+		if rand.Float64() < 0.7 {
+			ctx.User = fmt.Sprintf("user_%d", rand.Intn(200))
+		}
+
+		event := &events.Event{
+			APIKeyID:   apiKey.ID,
+			Timestamp:  timestamp,
+			Message:    "POST /checkout → 500",
+			TraceID:    traceID,
+			DurationMS: 5000 + rand.Intn(25000), // Long timeouts
+			IsError:    true,
+		}
+		event.SetContext(ctx)
+		events.PopulateErrorFields(event, ctx)
+
+		if err := events.Create(db, event); err != nil {
+			continue
+		}
+		burstCount++
+	}
+
+	fmt.Printf("  Generated %d burst errors\n", burstCount)
 	fmt.Println()
 	fmt.Println("Done. Run with LOGNORTH_DEMO=true to start in demo mode.")
 }
 
-// createTraceEvent is a helper to insert a single event in a correlated trace
-func createTraceEvent(db *gorm.DB, apiKeyID uint, traceID string, timestamp time.Time, message string, ctx *events.EventContext, durationMS int, isError bool) {
+func createEvent(db *gorm.DB, apiKeyID uint, traceID string, timestamp time.Time, message string, ctx *events.EventContext, durationMS int, isError bool) {
 	event := &events.Event{
 		APIKeyID:   apiKeyID,
 		Timestamp:  timestamp,
@@ -646,42 +952,100 @@ func createTraceEvent(db *gorm.DB, apiKeyID uint, traceID string, timestamp time
 	events.Create(db, event)
 }
 
-// pickStructuredError returns a structured error def for a given error message
-func pickStructuredError(errorMsg string) *errorDef {
-	for i := range structuredErrors {
-		if structuredErrors[i].message == errorMsg {
-			return &structuredErrors[i]
+func createLinkedJob(db *gorm.DB, apiKeyID uint, traceID string, timestamp time.Time, jobName string, isInIncident bool) {
+	var job jobDef
+	for _, j := range jobs {
+		if j.name == jobName {
+			job = j
+			break
 		}
 	}
-	return nil
-}
 
-// applyErrorFields sets structured error fields on the context
-func applyErrorFields(ctx *events.EventContext, ed *errorDef) {
-	ctx.ErrorClass = ed.class
-	ctx.ErrorFile = ed.file
-	ctx.ErrorLine = ed.line
-	ctx.ErrorCaller = ed.caller
-	ctx.StackTrace = ed.stackTrace
-}
-
-var jobChildMessages = map[string][]string{
-	"SendWeeklyDigest":         {"fetching subscriber list", "rendering email template for %d users", "queued %d emails for delivery"},
-	"ProcessPayments":          {"processing payment for user_%d", "charging $%d.99 via Stripe", "updating order status"},
-	"SyncInventory":            {"syncing %d items from warehouse", "updating stock levels", "flagging %d low-stock items"},
-	"GenerateDailyReport":      {"aggregating metrics for %d endpoints", "computing p95 latencies", "writing report to S3"},
-	"CleanupExpiredSessions":   {"scanning sessions older than 24h", "deleting %d expired sessions", "freed %d MB of storage"},
-	"RefreshSearchIndex":       {"rebuilding index for %d documents", "optimizing search segments", "index refresh complete"},
-	"SendAbandonedCartEmails":  {"found %d abandoned carts", "rendering reminder emails", "queued %d cart reminders"},
-	"ProcessRefunds":           {"processing refund for order_%d", "issuing $%d.00 refund via Stripe", "notifying customer"},
-}
-
-func pickJobChildMessage(jobName string, index int) string {
-	msgs, ok := jobChildMessages[jobName]
-	if !ok {
-		return "processing"
+	errorRate := job.errorRate
+	if isInIncident {
+		errorRate = 0.3
 	}
-	msg := msgs[index%len(msgs)]
-	// Replace %d placeholders with random numbers for variety
-	return fmt.Sprintf(msg, 10+rand.Intn(200))
+	isError := rand.Float64() < errorRate
+
+	duration := job.duration[0] + rand.Intn(job.duration[1]-job.duration[0])
+	if isError {
+		duration = duration * 2
+	}
+
+	// Create child events
+	for c, childMsg := range job.children {
+		childOffset := time.Duration(c*duration/len(job.children)) * time.Millisecond
+		childDuration := 50 + rand.Intn(300)
+		createEvent(db, apiKeyID, traceID, timestamp.Add(childOffset), childMsg, &events.EventContext{Job: jobName}, childDuration, false)
+	}
+
+	var message string
+	ctx := &events.EventContext{Job: jobName}
+
+	if isError {
+		message = fmt.Sprintf("%s failed", jobName)
+		errDef := pickJobError(jobName)
+		ctx.Error = errDef.message
+		ctx.ErrorClass = errDef.class
+		ctx.ErrorFile = errDef.file
+		ctx.ErrorLine = errDef.line
+		ctx.ErrorCaller = errDef.caller
+		ctx.StackTrace = errDef.stack
+	} else {
+		message = fmt.Sprintf("%s completed", jobName)
+	}
+
+	event := &events.Event{
+		APIKeyID:   apiKeyID,
+		Timestamp:  timestamp.Add(time.Duration(duration) * time.Millisecond),
+		Message:    message,
+		TraceID:    traceID,
+		DurationMS: duration,
+		IsError:    isError,
+	}
+	event.SetContext(ctx)
+	if isError {
+		events.PopulateErrorFields(event, ctx)
+	}
+	events.Create(db, event)
+}
+
+func pickEndpointError(endpointName string, isInIncident bool) errorDef {
+	// During incident, Redis errors are more likely
+	if isInIncident {
+		return structuredErrors[3] // Redis::CannotConnectError
+	}
+
+	indices, ok := endpointErrors[endpointName]
+	if !ok || len(indices) == 0 {
+		// Default to a generic error
+		return structuredErrors[rand.Intn(len(structuredErrors))]
+	}
+	return structuredErrors[indices[rand.Intn(len(indices))]]
+}
+
+func pickJobError(jobName string) errorDef {
+	indices, ok := jobErrors[jobName]
+	if !ok || len(indices) == 0 {
+		return structuredErrors[rand.Intn(len(structuredErrors))]
+	}
+	return structuredErrors[indices[rand.Intn(len(indices))]]
+}
+
+func pickInternalOperation() string {
+	ops := []string{
+		"Loading user profile",
+		"Checking permissions",
+		"Validating session",
+		"Fetching project data",
+		"Loading todos",
+		"Updating cache",
+		"Recording audit log",
+		"Checking rate limit",
+	}
+	return ops[rand.Intn(len(ops))]
+}
+
+func randomIP() string {
+	return fmt.Sprintf("10.%d.%d.%d", rand.Intn(10), rand.Intn(256), rand.Intn(256))
 }

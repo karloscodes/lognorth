@@ -476,6 +476,7 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
               { value: 90, label: '90d', default: true },
               { value: 180, label: '6mo' },
               { value: 365, label: '1yr' },
+              { value: 0, label: 'Forever' },
             ].map((opt) => (
               <button
                 key={opt.value}

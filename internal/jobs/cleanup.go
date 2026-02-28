@@ -38,13 +38,16 @@ func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 	}
 	retention := s.GetRetentionDuration()
 
-	deletedEvents, err := events.DeleteOlderThan(ctx.DB, retention)
-	if err != nil {
-		ctx.Logger.Error("Failed to cleanup old events", "error", err)
-		return err
-	}
-	if deletedEvents > 0 {
-		ctx.Logger.Info("Cleaned up old events", "deleted", deletedEvents, "retention_days", s.RetentionDays)
+	// Skip if retention is 0 (keep forever)
+	if retention > 0 {
+		deletedEvents, err := events.DeleteOlderThan(ctx.DB, retention)
+		if err != nil {
+			ctx.Logger.Error("Failed to cleanup old events", "error", err)
+			return err
+		}
+		if deletedEvents > 0 {
+			ctx.Logger.Info("Cleaned up old events", "deleted", deletedEvents, "retention_days", s.RetentionDays)
+		}
 	}
 
 	// Delete endpoint stats older than 8 days (7 for baseline + 1 buffer)
