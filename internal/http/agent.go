@@ -7,9 +7,40 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
+	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 	"lognorth/internal/settings"
 )
+
+// AgentAppsAction handles GET /api/v1/agent/apps
+// Returns list of apps (API keys) for filtering
+func AgentAppsAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	if err := validateAgentAuth(ctx); err != nil {
+		return err
+	}
+
+	keys, err := apikeys.List(db)
+	if err != nil {
+		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch apps",
+		})
+	}
+
+	// Return simplified app info
+	apps := make([]fiber.Map, len(keys))
+	for i, k := range keys {
+		apps[i] = fiber.Map{
+			"id":   k.ID,
+			"name": k.Name,
+		}
+	}
+
+	return ctx.Ctx.JSON(fiber.Map{
+		"apps": apps,
+	})
+}
 
 // AgentEventsAction handles GET /api/v1/agent/events
 // Returns events across all apps for authenticated agents
@@ -21,6 +52,11 @@ func AgentEventsAction(ctx *cartridge.Context) error {
 	}
 
 	filters := parseFilters(ctx.Ctx)
+
+	// Add app_id filter support
+	if appID, err := strconv.Atoi(ctx.Ctx.Query("app_id")); err == nil && appID > 0 {
+		filters.APIKeyID = uint(appID)
+	}
 
 	eventList, total, err := events.List(db, filters)
 	if err != nil {
@@ -81,7 +117,13 @@ func AgentIssuesAction(ctx *cartridge.Context) error {
 		return err
 	}
 
-	issues, err := events.ListIssuesWithState(db, 0, 100) // 0 = all apps
+	// Support app_id filter
+	appID := uint(0)
+	if id, err := strconv.Atoi(ctx.Ctx.Query("app_id")); err == nil && id > 0 {
+		appID = uint(id)
+	}
+
+	issues, err := events.ListIssuesWithState(db, appID, 100)
 	if err != nil {
 		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to fetch issues",

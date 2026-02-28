@@ -176,6 +176,7 @@ func MountRoutes(server *cartridge.Server) {
 		EnableSecFetchSite: cartridge.Bool(false),
 		CustomMiddleware:   []fiber.Handler{agentRateLimiter},
 	}
+	server.Get("/api/v1/agent/apps", lbhttp.AgentAppsAction, agentConfig)
 	server.Get("/api/v1/agent/events", lbhttp.AgentEventsAction, agentConfig)
 	server.Get("/api/v1/agent/events/:id", lbhttp.AgentEventDetailAction, agentConfig)
 	server.Get("/api/v1/agent/issues", lbhttp.AgentIssuesAction, agentConfig)
