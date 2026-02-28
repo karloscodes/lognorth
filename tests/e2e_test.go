@@ -569,3 +569,76 @@ func TestCompleteSystemFlow(t *testing.T) {
 		t.Errorf("Expected issue 'Payment failed: card declined', got '%s'", issues[0].Error)
 	}
 }
+
+func TestAgentAPIAuth(t *testing.T) {
+	db := setupTestDB(t)
+
+	_, fullKey, _ := apikeys.Create(db, "Test App")
+
+	// Create test event
+	event := &events.Event{
+		Message: "Test error",
+		IsError: true,
+	}
+	event.SetContext(&events.EventContext{Error: "test error"})
+	events.Create(db, event)
+
+	app := fiber.New()
+	app.Get("/api/v1/agent/events", func(c *fiber.Ctx) error {
+		authHeader := c.Get("Authorization")
+		if authHeader == "" {
+			return c.Status(401).JSON(fiber.Map{"error": "API key required"})
+		}
+		if len(authHeader) < 8 {
+			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
+		}
+		apiKey := authHeader[7:]
+
+		_, err := apikeys.Validate(db, apiKey)
+		if err != nil {
+			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
+		}
+
+		eventList, total, _ := events.List(db, events.ListFilters{Limit: 50})
+		return c.JSON(fiber.Map{"events": eventList, "total": total})
+	})
+
+	t.Run("requires auth", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/agent/events", nil)
+
+		resp, _ := app.Test(req)
+
+		if resp.StatusCode != 401 {
+			t.Errorf("Expected 401, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("rejects invalid key", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/agent/events", nil)
+		req.Header.Set("Authorization", "Bearer invalid_key")
+
+		resp, _ := app.Test(req)
+
+		if resp.StatusCode != 401 {
+			t.Errorf("Expected 401, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("accepts valid key", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/v1/agent/events", nil)
+		req.Header.Set("Authorization", "Bearer "+fullKey)
+
+		resp, _ := app.Test(req)
+
+		if resp.StatusCode != 200 {
+			body, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected 200, got %d: %s", resp.StatusCode, string(body))
+		}
+
+		var result map[string]any
+		json.NewDecoder(resp.Body).Decode(&result)
+		if _, ok := result["events"]; !ok {
+			t.Error("Expected 'events' in response")
+		}
+	})
+}

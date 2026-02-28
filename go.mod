@@ -6,6 +6,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.11
 	github.com/karloscodes/cartridge v0.0.0-20260215191752-240a3c5e87be
 	github.com/karloscodes/matcha v0.12.8
+	github.com/stretchr/testify v1.11.1
 	github.com/valyala/fasthttp v1.68.0
 	gorm.io/gorm v1.31.0
 )
@@ -13,6 +14,7 @@ require (
 require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gofiber/template v1.8.3 // indirect
@@ -29,6 +31,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/petaki/inertia-go v1.11.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
