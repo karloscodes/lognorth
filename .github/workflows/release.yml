@@ -84,6 +84,11 @@ jobs:
     name: Test Install
     runs-on: [self-hosted, Linux, X64, n100]
     steps:
+      - name: Cleanup previous containers
+        run: |
+          docker stop lognorth matcha-proxy 2>/dev/null || true
+          docker rm lognorth matcha-proxy 2>/dev/null || true
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -137,6 +142,12 @@ jobs:
           docker logs lognorth 2>&1 | tail -100 || true
           echo "=== Proxy logs ==="
           docker logs matcha-proxy 2>&1 | tail -50 || true
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker stop lognorth matcha-proxy 2>/dev/null || true
+          docker rm lognorth matcha-proxy 2>/dev/null || true
 
   release:
     name: Build and Release

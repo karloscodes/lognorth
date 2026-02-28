@@ -28,6 +28,11 @@ jobs:
     runs-on: [self-hosted, Linux, X64, n100]
     if: github.repository == 'karloscodes/lognorth'
     steps:
+      - name: Cleanup previous containers
+        run: |
+          docker stop lognorth matcha-proxy 2>/dev/null || true
+          docker rm lognorth matcha-proxy 2>/dev/null || true
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
@@ -63,6 +68,12 @@ jobs:
           docker ps -a
           docker logs lognorth 2>&1 | tail -100 || true
           docker logs matcha-proxy 2>&1 | tail -50 || true
+
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker stop lognorth matcha-proxy 2>/dev/null || true
+          docker rm lognorth matcha-proxy 2>/dev/null || true
 
   # E2E tests with Playwright
   e2e-tests:
