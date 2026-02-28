@@ -11,7 +11,7 @@ jobs:
   # Always runs, even on forks
   go-tests:
     name: Go Tests
-    runs-on: [self-hosted, Linux, X64, n100]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -25,7 +25,7 @@ jobs:
   # Test that the installer actually works on a fresh Linux system
   install-test:
     name: Install Test
-    runs-on: [self-hosted, Linux, X64, n100]
+    runs-on: ubuntu-latest
     if: github.repository == 'karloscodes/lognorth'
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
   # E2E tests with Playwright
   e2e-tests:
     name: E2E Tests
-    runs-on: [self-hosted, Linux, X64, n100]
+    runs-on: ubuntu-latest
     if: github.repository == 'karloscodes/lognorth'
     steps:
       - uses: actions/checkout@v4
@@ -117,7 +117,7 @@ jobs:
   # Only runs on main repo (SDKs might be private)
   full-tests:
     name: Full Test Suite (with SDKs)
-    runs-on: [self-hosted, Linux, X64, n100]
+    runs-on: ubuntu-latest
     if: github.repository == 'karloscodes/lognorth'
     defaults:
       run:
