@@ -134,6 +134,10 @@ jobs:
       run:
         working-directory: lognorth
     steps:
+      - name: Setup toolcache directory
+        run: sudo mkdir -p /opt/hostedtoolcache && sudo chown -R $USER:$USER /opt/hostedtoolcache
+        working-directory: /
+
       - name: Checkout LogNorth
         uses: actions/checkout@v4
         with:
