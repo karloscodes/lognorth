@@ -102,6 +102,8 @@ type IssueWithState struct {
 	Hash       string   `json:"hash"`
 	APIKeyID   uint     `json:"api_key_id"`
 	Count      int64    `json:"count"`
+	Count24h   int64    `json:"count_24h"`  // Occurrences in last 24 hours
+	Count7d    int64    `json:"count_7d"`   // Occurrences in last 7 days
 	FirstSeen  string   `json:"first_seen"`
 	LastSeen   string   `json:"last_seen"`
 	Paths      []string `json:"paths"`
@@ -197,7 +199,7 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 	now := time.Now()
 	cutoff24h := now.Add(-24 * time.Hour)
 
-	// Collect hashes for trend computation
+	// Collect hashes for trend and period count computation
 	hashes := make([]string, 0, len(rows))
 	for _, row := range rows {
 		if row.GroupHash != "" {
@@ -205,6 +207,7 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 		}
 	}
 	trends := computeTrends(db, apiKeyID, hashes)
+	periodCts := computePeriodCounts(db, apiKeyID, hashes)
 
 	// Build result
 	issues := make([]IssueWithState, 0, len(rows))
@@ -239,6 +242,13 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 			trend = t
 		}
 
+		// Get period counts
+		var count24h, count7d int64
+		if pc, ok := periodCts[hash]; ok {
+			count24h = pc.Count24h
+			count7d = pc.Count7d
+		}
+
 		issue := IssueWithState{
 			Error:      row.Error,
 			ErrorClass: row.ErrorClass,
@@ -247,6 +257,8 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 			Hash:       hash,
 			APIKeyID:   row.APIKeyID,
 			Count:      row.Count,
+			Count24h:   count24h,
+			Count7d:    count7d,
 			FirstSeen:  row.FirstSeen,
 			LastSeen:   row.LastSeen,
 			Paths:      paths,
@@ -377,6 +389,51 @@ func computeTrends(db *gorm.DB, apiKeyID uint, hashes []string) map[string]strin
 		} else {
 			result[row.Hash] = "stable"
 		}
+	}
+	return result
+}
+
+// periodCounts holds count data for time periods
+type periodCounts struct {
+	Hash     string `gorm:"column:hash"`
+	Count24h int64  `gorm:"column:count_24h"`
+	Count7d  int64  `gorm:"column:count_7d"`
+}
+
+// computePeriodCounts calculates occurrence counts for 24h and 7d periods
+func computePeriodCounts(db *gorm.DB, apiKeyID uint, hashes []string) map[string]periodCounts {
+	if len(hashes) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	cutoff24h := now.Add(-24 * time.Hour).UTC().Format("2006-01-02 15:04:05")
+	cutoff7d := now.Add(-7 * 24 * time.Hour).UTC().Format("2006-01-02 15:04:05")
+
+	query := `
+		SELECT
+			COALESCE(NULLIF(error_hash_3, ''), NULLIF(error_hash_2, ''), NULLIF(error_hash_1, '')) as hash,
+			SUM(CASE WHEN datetime(timestamp) >= datetime(?) THEN 1 ELSE 0 END) as count_24h,
+			SUM(CASE WHEN datetime(timestamp) >= datetime(?) THEN 1 ELSE 0 END) as count_7d
+		FROM events
+		WHERE is_error = 1
+			AND COALESCE(NULLIF(error_hash_3, ''), NULLIF(error_hash_2, ''), NULLIF(error_hash_1, '')) IN (?)
+	`
+	args := []any{cutoff24h, cutoff7d, hashes}
+
+	if apiKeyID > 0 {
+		query += " AND api_key_id = ?"
+		args = append(args, apiKeyID)
+	}
+
+	query += " GROUP BY hash"
+
+	var rows []periodCounts
+	db.Raw(query, args...).Scan(&rows)
+
+	result := make(map[string]periodCounts)
+	for _, row := range rows {
+		result[row.Hash] = row
 	}
 	return result
 }
