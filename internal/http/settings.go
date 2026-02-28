@@ -8,7 +8,6 @@ import (
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/flash"
 
-	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
@@ -37,17 +36,11 @@ func SettingsPageAction(ctx *cartridge.Context) error {
 		}
 	}
 
-	// Get agent key if exists
-	var agentKeyPrefix string
-	if agentKey, err := apikeys.GetAgentKey(db); err == nil {
-		agentKeyPrefix = agentKey.KeyPrefix
-	}
-
 	return RenderPage(ctx.Ctx, "Settings", Props{
 		"settings":       s,
 		"hasPassword":    s.HasPassword(),
 		"userEmail":      userEmail,
-		"agentKeyPrefix": agentKeyPrefix,
+		"agentKeyPrefix": s.AgentKeyPrefix,
 	})
 }
 
@@ -185,15 +178,9 @@ func TestSMTPAction(ctx *cartridge.Context) error {
 func CreateAgentKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	// Check if agent key already exists
-	if _, err := apikeys.GetAgentKey(db); err == nil {
-		flash.SetFlash(ctx.Ctx, "error", "Agent key already exists. Use regenerate to create a new one.")
-		return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
-	}
-
-	_, fullKey, err := apikeys.CreateAgent(db)
+	fullKey, err := settings.CreateAgentKey(db)
 	if err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "Failed to create agent key")
+		flash.SetFlash(ctx.Ctx, "error", "Agent key already exists. Use regenerate to create a new one.")
 		return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
 	}
 
@@ -205,7 +192,7 @@ func CreateAgentKeyAction(ctx *cartridge.Context) error {
 func RegenerateAgentKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	_, fullKey, err := apikeys.RegenerateAgentKey(db)
+	fullKey, err := settings.RegenerateAgentKey(db)
 	if err != nil {
 		flash.SetFlash(ctx.Ctx, "error", "Failed to regenerate agent key")
 		return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
@@ -219,13 +206,7 @@ func RegenerateAgentKeyAction(ctx *cartridge.Context) error {
 func RevokeAgentKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	agentKey, err := apikeys.GetAgentKey(db)
-	if err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "No agent key to revoke")
-		return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
-	}
-
-	if err := apikeys.Revoke(db, agentKey.ID); err != nil {
+	if err := settings.RevokeAgentKey(db); err != nil {
 		flash.SetFlash(ctx.Ctx, "error", "Failed to revoke agent key")
 		return ctx.Ctx.Redirect("/settings", fiber.StatusFound)
 	}

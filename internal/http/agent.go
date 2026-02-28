@@ -7,8 +7,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
-	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
+	"lognorth/internal/settings"
 )
 
 // AgentEventsAction handles GET /api/v1/agent/events
@@ -94,19 +94,17 @@ func AgentIssuesAction(ctx *cartridge.Context) error {
 }
 
 // validateAgentAuth checks for valid agent API key in Authorization header
-// Only agent keys (lna_ prefix) are accepted, not app keys
 func validateAgentAuth(ctx *cartridge.Context) error {
 	authHeader := ctx.Ctx.Get("Authorization")
-	apiKey := strings.TrimPrefix(authHeader, "Bearer ")
+	key := strings.TrimPrefix(authHeader, "Bearer ")
 
-	if apiKey == "" {
+	if key == "" {
 		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "API key required",
 		})
 	}
 
-	_, err := apikeys.ValidateAgentKey(ctx.DB(), apiKey)
-	if err != nil {
+	if err := settings.ValidateAgentKey(ctx.DB(), key); err != nil {
 		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid agent key",
 		})

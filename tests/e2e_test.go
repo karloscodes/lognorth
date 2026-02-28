@@ -14,6 +14,7 @@ import (
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
+	"lognorth/internal/settings"
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
@@ -37,6 +38,9 @@ func setupTestDB(t *testing.T) *gorm.DB {
 
 	if err := apikeys.AutoMigrate(db); err != nil {
 		t.Fatalf("Failed to migrate apikeys: %v", err)
+	}
+	if err := settings.AutoMigrate(db); err != nil {
+		t.Fatalf("Failed to migrate settings: %v", err)
 	}
 	if err := events.AutoMigrate(db); err != nil {
 		t.Fatalf("Failed to migrate events: %v", err)
@@ -577,7 +581,7 @@ func TestAgentAPIAuth(t *testing.T) {
 	_, appKey, _ := apikeys.Create(db, "Test App")
 
 	// Create agent key (should work for agent API)
-	_, agentKey, _ := apikeys.CreateAgent(db)
+	agentKey, _ := settings.CreateAgentKey(db)
 
 	// Create test event
 	event := &events.Event{
@@ -599,7 +603,7 @@ func TestAgentAPIAuth(t *testing.T) {
 		apiKey := authHeader[7:]
 
 		// Must be an agent key, not an app key
-		_, err := apikeys.ValidateAgentKey(db, apiKey)
+		err := settings.ValidateAgentKey(db, apiKey)
 		if err != nil {
 			return c.Status(401).JSON(fiber.Map{"error": "Invalid agent key"})
 		}

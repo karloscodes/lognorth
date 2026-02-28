@@ -2,6 +2,8 @@
 package settings
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/smtp"
@@ -40,6 +42,10 @@ type Settings struct {
 
 	// Base URL for links in notifications (e.g., https://lognorth.example.com)
 	BaseURL string `gorm:"size:255" json:"base_url"`
+
+	// Agent API key (read-only access for AI coding assistants)
+	AgentKey       string `gorm:"size:100" json:"-"`           // Full key, never exposed
+	AgentKeyPrefix string `gorm:"size:20" json:"agent_key_prefix"` // For display (lgn-agent-xxxxxxxx)
 
 	// Legacy fields - kept for migration compatibility
 	NotifyNewErrors   bool   `json:"-"`
@@ -235,4 +241,97 @@ func (s *Settings) sendViaTelegram(title, message string) error {
 // SendEmail is a compatibility wrapper for SendNotification
 func (s *Settings) SendEmail(subject, body string) error {
 	return s.SendNotification(subject, body)
+}
+
+// GenerateAgentKey creates a new agent API key
+func GenerateAgentKey() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "lgn-agent-" + hex.EncodeToString(bytes), nil
+}
+
+// CreateAgentKey generates and saves a new agent key
+func CreateAgentKey(db *gorm.DB) (string, error) {
+	s, err := Get(db)
+	if err != nil {
+		return "", err
+	}
+
+	if s.AgentKey != "" {
+		return "", fmt.Errorf("agent key already exists")
+	}
+
+	key, err := GenerateAgentKey()
+	if err != nil {
+		return "", err
+	}
+
+	s.AgentKey = key
+	s.AgentKeyPrefix = key[:18] // "lgn-agent-" + 8 hex chars
+
+	if err := Update(db, s); err != nil {
+		return "", err
+	}
+
+	return key, nil
+}
+
+// RegenerateAgentKey creates a new agent key, replacing any existing one
+func RegenerateAgentKey(db *gorm.DB) (string, error) {
+	s, err := Get(db)
+	if err != nil {
+		return "", err
+	}
+
+	key, err := GenerateAgentKey()
+	if err != nil {
+		return "", err
+	}
+
+	s.AgentKey = key
+	s.AgentKeyPrefix = key[:18]
+
+	if err := Update(db, s); err != nil {
+		return "", err
+	}
+
+	return key, nil
+}
+
+// RevokeAgentKey removes the agent key
+func RevokeAgentKey(db *gorm.DB) error {
+	s, err := Get(db)
+	if err != nil {
+		return err
+	}
+
+	s.AgentKey = ""
+	s.AgentKeyPrefix = ""
+
+	return Update(db, s)
+}
+
+// ValidateAgentKey checks if a key matches the stored agent key
+func ValidateAgentKey(db *gorm.DB, key string) error {
+	s, err := Get(db)
+	if err != nil {
+		return err
+	}
+
+	if s.AgentKey == "" {
+		return fmt.Errorf("no agent key configured")
+	}
+
+	if s.AgentKey != key {
+		return fmt.Errorf("invalid agent key")
+	}
+
+	return nil
+}
+
+// HasAgentKey returns true if an agent key is configured
+func (s *Settings) HasAgentKey() bool {
+	return s.AgentKey != ""
 }
