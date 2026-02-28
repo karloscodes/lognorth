@@ -70,6 +70,9 @@ type UpdateSettingsInput struct {
 
 	// General
 	BaseURL string `json:"base_url"`
+
+	// Data retention
+	RetentionDays int `json:"retention_days"`
 }
 
 // UpdateSettingsAction handles POST /settings
@@ -112,6 +115,17 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 	// Only update password if provided
 	if input.SMTPPassword != "" {
 		s.SMTPPassword = input.SMTPPassword
+	}
+
+	// Update retention days (minimum 7 days, max 365 days)
+	if input.RetentionDays > 0 {
+		if input.RetentionDays < 7 {
+			input.RetentionDays = 7
+		}
+		if input.RetentionDays > 365 {
+			input.RetentionDays = 365
+		}
+		s.RetentionDays = input.RetentionDays
 	}
 
 	if err := settings.Update(db, s); err != nil {

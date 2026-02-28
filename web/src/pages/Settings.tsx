@@ -16,6 +16,7 @@ interface SettingsData {
   quiet_start: number
   quiet_end: number
   base_url: string
+  retention_days: number
 }
 
 interface Props {
@@ -108,6 +109,7 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
     quiet_start: settings?.quiet_start ?? 23,
     quiet_end: settings?.quiet_end ?? 7,
     base_url: settings?.base_url || '',
+    retention_days: settings?.retention_days || 90,
   })
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -417,12 +419,12 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
 
         </div>
 
-        {/* Quiet Hours - separate section */}
+        {/* Quiet Hours */}
         {form.notify_channel && (
-          <div className="mt-12">
+          <div className="mt-10 pt-6 border-t border-black/10">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-bold text-black">Quiet hours</h2>
+                <h3 className="text-lg font-bold text-black">Quiet hours</h3>
                 <p className="text-black/50 text-sm">Sleep in peace. No alerts during these hours.</p>
               </div>
               <Switch
@@ -447,9 +449,60 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
           </div>
         )}
 
+        {/* Test notification */}
+        {form.notify_channel && (
+          <div className="mt-6">
+            <button
+              onClick={handleTest}
+              disabled={testing || !canTest}
+              className="px-4 py-2 border border-black/20 text-sm font-semibold text-black/70 hover:border-black/40 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {testing ? 'Testing...' : 'Test notification'}
+            </button>
+          </div>
+        )}
+
+        {/* Data Retention Section */}
+        <div className="mt-16 pt-12 border-t border-black/10">
+          <h2 className="text-2xl font-bold text-black mb-2">Data retention</h2>
+          <p className="text-black/50 text-sm mb-6">
+            How long to keep your logs. Older events are automatically deleted.
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: 7, label: '7d' },
+              { value: 30, label: '30d' },
+              { value: 90, label: '90d', default: true },
+              { value: 180, label: '6mo' },
+              { value: 365, label: '1yr' },
+            ].map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleChange('retention_days', opt.value)}
+                className={`px-4 py-2 text-sm font-semibold transition-all ${
+                  form.retention_days === opt.value
+                    ? 'bg-black text-white'
+                    : 'border border-black/20 text-black/60 hover:border-black/40 hover:text-black'
+                }`}
+              >
+                {opt.label}
+                {opt.default && form.retention_days !== opt.value && (
+                  <span className="ml-1 text-black/40">•</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <p className="text-sm text-black/50 mt-3">
+            Shorter retention = smaller database. 90 days is plenty for most.
+          </p>
+        </div>
+
+        {/* Save Button and Message */}
         {message && (
           <div
-            className={`mt-6 p-3 text-sm font-medium ${
+            className={`mt-8 p-3 text-sm font-medium ${
               message.type === 'success'
                 ? 'bg-accent/10 text-black border border-accent/20'
                 : 'bg-rose-50 text-[#e11d48] border border-[#e11d48]'
@@ -459,23 +512,14 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
           </div>
         )}
 
-        <div className="flex gap-3 mt-6">
+        <div className="mt-6">
           <button
             onClick={handleSave}
             disabled={saving}
             className="px-4 py-2 bg-black text-white text-sm font-semibold hover:bg-black/80 disabled:opacity-40 transition-colors"
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? 'Saving...' : 'Save settings'}
           </button>
-          {form.notify_channel && (
-            <button
-              onClick={handleTest}
-              disabled={testing || !canTest}
-              className="px-4 py-2 border border-black/20 text-sm font-semibold text-black/70 hover:border-black/40 hover:text-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {testing ? 'Testing...' : 'Test notification'}
-            </button>
-          )}
         </div>
 
         {/* Agent API Section */}

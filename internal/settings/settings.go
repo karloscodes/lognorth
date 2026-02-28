@@ -47,6 +47,9 @@ type Settings struct {
 	AgentKey       string `gorm:"size:100" json:"-"`           // Full key, never exposed
 	AgentKeyPrefix string `gorm:"size:20" json:"agent_key_prefix"` // For display (lgn-agent-xxxxxxxx)
 
+	// Data retention - how many days to keep events (default 90 = 3 months)
+	RetentionDays int `gorm:"default:90" json:"retention_days"`
+
 	// Legacy fields - kept for migration compatibility
 	NotifyNewErrors   bool   `json:"-"`
 	NotifyRegressions bool   `json:"-"`
@@ -72,7 +75,8 @@ func Get(db *gorm.DB) (*Settings, error) {
 	result := db.First(&settings)
 	if result.Error == gorm.ErrRecordNotFound {
 		settings = Settings{
-			SMTPPort: 587,
+			SMTPPort:      587,
+			RetentionDays: 90, // 3 months default
 		}
 		if err := db.Create(&settings).Error; err != nil {
 			return nil, err
@@ -334,4 +338,13 @@ func ValidateAgentKey(db *gorm.DB, key string) error {
 // HasAgentKey returns true if an agent key is configured
 func (s *Settings) HasAgentKey() bool {
 	return s.AgentKey != ""
+}
+
+// GetRetentionDuration returns the data retention period as time.Duration
+func (s *Settings) GetRetentionDuration() time.Duration {
+	days := s.RetentionDays
+	if days <= 0 {
+		days = 90 // default to 3 months
+	}
+	return time.Duration(days) * 24 * time.Hour
 }

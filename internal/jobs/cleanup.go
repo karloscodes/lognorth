@@ -6,6 +6,7 @@ import (
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/events"
+	"lognorth/internal/settings"
 )
 
 // CleanupProcessor handles cleanup of old processed events
@@ -29,14 +30,21 @@ func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		ctx.Logger.Info("Cleaned up processed ingested events", "deleted", deleted)
 	}
 
-	// Delete events older than 90 days
-	deletedEvents, err := events.DeleteOlderThan(ctx.DB, 90*24*time.Hour)
+	// Delete events older than configured retention period
+	s, err := settings.Get(ctx.DB)
+	if err != nil {
+		ctx.Logger.Error("Failed to load settings for retention", "error", err)
+		return err
+	}
+	retention := s.GetRetentionDuration()
+
+	deletedEvents, err := events.DeleteOlderThan(ctx.DB, retention)
 	if err != nil {
 		ctx.Logger.Error("Failed to cleanup old events", "error", err)
 		return err
 	}
 	if deletedEvents > 0 {
-		ctx.Logger.Info("Cleaned up old events", "deleted", deletedEvents)
+		ctx.Logger.Info("Cleaned up old events", "deleted", deletedEvents, "retention_days", s.RetentionDays)
 	}
 
 	// Delete endpoint stats older than 8 days (7 for baseline + 1 buffer)
