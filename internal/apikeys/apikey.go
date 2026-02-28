@@ -51,7 +51,7 @@ func Generate(prefix string) (string, error) {
 
 // Create generates and saves a new app API key (for event ingestion)
 func Create(db *gorm.DB, name string) (*APIKey, string, error) {
-	key, err := Generate("lb_")
+	key, err := Generate("lgn-")
 	if err != nil {
 		return nil, "", err
 	}
@@ -59,7 +59,7 @@ func Create(db *gorm.DB, name string) (*APIKey, string, error) {
 	apiKey := &APIKey{
 		Name:      name,
 		Key:       key,
-		KeyPrefix: key[:11], // "lb_" + first 8 hex chars
+		KeyPrefix: key[:12], // "lgn-" + first 8 hex chars
 		KeyType:   KeyTypeApp,
 		Active:    true,
 	}
@@ -73,7 +73,7 @@ func Create(db *gorm.DB, name string) (*APIKey, string, error) {
 
 // CreateAgent generates and saves a new agent API key (read-only access)
 func CreateAgent(db *gorm.DB) (*APIKey, string, error) {
-	key, err := Generate("lna_")
+	key, err := Generate("lgn-agent-")
 	if err != nil {
 		return nil, "", err
 	}
@@ -81,7 +81,7 @@ func CreateAgent(db *gorm.DB) (*APIKey, string, error) {
 	apiKey := &APIKey{
 		Name:      "Agent API",
 		Key:       key,
-		KeyPrefix: key[:12], // "lna_" + first 8 hex chars
+		KeyPrefix: key[:18], // "lgn-agent-" + first 8 hex chars
 		KeyType:   KeyTypeAgent,
 		Active:    true,
 	}
@@ -149,10 +149,10 @@ func ValidateAgentKey(db *gorm.DB, key string) (*APIKey, error) {
 	return &apiKey, nil
 }
 
-// List retrieves all API keys
+// List retrieves all app API keys (excludes agent keys)
 func List(db *gorm.DB) ([]APIKey, error) {
 	var keys []APIKey
-	if err := db.Order("created_at DESC").Find(&keys).Error; err != nil {
+	if err := db.Where("key_type = ? OR key_type IS NULL OR key_type = ''", KeyTypeApp).Order("created_at DESC").Find(&keys).Error; err != nil {
 		return nil, err
 	}
 	return keys, nil

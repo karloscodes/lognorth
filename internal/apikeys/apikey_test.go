@@ -34,30 +34,30 @@ func setupTestDB(t *testing.T) *gorm.DB {
 
 func TestGenerate(t *testing.T) {
 	t.Run("app key prefix", func(t *testing.T) {
-		key, err := Generate("lb_")
+		key, err := Generate("lgn-")
 
 		if err != nil {
 			t.Fatalf("Generate failed: %v", err)
 		}
-		if !strings.HasPrefix(key, "lb_") {
-			t.Errorf("expected key to start with 'lb_', got %s", key[:10])
+		if !strings.HasPrefix(key, "lgn-") {
+			t.Errorf("expected key to start with 'lgn-', got %s", key[:10])
 		}
-		if len(key) != 67 { // "lb_" + 64 hex chars
-			t.Errorf("expected key length 67, got %d", len(key))
+		if len(key) != 68 { // "lgn-" + 64 hex chars
+			t.Errorf("expected key length 68, got %d", len(key))
 		}
 	})
 
 	t.Run("agent key prefix", func(t *testing.T) {
-		key, err := Generate("lna_")
+		key, err := Generate("lgn-agent-")
 
 		if err != nil {
 			t.Fatalf("Generate failed: %v", err)
 		}
-		if !strings.HasPrefix(key, "lna_") {
-			t.Errorf("expected key to start with 'lna_', got %s", key[:10])
+		if !strings.HasPrefix(key, "lgn-agent-") {
+			t.Errorf("expected key to start with 'lgn-agent-', got %s", key[:15])
 		}
-		if len(key) != 68 { // "lna_" + 64 hex chars
-			t.Errorf("expected key length 68, got %d", len(key))
+		if len(key) != 74 { // "lgn-agent-" + 64 hex chars
+			t.Errorf("expected key length 74, got %d", len(key))
 		}
 	})
 }
@@ -91,8 +91,8 @@ func TestCreate(t *testing.T) {
 	if !apiKey.Active {
 		t.Error("expected key to be active")
 	}
-	if apiKey.KeyPrefix != fullKey[:11] {
-		t.Error("prefix should match first 11 chars of key")
+	if apiKey.KeyPrefix != fullKey[:12] {
+		t.Error("prefix should match first 12 chars of key")
 	}
 }
 
@@ -221,8 +221,8 @@ func TestCreateAgent(t *testing.T) {
 	if apiKey.KeyType != KeyTypeAgent {
 		t.Errorf("expected key type 'agent', got %s", apiKey.KeyType)
 	}
-	if !strings.HasPrefix(fullKey, "lna_") {
-		t.Errorf("expected key to start with 'lna_', got %s", fullKey[:10])
+	if !strings.HasPrefix(fullKey, "lgn-agent-") {
+		t.Errorf("expected key to start with 'lgn-agent-', got %s", fullKey[:15])
 	}
 	if apiKey.Name != "Agent API" {
 		t.Errorf("expected name 'Agent API', got %s", apiKey.Name)

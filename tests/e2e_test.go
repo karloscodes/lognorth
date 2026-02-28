@@ -65,8 +65,8 @@ func TestAPIKeyCreation(t *testing.T) {
 	if fullKey == "" {
 		t.Error("Expected full key to be returned")
 	}
-	if fullKey[:3] != "lb_" {
-		t.Errorf("Expected key prefix 'lb_', got '%s'", fullKey[:3])
+	if fullKey[:4] != "lgn-" {
+		t.Errorf("Expected key prefix 'lgn-', got '%s'", fullKey[:4])
 	}
 }
 

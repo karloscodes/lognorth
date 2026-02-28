@@ -507,7 +507,7 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
             </p>
             <code className="block text-sm font-mono text-black/80 whitespace-pre-wrap">
 {`export LOGNORTH_URL="${typeof window !== 'undefined' ? window.location.origin : 'https://your-instance.com'}"
-export LOGNORTH_API_KEY="lna_..."`}
+export LOGNORTH_API_KEY="lgn-agent-..."`}
             </code>
             <p className="text-sm text-black/50 mt-3">
               <a href="https://lognorth.com/docs/integrations/ai-agents/" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
