@@ -22,9 +22,22 @@ interface Props {
   settings?: SettingsData
   hasPassword?: boolean
   userEmail?: string
+  agentKeyPrefix?: string
+  flash?: {
+    newAgentKey?: string
+    success?: string
+    error?: string
+  }
 }
 
-export default function Settings({ settings, hasPassword = false, userEmail = '' }: Props) {
+export default function Settings({ settings, hasPassword = false, userEmail = '', agentKeyPrefix = '', flash }: Props) {
+  const [copiedKey, setCopiedKey] = useState(false)
+
+  const copyKey = (key: string) => {
+    navigator.clipboard.writeText(key)
+    setCopiedKey(true)
+    setTimeout(() => setCopiedKey(false), 2000)
+  }
   const [form, setForm] = useState({
     notify_channel: settings?.notify_channel || '',
     ntfy_url: settings?.ntfy_url || '',
@@ -408,6 +421,100 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
               {testing ? 'Testing...' : 'Test notification'}
             </button>
           )}
+        </div>
+
+        {/* Agent API Section */}
+        <div className="mt-16 pt-12 border-t border-black/10">
+          <h2 className="text-2xl font-bold text-black mb-2">Agent API</h2>
+          <p className="text-black/50 text-sm mb-6">
+            Let AI coding assistants query your logs. Read-only access to all apps.
+          </p>
+
+          {flash?.newAgentKey && (
+            <div className="mb-6 p-4 bg-accent/10 border border-accent/30">
+              <p className="text-sm font-semibold text-black mb-2">Your new agent key:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-2 bg-white border border-black/10 font-mono text-sm break-all">
+                  {flash.newAgentKey}
+                </code>
+                <button
+                  onClick={() => copyKey(flash.newAgentKey!)}
+                  className="px-3 py-2 bg-black text-white text-sm font-semibold hover:bg-black/80"
+                >
+                  {copiedKey ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-sm text-black/50 mt-2">
+                Save this key now. You won't be able to see it again.
+              </p>
+            </div>
+          )}
+
+          {flash?.error && (
+            <div className="mb-6 p-3 bg-rose-50 text-[#e11d48] text-sm font-medium border border-[#e11d48]">
+              {flash.error}
+            </div>
+          )}
+
+          {flash?.success && (
+            <div className="mb-6 p-3 bg-accent/10 text-black text-sm font-medium border border-accent/20">
+              {flash.success}
+            </div>
+          )}
+
+          {agentKeyPrefix ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-black">Active key</p>
+                  <code className="text-sm font-mono text-black/60">{agentKeyPrefix}...</code>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <form action="/settings/agent-key/regenerate" method="POST">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border border-black/20 text-sm font-semibold text-black/70 hover:border-black/40 hover:text-black transition-colors"
+                  >
+                    Regenerate
+                  </button>
+                </form>
+                <form action="/settings/agent-key/revoke" method="POST">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border border-red-500/30 text-sm font-semibold text-red-600 hover:border-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    Revoke
+                  </button>
+                </form>
+              </div>
+            </div>
+          ) : (
+            <form action="/settings/agent-key" method="POST">
+              <button
+                type="submit"
+                className="px-4 py-2 bg-black text-white text-sm font-semibold hover:bg-black/80 transition-colors"
+              >
+                Create agent key
+              </button>
+            </form>
+          )}
+
+          <div className="mt-6 p-4 bg-black/[0.02] border border-black/10">
+            <p className="text-sm font-semibold text-black mb-2">Setup</p>
+            <p className="text-sm text-black/60 mb-3">
+              Add to your shell profile:
+            </p>
+            <code className="block text-sm font-mono text-black/80 whitespace-pre-wrap">
+{`export LOGNORTH_URL="${typeof window !== 'undefined' ? window.location.origin : 'https://your-instance.com'}"
+export LOGNORTH_API_KEY="lna_..."`}
+            </code>
+            <p className="text-sm text-black/50 mt-3">
+              <a href="https://lognorth.com/docs/integrations/ai-agents/" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
+                Documentation →
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </Layout>
