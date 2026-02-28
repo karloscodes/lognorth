@@ -11,11 +11,44 @@ permissions:
 
 jobs:
   test:
-    name: Run Tests
+    name: Run Tests (with SDKs)
     runs-on: [self-hosted, Linux, X64, n100]
+    defaults:
+      run:
+        working-directory: lognorth
     steps:
-      - name: Checkout code
+      - name: Setup toolcache directory
+        run: sudo mkdir -p /opt/hostedtoolcache && sudo chown -R $USER:$USER /opt/hostedtoolcache
+        working-directory: /
+
+      - name: Checkout LogNorth
         uses: actions/checkout@v4
+        with:
+          path: lognorth
+
+      - name: Checkout TypeScript SDK
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: karloscodes/lognorth-sdk-ts
+          path: lognorth-sdk-ts
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Checkout Go SDK
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: karloscodes/lognorth-sdk-go
+          path: lognorth-sdk-go
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Checkout Rails SDK
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: karloscodes/lognorth-sdk-rails
+          path: lognorth-sdk-rails
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -23,11 +56,18 @@ jobs:
           go-version: "1.25"
           cache: true
 
-      - name: Install dependencies
-        run: go mod download
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-      - name: Run tests
-        run: go test -v ./...
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Run all tests
+        run: make test-all
 
   e2e-tests:
     name: E2E Tests
