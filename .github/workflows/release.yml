@@ -241,8 +241,8 @@ jobs:
           tags: |
             karloscodes/lognorth:${{ steps.version.outputs.VERSION }}
             karloscodes/lognorth:latest
-            ghcr.io/karloscodes/lognorth:${{ steps.version.outputs.VERSION }}
-            ghcr.io/karloscodes/lognorth:latest
+            ghcr.io/karloscodes/lognorth-releases:${{ steps.version.outputs.VERSION }}
+            ghcr.io/karloscodes/lognorth-releases:latest
 
       - name: Publish to public releases repo
         env:

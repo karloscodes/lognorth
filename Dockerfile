@@ -33,6 +33,10 @@ RUN mkdir -p dist && \
 
 # Final stage - minimal runtime image
 FROM alpine:3.19
+
+# Link GHCR package to public releases repo
+LABEL org.opencontainers.image.source="https://github.com/karloscodes/lognorth-releases"
+
 WORKDIR /app
 
 # Install runtime dependencies, create app user, and create directories in one layer
