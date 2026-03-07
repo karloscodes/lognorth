@@ -167,6 +167,11 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
 
   return (
     <div className="min-h-screen bg-white">
+      {isDemo && (
+        <div className="bg-red-600 text-white text-center text-xs font-bold py-1.5 tracking-wide uppercase sticky top-0 z-[60]">
+          This is a demo. Everything is read-only.
+        </div>
+      )}
       {/* Navigation */}
       <nav className="border-b border-black/10 sticky top-0 bg-white z-50">
         <div className="max-w-6xl mx-auto px-8">
@@ -265,8 +270,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
         {children}
       </main>
 
-      {/* Feedback Widget */}
-      <FeedbackWidget isDemo={isDemo} />
+      {!isDemo && <FeedbackWidget isDemo={isDemo} />}
     </div>
   )
 }
