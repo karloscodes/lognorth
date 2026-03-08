@@ -70,6 +70,8 @@ func NewApp() (*Application, error) {
 	serverConfig := cartridge.DefaultServerConfig()
 	// Sec-Fetch-Site is enabled per-route for web routes, disabled for API
 	serverConfig.EnableSecFetchSite = false
+	// Serve root-level public files (favicon.svg, robots.txt) via cartridge
+	serverConfig.PublicDirectory = "web/public"
 
 	// Create the cartridge application with background workers
 	app, err := cartridge.NewApplication(cartridge.ApplicationOptions{
@@ -130,9 +132,6 @@ func MountRoutes(server *cartridge.Server) {
 	app.Get("/_health", func(c *fiber.Ctx) error {
 		return c.SendString("ok")
 	})
-
-	// Serve static files
-	app.Static("/assets", "./web/dist/assets")
 
 	// Demo mode: global rate limit + block write operations
 	if cfg.IsDemo() {

@@ -3,8 +3,8 @@ module lognorth
 go 1.25.5
 
 require (
-	github.com/gofiber/fiber/v2 v2.52.11
-	github.com/karloscodes/cartridge v0.0.0-20260215191752-240a3c5e87be
+	github.com/gofiber/fiber/v2 v2.52.12
+	github.com/karloscodes/cartridge v0.13.2
 	github.com/karloscodes/matcha v0.12.10
 	github.com/valyala/fasthttp v1.68.0
 	gorm.io/gorm v1.31.0
@@ -39,10 +39,10 @@ require (
 	github.com/tinylib/msgp v1.5.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.43.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/sqlite v1.6.0 // indirect

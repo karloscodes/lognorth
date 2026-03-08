@@ -1,7 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#0f0f0f"/>
-  <!-- F in white -->
-  <text x="8" y="48" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="700" fill="#ffffff">F</text>
-  <!-- _ in green -->
-  <rect x="38" y="44" width="18" height="5" rx="1" fill="#22c55e"/>
+  <rect width="64" height="64" rx="12" fill="#1c1917"/>
+  <text x="6" y="46" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="700" fill="#ffffff">L</text>
+  <text x="32" y="46" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="700" fill="#a3e635">N</text>
 </svg>
