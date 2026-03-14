@@ -14,22 +14,22 @@ RUN go mod download
 COPY web/package*.json web/package-lock.json ./web/
 RUN cd web && npm ci --legacy-peer-deps --production=false
 
-# Copy only necessary source files (excluding web/node_modules)
-COPY Makefile ./
-COPY cmd ./cmd
-COPY internal ./internal
-
-# Copy web source
+# Copy web source and build frontend first (needed for go:embed)
 COPY web/src ./web/src
 COPY web/public ./web/public
 COPY web/index.html web/vite.config.ts web/tsconfig*.json web/postcss.config.js web/tailwind.config.ts ./web/
+RUN cd web && npm run build
 
-# Build binaries and web assets
+# Copy Go source files (including embed.go at root)
+COPY embed.go ./
+COPY cmd ./cmd
+COPY internal ./internal
+
+# Build Go binaries (frontend assets are embedded via go:embed)
 RUN mkdir -p dist && \
-  CGO_ENABLED=1 go build -o dist/lognorth-server cmd/lognorth/main.go && \
-  CGO_ENABLED=1 go build -o dist/lnctl cmd/lnctl/main.go && \
-  CGO_ENABLED=1 go build -o dist/seed-demo cmd/seed-demo/main.go && \
-  cd web && npm run build
+  CGO_ENABLED=1 go build -o dist/lognorth-server ./cmd/lognorth/ && \
+  CGO_ENABLED=1 go build -o dist/lnctl ./cmd/lnctl/ && \
+  CGO_ENABLED=1 go build -o dist/seed-demo ./cmd/seed-demo/
 
 # Final stage - minimal runtime image
 FROM alpine:3.19
@@ -43,13 +43,12 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates tzdata sqlite curl su-exec && \
   addgroup -S lognorth && \
   adduser -S -G lognorth -u 10001 -h /app lognorth && \
-  mkdir -p /app/logs /app/storage /app/web/dist
+  mkdir -p /app/logs /app/storage
 
-# Copy compiled binaries and built assets from builder
+# Copy compiled binaries from builder (assets are embedded in the binary)
 COPY --from=builder /app/dist/lognorth-server /app/lognorth-server
 COPY --from=builder /app/dist/lnctl /app/lnctl
 COPY --from=builder /app/dist/seed-demo /app/seed-demo
-COPY --from=builder /app/web/dist /app/web/dist
 
 # Copy entrypoint script
 COPY scripts/entrypoint.sh /app/entrypoint.sh

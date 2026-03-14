@@ -3,6 +3,7 @@ package internal
 
 import (
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"time"
@@ -11,8 +12,10 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
+	"github.com/karloscodes/cartridge/inertia"
 	cartridgemiddleware "github.com/karloscodes/cartridge/middleware"
 
+	lognorth "lognorth"
 	"lognorth/internal/config"
 	"lognorth/internal/database"
 	lbhttp "lognorth/internal/http"
@@ -70,8 +73,18 @@ func NewApp() (*Application, error) {
 	serverConfig := cartridge.DefaultServerConfig()
 	// Sec-Fetch-Site is enabled per-route for web routes, disabled for API
 	serverConfig.EnableSecFetchSite = false
-	// Serve root-level public files (favicon.svg, robots.txt) via cartridge
-	serverConfig.PublicDirectory = "web/public"
+
+	if cfg.IsDevelopment() {
+		// Development: serve from disk for hot-reload
+		serverConfig.PublicDirectory = "web/public"
+	} else {
+		// Production: serve from embedded filesystem
+		staticFS, _ := fs.Sub(lognorth.StaticFS, "web/dist/assets")
+		publicFS, _ := fs.Sub(lognorth.PublicFS, "web/public")
+		serverConfig.StaticFS = staticFS
+		serverConfig.PublicFS = publicFS
+		inertia.SetManifestData(lognorth.ManifestData)
+	}
 
 	// Create the cartridge application with background workers
 	app, err := cartridge.NewApplication(cartridge.ApplicationOptions{
