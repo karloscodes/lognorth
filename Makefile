@@ -20,7 +20,7 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 build:
 	cd web && npm run build
 	go build -ldflags "-X main.Version=$(VERSION)" -o tmp/lognorth-server cmd/lognorth/main.go
-	go build -ldflags "-X main.Version=$(VERSION)" -o tmp/lbctl cmd/lbctl/main.go
+	go build -ldflags "-X main.Version=$(VERSION)" -o tmp/lnctl cmd/lnctl/main.go
 	@echo "Built lognorth-server + lbctl $(VERSION)"
 
 # Build manager binary for current platform

@@ -66,6 +66,10 @@ jobs:
         with:
           ruby-version: "3.3"
 
+      - name: Build web assets
+        working-directory: lognorth/web
+        run: npm ci && npm run build
+
       - name: Run all tests
         run: make test-all
 
