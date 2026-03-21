@@ -172,6 +172,7 @@ func MountRoutes(server *cartridge.Server) {
 	}
 	server.Post("/api/v1/events", lbhttp.IngestAction, apiConfig)
 	server.Post("/api/v1/events/batch", lbhttp.IngestAction, apiConfig)
+	server.Post("/api/v1/otel/logs", lbhttp.OtelIngestAction, apiConfig)
 
 	// SSE endpoint (no middleware needed)
 	apiReadConfig := &cartridge.RouteConfig{
