@@ -98,18 +98,78 @@ function LogoutButton() {
   )
 }
 
-function FeedbackWidget({ isDemo }: { isDemo: boolean }) {
+interface NotificationItem {
+  id: string
+  title: string
+  body: string
+  expires: string
+}
+
+function getDismissedIds(): string[] {
+  return JSON.parse(localStorage.getItem('dismissed_notifications') || '[]')
+}
+
+function getNotificationsByState(notifications: NotificationItem[]): { unread: NotificationItem[]; read: NotificationItem[] } {
+  const now = new Date().toISOString().slice(0, 10)
+  const dismissed = getDismissedIds()
+  const valid = notifications.filter(n => n.expires >= now)
+  return {
+    unread: valid.filter(n => !dismissed.includes(n.id)),
+    read: valid.filter(n => dismissed.includes(n.id)),
+  }
+}
+
+function dismissNotification(id: string) {
+  const dismissed: string[] = JSON.parse(localStorage.getItem('dismissed_notifications') || '[]')
+  if (!dismissed.includes(id)) {
+    localStorage.setItem('dismissed_notifications', JSON.stringify([...dismissed, id]))
+  }
+}
+
+function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notifications: NotificationItem[] }) {
   const [open, setOpen] = useState(false)
+  const [state, setState] = useState(() => getNotificationsByState(notifications))
+  const [expandedRead, setExpandedRead] = useState<string | null>(null)
+  const hasNotifications = state.unread.length > 0
+
+  const handleDismiss = (id: string) => {
+    dismissNotification(id)
+    setState(prev => {
+      const dismissed = prev.unread.find(n => n.id === id)
+      return {
+        unread: prev.unread.filter(n => n.id !== id),
+        read: dismissed ? [dismissed, ...prev.read] : prev.read,
+      }
+    })
+  }
 
   return (
     <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-3">
-      <div
-        className="group"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-      >
+      <div className="group">
         {open && (
-          <div className="bg-white border border-black/10 shadow-lg rounded-xl p-4 w-60 text-sm mb-3">
+          <div className="bg-white border border-black/10 shadow-lg rounded-xl p-4 w-80 text-sm mb-3 max-h-96 overflow-y-auto">
+            {state.unread.map((n, i) => (
+              <div key={n.id} className={i > 0 ? 'mt-3 pt-3 border-t border-black/10' : ''}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-semibold text-sm text-black mb-1">{n.title}</p>
+                  <button onClick={() => handleDismiss(n.id)} className="text-black/30 hover:text-black text-xs shrink-0">✕</button>
+                </div>
+                <p className="text-black/70 text-xs leading-relaxed whitespace-pre-wrap break-all">{n.body}</p>
+              </div>
+            ))}
+            {state.read.map((n, i) => (
+              <div
+                key={n.id}
+                className={`${state.unread.length > 0 || i > 0 ? 'mt-3 pt-3 border-t border-black/10' : ''} cursor-pointer`}
+                onClick={() => setExpandedRead(expandedRead === n.id ? null : n.id)}
+              >
+                <p className="text-sm text-black/40 hover:text-black/60 transition-colors">{n.title}</p>
+                {expandedRead === n.id && (
+                  <p className="text-black/40 text-xs leading-relaxed whitespace-pre-wrap break-all mt-1">{n.body}</p>
+                )}
+              </div>
+            ))}
+            {(state.unread.length > 0 || state.read.length > 0) && <div className="mt-3 pt-3 border-t border-black/10" />}
             <p className="text-black/70 text-sm leading-relaxed mb-3">
               Something broken or an idea?
             </p>
@@ -134,15 +194,21 @@ function FeedbackWidget({ isDemo }: { isDemo: boolean }) {
           </div>
         )}
         <div className="flex justify-end">
-          <div
-            className="rounded-full overflow-hidden w-14 h-14 ring-2 ring-white shadow-lg hover:scale-105 transition-transform cursor-pointer"
-          >
-            <img
-              src={avatarUrl}
-              alt="Carlos"
-              className="w-full h-full object-cover"
-              style={{ objectPosition: 'center 1%' }}
-            />
+          <div className="relative">
+            <div
+              onClick={() => setOpen(!open)}
+              className="rounded-full overflow-hidden w-14 h-14 ring-2 ring-white shadow-lg hover:scale-105 transition-transform cursor-pointer"
+            >
+              <img
+                src={avatarUrl}
+                alt="Carlos"
+                className="w-full h-full object-cover"
+                style={{ objectPosition: 'center 1%' }}
+              />
+            </div>
+            {hasNotifications && (
+              <span className="absolute top-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse" />
+            )}
           </div>
         </div>
       </div>
@@ -151,8 +217,9 @@ function FeedbackWidget({ isDemo }: { isDemo: boolean }) {
 }
 
 export function Layout({ children, currentPath, appId, appName, applications }: LayoutProps) {
-  const { props } = usePage<{ isDemo?: boolean }>()
+  const { props } = usePage<{ isDemo?: boolean; notifications?: NotificationItem[] }>()
   const isDemo = props.isDemo ?? false
+  const notifications = props.notifications ?? []
   const isAppScoped = appId && appName && applications
 
   const isActive = (path: string) => {
@@ -270,7 +337,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
         {children}
       </main>
 
-      {!isDemo && <FeedbackWidget isDemo={isDemo} />}
+      {!isDemo && <FeedbackWidget isDemo={isDemo} notifications={notifications} />}
     </div>
   )
 }
