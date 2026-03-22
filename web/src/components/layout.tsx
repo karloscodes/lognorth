@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useRef, useEffect } from 'react'
 import avatarUrl from '@/assets/avatar.jpg'
 import { Link, router, usePage } from '@inertiajs/react'
 import { Check, ChevronDown, ArrowLeft } from 'lucide-react'
@@ -106,7 +106,7 @@ interface NotificationItem {
 }
 
 function getDismissedIds(): string[] {
-  return JSON.parse(localStorage.getItem('dismissed_notifications') || '[]')
+  return JSON.parse(localStorage.getItem('lognorth_dismissed_notifications') || '[]')
 }
 
 function getNotificationsByState(notifications: NotificationItem[]): { unread: NotificationItem[]; read: NotificationItem[] } {
@@ -120,9 +120,9 @@ function getNotificationsByState(notifications: NotificationItem[]): { unread: N
 }
 
 function dismissNotification(id: string) {
-  const dismissed: string[] = JSON.parse(localStorage.getItem('dismissed_notifications') || '[]')
+  const dismissed: string[] = JSON.parse(localStorage.getItem('lognorth_dismissed_notifications') || '[]')
   if (!dismissed.includes(id)) {
-    localStorage.setItem('dismissed_notifications', JSON.stringify([...dismissed, id]))
+    localStorage.setItem('lognorth_dismissed_notifications', JSON.stringify([...dismissed, id]))
   }
 }
 
@@ -131,6 +131,16 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
   const [state, setState] = useState(() => getNotificationsByState(notifications))
   const [expandedRead, setExpandedRead] = useState<string | null>(null)
   const hasNotifications = state.unread.length > 0
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
 
   const handleDismiss = (id: string) => {
     dismissNotification(id)
@@ -144,7 +154,7 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
   }
 
   return (
-    <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-3">
+    <div ref={ref} className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-3">
       <div className="group">
         {open && (
           <div className="bg-white border border-black/10 shadow-lg rounded-xl p-4 w-80 text-sm mb-3 max-h-96 overflow-y-auto">
