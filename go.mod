@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	github.com/gofiber/fiber/v2 v2.52.12
 	github.com/karloscodes/cartridge v0.13.2
-	github.com/karloscodes/matcha v0.12.10
+	github.com/karloscodes/matcha v0.12.14
 	github.com/valyala/fasthttp v1.68.0
 	gorm.io/gorm v1.31.0
 )
