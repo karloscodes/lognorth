@@ -17,6 +17,7 @@ func main() {
 		HealthPath:     "/_health",
 		CronUpdates:    true,
 		Backups:        true,
+		Volumes:        []string{"/app/storage"},
 		ManagerRepo:    "karloscodes/lognorth-releases",
 		ManagerVersion: currentVersion,
 	})
