@@ -138,6 +138,11 @@ func IngestAction(ctx *cartridge.Context) error {
 			continue
 		}
 
+		// Drop known scanner/bot noise
+		if reqPath, ok := req.Context["path"].(string); ok && events.ShouldIgnorePath(reqPath) {
+			continue
+		}
+
 		// Parse timestamp
 		var timestamp time.Time
 		if req.Timestamp != "" {
