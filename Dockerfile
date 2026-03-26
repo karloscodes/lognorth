@@ -39,10 +39,8 @@ LABEL org.opencontainers.image.source="https://github.com/karloscodes/lognorth-r
 
 WORKDIR /app
 
-# Install runtime dependencies, create app user, and create directories in one layer
-RUN apk add --no-cache ca-certificates tzdata sqlite curl su-exec && \
-  addgroup -S lognorth && \
-  adduser -S -G lognorth -u 10001 -h /app lognorth && \
+# Install runtime dependencies and create directories
+RUN apk add --no-cache ca-certificates tzdata sqlite curl && \
   mkdir -p /app/logs /app/storage
 
 # Copy compiled binaries from builder (assets are embedded in the binary)

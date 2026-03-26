@@ -3,9 +3,7 @@ set -e
 
 LOG_DIR="/app/logs"
 
-# Ensure directories are writable by the app user
 mkdir -p "$LOG_DIR"
-chown -R lognorth:lognorth /app/storage /app/logs
 
 # Log function
 log() {
@@ -40,8 +38,7 @@ case "$COMMAND" in
       log "Demo data seeded."
     fi
 
-    chown -R lognorth:lognorth /app/storage /app/logs
-    exec su-exec lognorth /app/lognorth-server
+    exec /app/lognorth-server
     ;;
 
   shell)
