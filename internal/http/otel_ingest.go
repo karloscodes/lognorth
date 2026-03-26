@@ -1,115 +1,31 @@
 package http
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"maps"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
+	"google.golang.org/protobuf/proto"
+
+	collectorlogs "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
+	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 )
 
-// OTLP JSON structures — only the fields we care about.
-// See https://opentelemetry.io/docs/specs/otlp/#otlphttp-request
-
-type otlpLogsRequest struct {
-	ResourceLogs []otlpResourceLogs `json:"resourceLogs"`
-}
-
-type otlpResourceLogs struct {
-	Resource  otlpResource    `json:"resource"`
-	ScopeLogs []otlpScopeLogs `json:"scopeLogs"`
-}
-
-type otlpResource struct {
-	Attributes []otlpKeyValue `json:"attributes"`
-}
-
-type otlpScopeLogs struct {
-	LogRecords []otlpLogRecord `json:"logRecords"`
-}
-
-type otlpLogRecord struct {
-	TimeUnixNano   string         `json:"timeUnixNano"`
-	SeverityNumber int            `json:"severityNumber"`
-	Body           otlpAnyValue   `json:"body"`
-	Attributes     []otlpKeyValue `json:"attributes"`
-	TraceID        string         `json:"traceId"`
-}
-
-type otlpKeyValue struct {
-	Key   string       `json:"key"`
-	Value otlpAnyValue `json:"value"`
-}
-
-type otlpAnyValue struct {
-	StringValue *string     `json:"stringValue,omitempty"`
-	IntValue    *string     `json:"intValue,omitempty"`
-	BoolValue   *bool       `json:"boolValue,omitempty"`
-	DoubleValue *float64    `json:"doubleValue,omitempty"`
-	ArrayValue  *otlpArray  `json:"arrayValue,omitempty"`
-	KvlistValue *otlpKVList `json:"kvlistValue,omitempty"`
-}
-
-type otlpArray struct {
-	Values []otlpAnyValue `json:"values"`
-}
-
-type otlpKVList struct {
-	Values []otlpKeyValue `json:"values"`
-}
-
-// unwrap extracts a plain Go value from an OTel typed value.
-func (v otlpAnyValue) unwrap() any {
-	switch {
-	case v.StringValue != nil:
-		return *v.StringValue
-	case v.IntValue != nil:
-		if n, err := strconv.ParseInt(*v.IntValue, 10, 64); err == nil {
-			return n
-		}
-		return *v.IntValue
-	case v.BoolValue != nil:
-		return *v.BoolValue
-	case v.DoubleValue != nil:
-		return *v.DoubleValue
-	case v.ArrayValue != nil:
-		out := make([]any, len(v.ArrayValue.Values))
-		for i, av := range v.ArrayValue.Values {
-			out[i] = av.unwrap()
-		}
-		return out
-	case v.KvlistValue != nil:
-		out := make(map[string]any, len(v.KvlistValue.Values))
-		for _, kv := range v.KvlistValue.Values {
-			out[kv.Key] = kv.Value.unwrap()
-		}
-		return out
-	default:
-		return nil
-	}
-}
-
-// flattenAttributes converts OTel KeyValue pairs into a plain map.
-func flattenAttributes(attrs []otlpKeyValue) map[string]any {
-	m := make(map[string]any, len(attrs))
-	for _, kv := range attrs {
-		m[kv.Key] = kv.Value.unwrap()
-	}
-	return m
-}
-
-// OtelIngestAction handles POST /api/v1/otel/logs
-// Accepts OTLP JSON log exports and converts them to IngestedEvents.
+// OtelIngestAction handles POST /v1/logs
+// Accepts OTLP HTTP/protobuf log exports (the default for all OTel SDKs).
 func OtelIngestAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	// Auth — same as regular ingest
+	// Auth via Authorization header (set via OTEL_EXPORTER_OTLP_HEADERS)
 	authHeader := ctx.Ctx.Get("Authorization")
 	apiKey := strings.TrimPrefix(authHeader, "Bearer ")
 	if apiKey == "" {
@@ -125,25 +41,23 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 		})
 	}
 
-	// Parse OTLP JSON
-	var req otlpLogsRequest
-	if err := json.Unmarshal(ctx.Ctx.Body(), &req); err != nil {
+	// Decode protobuf
+	var req collectorlogs.ExportLogsServiceRequest
+	if err := proto.Unmarshal(ctx.Ctx.Body(), &req); err != nil {
 		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid OTLP JSON",
+			"error": "Invalid OTLP protobuf",
 		})
 	}
 
 	created := 0
-	var errors []string
 
-	for _, rl := range req.ResourceLogs {
-		resourceAttrs := flattenAttributes(rl.Resource.Attributes)
+	for _, rl := range req.GetResourceLogs() {
+		resourceAttrs := flattenProtoAttributes(rl.GetResource())
 
-		for _, sl := range rl.ScopeLogs {
-			for _, lr := range sl.LogRecords {
-				ingested, errMsg := convertLogRecord(lr, resourceAttrs, validatedKey.ID)
-				if errMsg != "" {
-					errors = append(errors, errMsg)
+		for _, sl := range rl.GetScopeLogs() {
+			for _, lr := range sl.GetLogRecords() {
+				ingested := convertProtoLogRecord(lr, resourceAttrs, validatedKey.ID)
+				if ingested == nil {
 					continue
 				}
 
@@ -155,40 +69,40 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 		}
 	}
 
-	response := fiber.Map{"created": created}
-	if len(errors) > 0 {
-		response["errors"] = errors
-	}
-
-	return ctx.Ctx.Status(fiber.StatusCreated).JSON(response)
+	return ctx.Ctx.Status(fiber.StatusOK).JSON(fiber.Map{"created": created})
 }
 
-// convertLogRecord transforms a single OTel log record into an IngestedEvent.
-func convertLogRecord(lr otlpLogRecord, resourceAttrs map[string]any, apiKeyID uint) (*events.IngestedEvent, string) {
+// OtelSinkAction handles POST /v1/traces and /v1/metrics
+// Accepts the request and discards it. Returns 200 so OTel SDKs don't error.
+func OtelSinkAction(ctx *cartridge.Context) error {
+	return ctx.Ctx.Status(fiber.StatusOK).JSON(fiber.Map{})
+}
+
+// convertProtoLogRecord transforms an OTLP protobuf LogRecord into an IngestedEvent.
+func convertProtoLogRecord(lr *logspb.LogRecord, resourceAttrs map[string]any, apiKeyID uint) *events.IngestedEvent {
 	// Extract message from body
-	message := ""
-	if lr.Body.StringValue != nil {
-		message = *lr.Body.StringValue
-	}
-	if message == "" {
-		return nil, "log record missing body.stringValue"
+	message := unwrapAnyValue(lr.GetBody())
+	msgStr, ok := message.(string)
+	if !ok || msgStr == "" {
+		return nil
 	}
 
-	// Parse timestamp
+	// Timestamp: prefer time_unix_nano, fall back to observed_time_unix_nano
 	var timestamp time.Time
-	if lr.TimeUnixNano != "" {
-		if nanos, err := strconv.ParseInt(lr.TimeUnixNano, 10, 64); err == nil && nanos > 0 {
-			timestamp = time.Unix(0, nanos)
-		}
-	}
-	if timestamp.IsZero() {
+	if lr.GetTimeUnixNano() > 0 {
+		timestamp = time.Unix(0, int64(lr.GetTimeUnixNano()))
+	} else if lr.GetObservedTimeUnixNano() > 0 {
+		timestamp = time.Unix(0, int64(lr.GetObservedTimeUnixNano()))
+	} else {
 		timestamp = time.Now()
 	}
 
-	// Build context: resource attributes first, then log attributes (log wins on conflict)
-	context := make(map[string]any, len(resourceAttrs)+len(lr.Attributes))
+	// Build context: resource attributes first, then log attributes (log wins)
+	context := make(map[string]any, len(resourceAttrs)+len(lr.GetAttributes()))
 	maps.Copy(context, resourceAttrs)
-	maps.Copy(context, flattenAttributes(lr.Attributes))
+	for _, kv := range lr.GetAttributes() {
+		context[kv.GetKey()] = unwrapAnyValue(kv.GetValue())
+	}
 
 	// Map OTel semantic conventions for errors
 	mapErrorAttribute(context, "exception.message", "error")
@@ -196,10 +110,9 @@ func convertLogRecord(lr otlpLogRecord, resourceAttrs map[string]any, apiKeyID u
 	mapErrorAttribute(context, "exception.type", "error_class")
 	mapErrorAttribute(context, "error.type", "error_class")
 
-	// Determine is_error
-	isError := lr.SeverityNumber >= 17 // OTel ERROR=17, FATAL=21
+	// Error detection
+	isError := lr.GetSeverityNumber() >= logspb.SeverityNumber_SEVERITY_NUMBER_ERROR
 
-	// Also apply existing LogNorth error detection rules
 	if !isError {
 		if e, ok := context["error"]; ok && e != nil && e != "" {
 			isError = true
@@ -226,22 +139,68 @@ func convertLogRecord(lr otlpLogRecord, resourceAttrs map[string]any, apiKeyID u
 		contextJSON = []byte("{}")
 	}
 
-	// Decode traceId from hex if present
-	traceID := lr.TraceID
-	// OTel sends traceId as hex — keep as-is, it's already a string identifier
-	// Strip all-zero trace IDs (means "no trace")
-	if traceID != "" && isAllZeros(traceID) {
-		traceID = ""
+	// TraceID: 16 bytes → hex string, strip all-zeros
+	traceID := ""
+	if len(lr.GetTraceId()) > 0 {
+		traceID = hex.EncodeToString(lr.GetTraceId())
+		if isAllZeros(traceID) {
+			traceID = ""
+		}
 	}
 
 	return &events.IngestedEvent{
 		APIKeyID:  apiKeyID,
-		Message:   message,
+		Message:   msgStr,
 		TraceID:   traceID,
 		IsError:   isError,
 		Context:   string(contextJSON),
 		Timestamp: timestamp,
-	}, ""
+	}
+}
+
+// flattenProtoAttributes extracts resource attributes into a plain map.
+func flattenProtoAttributes(resource *resourcepb.Resource) map[string]any {
+	if resource == nil {
+		return nil
+	}
+	m := make(map[string]any, len(resource.GetAttributes()))
+	for _, kv := range resource.GetAttributes() {
+		m[kv.GetKey()] = unwrapAnyValue(kv.GetValue())
+	}
+	return m
+}
+
+// unwrapAnyValue extracts a plain Go value from an OTel protobuf AnyValue.
+func unwrapAnyValue(v *commonpb.AnyValue) any {
+	if v == nil {
+		return nil
+	}
+	switch val := v.GetValue().(type) {
+	case *commonpb.AnyValue_StringValue:
+		return val.StringValue
+	case *commonpb.AnyValue_IntValue:
+		return val.IntValue
+	case *commonpb.AnyValue_BoolValue:
+		return val.BoolValue
+	case *commonpb.AnyValue_DoubleValue:
+		return val.DoubleValue
+	case *commonpb.AnyValue_ArrayValue:
+		out := make([]any, len(val.ArrayValue.GetValues()))
+		for i, av := range val.ArrayValue.GetValues() {
+			out[i] = unwrapAnyValue(av)
+		}
+		return out
+	case *commonpb.AnyValue_KvlistValue:
+		out := make(map[string]any, len(val.KvlistValue.GetValues()))
+		for _, kv := range val.KvlistValue.GetValues() {
+			out[kv.GetKey()] = unwrapAnyValue(kv.GetValue())
+		}
+		return out
+	case *commonpb.AnyValue_BytesValue:
+		return val.BytesValue
+	default:
+		return nil
+	}
 }
 
 // mapErrorAttribute copies an OTel semantic convention key to a LogNorth context key.
@@ -262,4 +221,3 @@ func isAllZeros(s string) bool {
 	}
 	return len(s) > 0
 }
-

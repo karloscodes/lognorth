@@ -172,7 +172,12 @@ func MountRoutes(server *cartridge.Server) {
 	}
 	server.Post("/api/v1/events", lbhttp.IngestAction, apiConfig)
 	server.Post("/api/v1/events/batch", lbhttp.IngestAction, apiConfig)
-	server.Post("/api/v1/otel/logs", lbhttp.OtelIngestAction, apiConfig)
+
+	// OpenTelemetry OTLP HTTP/protobuf endpoints
+	// SDKs need: OTEL_EXPORTER_OTLP_ENDPOINT=https://logs.yoursite.com/otel
+	server.Post("/otel/v1/logs", lbhttp.OtelIngestAction, apiConfig)
+	server.Post("/otel/v1/traces", lbhttp.OtelSinkAction, apiConfig)
+	server.Post("/otel/v1/metrics", lbhttp.OtelSinkAction, apiConfig)
 
 	// SSE endpoint (no middleware needed)
 	apiReadConfig := &cartridge.RouteConfig{
