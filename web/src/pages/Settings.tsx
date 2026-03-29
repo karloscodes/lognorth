@@ -17,6 +17,9 @@ interface SettingsData {
   quiet_end: number
   base_url: string
   retention_days: number
+  license_key: string
+  license_status: string
+  license_email: string
 }
 
 interface Props {
@@ -36,6 +39,8 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
   const [newAgentKey, setNewAgentKey] = useState<string | null>(null)
   const [currentPrefix, setCurrentPrefix] = useState(initialPrefix)
   const [agentKeyError, setAgentKeyError] = useState<string | null>(null)
+  const [licenseStatus, setLicenseStatus] = useState(settings?.license_status || '')
+  const [licenseEmail, setLicenseEmail] = useState(settings?.license_email || '')
 
   const copyKey = (key: string) => {
     navigator.clipboard.writeText(key)
@@ -110,6 +115,7 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
     quiet_end: settings?.quiet_end ?? 7,
     base_url: settings?.base_url || '',
     retention_days: settings?.retention_days || 90,
+    license_key: settings?.license_key || '',
   })
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -133,6 +139,10 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
       if (data.success) {
         setMessage({ type: 'success', text: 'Settings saved' })
         setForm((prev) => ({ ...prev, smtp_password: '' }))
+        if (data.license_status !== undefined) {
+          setLicenseStatus(data.license_status)
+          setLicenseEmail(data.license_email || '')
+        }
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save' })
       }
@@ -169,6 +179,51 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
   return (
     <Layout currentPath="/settings">
       <div className="max-w-lg">
+        {/* License Key */}
+        <div className="mb-16">
+          <h1 className="text-2xl font-bold text-black mb-2">License</h1>
+          <p className="text-black/50 text-sm mb-6">
+            Beta ends April 30, 2026. A valid license will be required after that.
+          </p>
+
+          {licenseStatus === 'valid' && (
+            <div className="mb-4 p-3 bg-accent/10 border border-accent/30 text-sm">
+              <span className="font-semibold text-black">License valid</span>
+              {licenseEmail && <span className="text-black/50 ml-2">({licenseEmail})</span>}
+            </div>
+          )}
+
+          {licenseStatus === 'invalid' && (
+            <div className="mb-4 p-3 bg-rose-50 border border-[#e11d48] text-sm text-[#e11d48] font-medium">
+              Invalid license key. Check your key and save again.
+            </div>
+          )}
+
+          {licenseStatus === 'expired' && (
+            <div className="mb-4 p-3 bg-rose-50 border border-[#e11d48] text-sm text-[#e11d48] font-medium">
+              License expired. Contact support or buy a new one.
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-semibold text-black mb-1.5">
+              License key
+            </label>
+            <input
+              type="text"
+              value={form.license_key}
+              onChange={(e) => handleChange('license_key', e.target.value)}
+              placeholder="Paste your license key"
+              className="w-full px-3 py-2 border border-black/20 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
+            />
+            <p className="text-sm text-black/50 mt-2">
+              <a href="https://lognorth.com/#pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
+                Buy a license →
+              </a>
+            </p>
+          </div>
+        </div>
+
         <h1 className="text-2xl font-bold text-black mb-2">Notifications</h1>
         <p className="text-black/50 text-sm mb-8">Know the moment something breaks.</p>
 

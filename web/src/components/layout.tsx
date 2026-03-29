@@ -227,9 +227,10 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
 }
 
 export function Layout({ children, currentPath, appId, appName, applications }: LayoutProps) {
-  const { props } = usePage<{ isDemo?: boolean; notifications?: NotificationItem[] }>()
+  const { props } = usePage<{ isDemo?: boolean; notifications?: NotificationItem[]; hasLicense?: boolean }>()
   const isDemo = props.isDemo ?? false
   const notifications = props.notifications ?? []
+  const hasLicense = props.hasLicense ?? false
   const isAppScoped = appId && appName && applications
 
   const isActive = (path: string) => {
@@ -247,6 +248,14 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
       {isDemo && (
         <div className="bg-red-600 text-white text-center text-xs font-bold py-1.5 tracking-wide uppercase sticky top-0 z-[60]">
           This is a demo. Everything is read-only.
+        </div>
+      )}
+      {!isDemo && !hasLicense && (
+        <div className="bg-black text-white text-center text-xs font-medium py-1.5 sticky top-0 z-[60]">
+          Beta ends April 30, 2026. A license key will be required after that.{' '}
+          <Link href="/settings" className="underline hover:no-underline">
+            Enter your license key →
+          </Link>
         </div>
       )}
       {/* Navigation */}

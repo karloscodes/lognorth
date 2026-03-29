@@ -1,13 +1,17 @@
 package http
 
 import (
+	"context"
 	"fmt"
 	"net/smtp"
+	"os"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/config"
+	"lognorth/internal/polar"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
 )
@@ -40,6 +44,7 @@ func SettingsPageAction(ctx *cartridge.Context) error {
 		"hasPassword":    s.HasPassword(),
 		"userEmail":      userEmail,
 		"agentKeyPrefix": s.AgentKeyPrefix,
+		"hasLicense":     s.LicenseKey != "",
 	})
 }
 
@@ -73,6 +78,9 @@ type UpdateSettingsInput struct {
 
 	// Data retention
 	RetentionDays int `json:"retention_days"`
+
+	// License key
+	LicenseKey string `json:"license_key"`
 }
 
 // UpdateSettingsAction handles POST /settings
@@ -128,11 +136,31 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 		s.RetentionDays = input.RetentionDays
 	}
 
+	// Validate and update license key
+	if input.LicenseKey != s.LicenseKey {
+		s.LicenseKey = input.LicenseKey
+		if input.LicenseKey == "" {
+			s.LicenseStatus = ""
+			s.LicenseEmail = ""
+		} else {
+			status, email := validateLicenseKey(input.LicenseKey)
+			s.LicenseStatus = status
+			s.LicenseEmail = email
+		}
+	}
+
 	if err := settings.Update(db, s); err != nil {
 		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to save settings"})
 	}
 
-	return ctx.Ctx.JSON(fiber.Map{"success": true})
+	// Update cached license status
+	SetLicenseConfigured(s.LicenseStatus == "valid")
+
+	return ctx.Ctx.JSON(fiber.Map{
+		"success":        true,
+		"license_status": s.LicenseStatus,
+		"license_email":  s.LicenseEmail,
+	})
 }
 
 // TestNotificationAction handles POST /settings/test
@@ -222,4 +250,30 @@ func RevokeAgentKeyAction(ctx *cartridge.Context) error {
 	}
 
 	return ctx.Ctx.JSON(fiber.Map{"success": true})
+}
+
+// validateLicenseKey checks a license key against Polar and returns (status, email)
+func validateLicenseKey(key string) (string, string) {
+	client := polar.NewClient()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Try sandbox in development
+	if os.Getenv("LOGNORTH_ENV") == "development" || os.Getenv("LOGNORTH_ENV") == "" {
+		client.BaseURL = polar.SandboxBaseURL
+		resp, err := client.ValidateLicense(ctx, polar.SandboxOrgID, key)
+		if err == nil && resp != nil && resp.ID != "" {
+			return polar.LicenseStatus(resp), resp.Customer.Email
+		}
+	}
+
+	// Try production
+	client.BaseURL = polar.ProductionBaseURL
+	resp, err := client.ValidateLicense(ctx, polar.ProductionOrgID, key)
+	if err == nil && resp != nil && resp.ID != "" {
+		return polar.LicenseStatus(resp), resp.Customer.Email
+	}
+
+	return "invalid", ""
 }

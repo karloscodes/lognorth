@@ -10,6 +10,12 @@ import (
 )
 
 var devMode bool
+var licenseConfigured bool
+
+// SetLicenseConfigured updates the cached license status
+func SetLicenseConfigured(v bool) {
+	licenseConfigured = v
+}
 
 // SetDevMode enables development mode
 func SetDevMode(enabled bool) {
@@ -43,6 +49,11 @@ func RenderPage(c *fiber.Ctx, component string, props inertia.Props) error {
 
 	if notifications := systemNotifications(cfg); len(notifications) > 0 {
 		props["notifications"] = notifications
+	}
+
+	// License status for soft banner
+	if _, exists := props["hasLicense"]; !exists {
+		props["hasLicense"] = licenseConfigured
 	}
 
 	return inertia.RenderPage(c, component, props)

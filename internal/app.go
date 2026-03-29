@@ -21,6 +21,7 @@ import (
 	lbhttp "lognorth/internal/http"
 	"lognorth/internal/jobs"
 	"lognorth/internal/onboarding"
+	"lognorth/internal/settings"
 )
 
 // Application wraps cartridge.Application with LogNorth-specific components
@@ -97,6 +98,11 @@ func NewApp() (*Application, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create application: %w", err)
+	}
+
+	// Set initial license status from database
+	if s, err := settings.Get(dbManager.GetConnection()); err == nil {
+		lbhttp.SetLicenseConfigured(s.LicenseStatus == "valid")
 	}
 
 	return &Application{

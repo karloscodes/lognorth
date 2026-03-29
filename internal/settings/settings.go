@@ -50,6 +50,11 @@ type Settings struct {
 	// Data retention - how many days to keep events (default 90 = 3 months)
 	RetentionDays int `gorm:"default:90" json:"retention_days"`
 
+	// License key from purchase
+	LicenseKey    string `gorm:"size:255" json:"license_key"`
+	LicenseStatus string `gorm:"size:20" json:"license_status"`  // valid, invalid, expired, or empty
+	LicenseEmail  string `gorm:"size:255" json:"license_email"`
+
 	// Legacy fields - kept for migration compatibility
 	NotifyNewErrors   bool   `json:"-"`
 	NotifyRegressions bool   `json:"-"`
