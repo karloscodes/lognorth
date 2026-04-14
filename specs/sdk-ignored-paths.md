@@ -1,56 +1,45 @@
 # Feature: SDK Ignored Paths
 
 ## Goal
-Stop ingesting noisy traffic (health checks, uptime probes) without users having to opt in.
+Let users skip noisy traffic (health checks, uptime probes) from the log feed.
 
 ## Behavior
 
-### Defaults
-All SDKs ship with a default ignore list:
+### Defaults (intentionally small)
+- **Rails SDK**: defaults to `["/up"]` only. Rails 7.1 auto-generates `/up`; nothing in user code should ever pick that name.
+- **Go SDK**: no default. Users call `lognorth.IgnorePaths("/healthz", ...)` if they want it.
+- **TS/Express SDK**: no default. Users pass `ignorePaths` to `middleware({ ignorePaths: [...] })`.
 
-- `/up`           (Rails 7.1+ default health check)
-- `/healthz`
-- `/health`
-- `/_health`
-- `/ping`
-- `/ready`
-- `/live`
+Why not more? `/health`, `/ping`, `/ready`, `/live` are all real endpoint names in real apps. Silent drops of user traffic are the worst outcome, so the defaults stay conservative. The docs show the common paths so users can opt in knowingly.
 
-Match is exact-path or `path/...` prefix (so `/health/db` is also ignored).
+Matching is exact path or `path/…` prefix (so `/up` also catches `/up/detail`).
 
 ### User override
-Users can replace or extend the list:
 
 ```ruby
 # Rails — replaces defaults
 config.lognorth.ignored_paths = ["/up", "/internal/probe"]
+# Disable ignoring entirely
+config.lognorth.ignored_paths = []
 ```
 
 ```go
-// Go
-lognorth.New(lognorth.Config{
-    IgnoredPaths: []string{"/up", "/internal/probe"},
-})
+lognorth.IgnorePaths("/healthz", "/internal/probe")
 ```
 
 ```ts
-// TS
-new LogNorth({ ignoredPaths: ["/up", "/internal/probe"] })
+app.use(middleware({ ignorePaths: ["/healthz", "/internal/probe"] }))
 ```
 
-When `IgnoredPaths`/`ignored_paths` is set, it **replaces** the default list — no merging. Empty array `[]` disables ignoring entirely.
+Explicit configuration fully replaces defaults — no merging.
 
 ### What gets skipped
-- HTTP request logging (the middleware never sends the event)
-- Errors raised inside ignored paths still flow through the error subscriber (errors are precious; not silenced by path filter)
+- HTTP request logging (the middleware never sends the event).
+- Errors raised inside ignored paths **still flow** through the error subscriber. Errors are precious; a path filter should not silence them.
 
 ## Acceptance
-- [ ] Rails SDK: defaults applied when `ignored_paths` not configured
-- [ ] Rails SDK: explicit `ignored_paths = [...]` replaces defaults
-- [ ] Go SDK: same defaults + override behavior
-- [ ] TS/Node SDK: same defaults + override behavior
-- [ ] Errors raised on an ignored path still report
-- [ ] README in each SDK documents the defaults and how to override
-
-## Notes
-- Rails SDK middleware already supports `ignored_paths` via `Rails.application.config.lognorth.ignored_paths` (`lib/lognorth/middleware.rb:63`). Just needs defaults populated in the Railtie.
+- [x] Rails SDK: `["/up"]` default, overridable
+- [x] Go SDK: capability + docs
+- [x] TS/Node SDK: capability + docs
+- [x] Errors raised on an ignored path still report
+- [x] README in each SDK explains the option and lists common paths to opt in
