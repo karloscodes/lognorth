@@ -837,17 +837,8 @@ func MarkAllIssuesSeen(db *gorm.DB, apiKeyID uint) error {
 	seen := make(map[string]bool)
 
 	for _, event := range eventList {
-		ctx, err := event.GetContext()
-		if err != nil {
-			continue
-		}
-		// Skip if no error identifier (error message or error_type)
-		if ctx.Error == "" && ctx.ErrorType == "" {
-			continue
-		}
-
-		hash := hashError(ctx.ToMap(), event.APIKeyID)
-		if seen[hash] {
+		hash := GetIssueHashForEvent(&event)
+		if hash == "" || seen[hash] {
 			continue
 		}
 		seen[hash] = true

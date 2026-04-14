@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { Clock, Check, TrendingUp, TrendingDown } from 'lucide-react'
 import { router } from '@inertiajs/react'
@@ -32,6 +33,17 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
     const url = appId ? `/issues/seen?app_id=${appId}` : '/issues/seen'
     router.post(url)
   }
+
+  // Browsers may restore /issues from bfcache when the user clicks "back" from
+  // an issue detail page — that hides the seen-state update the server already
+  // applied. Force a fresh fetch so unseen badges clear.
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) router.reload()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [])
 
   return (
     <Layout currentPath="/issues" appId={appId} appName={appName} applications={applications}>

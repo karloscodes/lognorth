@@ -318,3 +318,98 @@ func TestMarkIssueSeen(t *testing.T) {
 		}
 	})
 }
+
+// =============================================================================
+// MarkAllIssuesSeen + ListIssuesWithState — end-to-end seen state
+// =============================================================================
+
+// makeErrorEvent creates and stores an error event with computed three-tier hashes,
+// matching what the ingest pipeline does for normal events.
+func makeErrorEvent(t *testing.T, db *gorm.DB, apiKeyID uint, class, message, file string, line int) *Event {
+	t.Helper()
+	ctx := EventContext{
+		ErrorClass:   class,
+		Error:        message,
+		ErrorFile:    file,
+		ErrorLine:    line,
+	}
+	event := &Event{
+		APIKeyID:     apiKeyID,
+		Timestamp:    time.Now(),
+		IsError:      true,
+		Message:      message,
+		ErrorClass:   class,
+		ErrorMessage: message,
+		ErrorFile:    file,
+		ErrorLine:    line,
+	}
+	if err := event.SetContext(&ctx); err != nil {
+		t.Fatalf("SetContext: %v", err)
+	}
+	PopulateErrorFields(event, &ctx)
+	if err := Create(db, event); err != nil {
+		t.Fatalf("Create event: %v", err)
+	}
+	return event
+}
+
+func TestMarkAllIssuesSeen_ClearsUnseenInListing(t *testing.T) {
+	db := setupIssueTestDB(t)
+
+	makeErrorEvent(t, db, 1, "TypeError", "undefined is not a function", "app.ts", 42)
+	makeErrorEvent(t, db, 1, "RuntimeError", "boom", "worker.go", 10)
+
+	issues, err := ListIssuesWithState(db, 1, 50)
+	if err != nil {
+		t.Fatalf("ListIssuesWithState: %v", err)
+	}
+	if len(issues) != 2 {
+		t.Fatalf("expected 2 issues, got %d", len(issues))
+	}
+	for _, i := range issues {
+		if !i.Unseen {
+			t.Fatalf("expected issue %s to be unseen before MarkAllIssuesSeen", i.Error)
+		}
+	}
+
+	if err := MarkAllIssuesSeen(db, 1); err != nil {
+		t.Fatalf("MarkAllIssuesSeen: %v", err)
+	}
+
+	issues, err = ListIssuesWithState(db, 1, 50)
+	if err != nil {
+		t.Fatalf("ListIssuesWithState (after): %v", err)
+	}
+	for _, i := range issues {
+		if i.Unseen {
+			t.Errorf("issue %s still unseen after MarkAllIssuesSeen — hash mismatch between mark and list", i.Error)
+		}
+	}
+}
+
+func TestMarkIssueSeen_ClearsUnseenInListing(t *testing.T) {
+	db := setupIssueTestDB(t)
+
+	makeErrorEvent(t, db, 1, "TypeError", "undefined is not a function", "app.ts", 42)
+
+	issues, err := ListIssuesWithState(db, 1, 50)
+	if err != nil {
+		t.Fatalf("ListIssuesWithState: %v", err)
+	}
+	if len(issues) != 1 || !issues[0].Unseen {
+		t.Fatalf("expected 1 unseen issue, got %+v", issues)
+	}
+	hash := issues[0].Hash
+
+	if err := MarkIssueSeen(db, hash); err != nil {
+		t.Fatalf("MarkIssueSeen: %v", err)
+	}
+
+	issues, err = ListIssuesWithState(db, 1, 50)
+	if err != nil {
+		t.Fatalf("ListIssuesWithState (after): %v", err)
+	}
+	if issues[0].Unseen {
+		t.Errorf("issue still unseen after MarkIssueSeen with GroupHash %q", hash)
+	}
+}
