@@ -7,8 +7,8 @@ import { ReactNode } from 'react'
 // === UI Components ===
 
 // Monospace number display - use for counts, stats, durations
-export function Mono({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <span className={`font-mono tabular-nums ${className}`}>{children}</span>
+export function Mono({ children, className = '', title }: { children: ReactNode; className?: string; title?: string }) {
+  return <span className={`font-mono tabular-nums ${className}`} title={title}>{children}</span>
 }
 
 // Code/path display - use for paths, error messages, technical strings
