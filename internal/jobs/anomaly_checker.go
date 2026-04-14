@@ -165,21 +165,16 @@ func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB) {
 
 		currentRate, _, _ := events.GetCurrentErrorRate(db, spike.APIKeyID, spike.Path)
 
-		var zScore float64
-		if stddev > 0 {
-			zScore = (currentRate - mean) / stddev
-		}
-
-		subject := fmt.Sprintf("[CRITICAL] %s: Error rate spike detected", key.Name)
-		body := fmt.Sprintf(`%s is experiencing abnormal error rates.
+		subject := fmt.Sprintf("[CRITICAL] %s: Error spike detected", key.Name)
+		body := fmt.Sprintf(`%s is experiencing more errors than usual.
 
 What's happening:
 - Endpoint: %s
-- Current error rate: %.1f%% (normal: %.1f%%)
+- Current error rate: %.1f%% (normally %.1f%%)
 - Started: %s ago
-- Errors so far: %d
+- Total errors: %d
 
-This is %.1f standard deviations above normal for this time of day.
+This is significantly higher than normal for this time of day.
 
 View details: %s/apps/%d/issues`,
 			key.Name,
@@ -188,7 +183,6 @@ View details: %s/apps/%d/issues`,
 			mean,
 			time.Since(spike.SpikeStartAt).Round(time.Minute),
 			spike.ErrorCount,
-			zScore,
 			s.BaseURL,
 			spike.APIKeyID,
 		)
