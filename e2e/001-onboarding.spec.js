@@ -31,11 +31,16 @@ test.describe("Onboarding Flow - MUST RUN FIRST", () => {
 
 		const currentUrl = page.url();
 
-		// If redirected to login, user already exists - skip onboarding
+		// /setup must show the onboarding form on a fresh test DB. If it
+		// redirected to /login, the server is holding stale state from a
+		// previous run (e.g. dev server left running across the DB wipe in
+		// setup-test-env.js). Fail loudly — silently skipping leaves no
+		// user behind and breaks every test that follows.
 		if (currentUrl.includes("/login")) {
-			helpers.log("User already exists - skipping onboarding");
-			helpers.log(`Using existing credentials: ${TEST_EMAIL}`);
-			return;
+			throw new Error(
+				`/setup redirected to /login on a freshly wiped DB — server is in stale state. ` +
+				`Make sure setup-test-env.js killed the previous server, then re-run.`
+			);
 		}
 
 		// Check if we're on the onboarding page (shows "Create your account")

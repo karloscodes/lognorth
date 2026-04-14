@@ -2,6 +2,7 @@
   "name": "lognorth-e2e",
   "private": true,
   "scripts": {
+    "pretest": "PIDS=$(lsof -iTCP:8080 -sTCP:LISTEN -t 2>/dev/null); if [ -n \"$PIDS\" ]; then echo \"Killing existing 8080 listener(s): $PIDS\"; kill -9 $PIDS; sleep 0.3; fi",
     "test": "playwright test",
     "test:ui": "playwright test --ui"
   },
