@@ -128,11 +128,11 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
           </div>
           <div className="px-5 py-3">
             <div className="text-xs text-black/70 font-bold mb-1">First seen</div>
-            <Mono className="text-sm text-black font-semibold">{formatDistanceToNow(parseSqliteDate(issue.first_seen), { addSuffix: true })}</Mono>
+            <Mono className="text-sm text-black font-semibold">{formatDistanceToNow(new Date(issue.first_seen), { addSuffix: true })}</Mono>
           </div>
           <div className="px-5 py-3">
             <div className="text-xs text-black/70 font-bold mb-1">Last seen</div>
-            <Mono className="text-sm text-black font-semibold">{formatDistanceToNow(parseSqliteDate(issue.last_seen), { addSuffix: true })}</Mono>
+            <Mono className="text-sm text-black font-semibold">{formatDistanceToNow(new Date(issue.last_seen), { addSuffix: true })}</Mono>
           </div>
         </div>
       </div>
@@ -309,7 +309,7 @@ function TimelineEntry({ entry, appId, isFirst }: { entry: LogEntry; appId: numb
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 text-xs text-black/60 font-mono">
-          <span className="font-semibold">{format(parseSqliteDate(entry.timestamp), 'MMM d, HH:mm:ss')}</span>
+          <span className="font-semibold">{format(new Date(entry.timestamp), 'MMM d, HH:mm:ss')}</span>
           <span>·</span>
           <span>{entry.duration_ms}ms</span>
           {entry.trace_id && (
@@ -326,10 +326,6 @@ function TimelineEntry({ entry, appId, isFirst }: { entry: LogEntry; appId: numb
 
 // --- Frequency Heatmap ---
 // Full width, right edge = today, fills backwards. Data placed at correct position relative to now.
-function parseSqliteDate(s: string): Date {
-  if (!s) return new Date()
-  return new Date(s.replace(' ', 'T'))
-}
 
 const TIME_BUCKETS = [
   { label: '8am', start: 8, end: 9 },
@@ -366,10 +362,16 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
     return () => window.removeEventListener('resize', measure)
   }, [])
 
+  // Server returns each bucket as RFC3339 UTC ("2026-04-14T11:00:00Z").
+  // Convert to a local Date and key by local "YYYY-MM-DD HH" so the heatmap
+  // axes (day columns, hour rows) reflect the viewer's timezone.
   const countMap = new Map<string, number>()
   if (occurrences) {
     for (const p of occurrences) {
-      countMap.set(p.hour, p.count)
+      const d = new Date(p.hour)
+      if (isNaN(d.getTime())) continue
+      const key = `${format(d, 'yyyy-MM-dd')} ${String(d.getHours()).padStart(2, '0')}`
+      countMap.set(key, (countMap.get(key) || 0) + p.count)
     }
   }
 
@@ -387,7 +389,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
 
   let dataStart = subDays(now, numCols - 1)
   if (firstSeen) {
-    const d = parseSqliteDate(firstSeen)
+    const d = new Date(firstSeen)
     if (!isNaN(d.getTime()) && d < dataStart) {
       dataStart = d
     }

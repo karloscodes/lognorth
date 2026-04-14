@@ -2,6 +2,7 @@ package events
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -383,6 +384,63 @@ func TestMarkAllIssuesSeen_ClearsUnseenInListing(t *testing.T) {
 	for _, i := range issues {
 		if i.Unseen {
 			t.Errorf("issue %s still unseen after MarkAllIssuesSeen — hash mismatch between mark and list", i.Error)
+		}
+	}
+}
+
+func TestListIssuesWithState_TimestampsAreISO8601UTC(t *testing.T) {
+	db := setupIssueTestDB(t)
+	makeErrorEvent(t, db, 1, "TypeError", "boom", "app.ts", 1)
+
+	issues, err := ListIssuesWithState(db, 1, 50)
+	if err != nil {
+		t.Fatalf("ListIssuesWithState: %v", err)
+	}
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 issue, got %d", len(issues))
+	}
+
+	// Browsers' new Date() needs the ISO 8601 'T' separator and a TZ suffix
+	// (Z or ±hh:mm). SQLite's MIN/MAX returns "2026-04-14 11:45:00.108+00:00"
+	// (space separator), which is parsed inconsistently across browsers — so
+	// the API must normalize before sending.
+	for _, field := range []string{issues[0].FirstSeen, issues[0].LastSeen} {
+		if !strings.Contains(field, "T") {
+			t.Errorf("timestamp %q missing T separator (would parse as local time in some browsers)", field)
+		}
+		if !strings.HasSuffix(field, "Z") {
+			t.Errorf("timestamp %q missing Z suffix (TZ ambiguous to JS Date)", field)
+		}
+	}
+}
+
+func TestGetIssueOccurrencesByHour_HourIsISO8601UTC(t *testing.T) {
+	db := setupIssueTestDB(t)
+	makeErrorEvent(t, db, 1, "TypeError", "boom", "app.ts", 1)
+
+	issues, err := ListIssuesWithState(db, 1, 50)
+	if err != nil || len(issues) != 1 {
+		t.Fatalf("ListIssuesWithState: %v / %d issues", err, len(issues))
+	}
+
+	points, err := GetIssueOccurrencesByHour(db, issues[0].Hash, 1, 7)
+	if err != nil {
+		t.Fatalf("GetIssueOccurrencesByHour: %v", err)
+	}
+	if len(points) == 0 {
+		t.Fatalf("expected at least one occurrence point")
+	}
+
+	// The frontend builds the heatmap day-bucket axis in the viewer's local TZ.
+	// If the server emitted the bucket as a TZ-less string ("2026-04-14 11"),
+	// JS would parse it inconsistently and events near midnight UTC would land
+	// in the wrong day cell. Force RFC3339 UTC.
+	for _, p := range points {
+		if _, err := time.Parse(time.RFC3339, p.Hour); err != nil {
+			t.Errorf("hour %q is not RFC3339 parseable: %v", p.Hour, err)
+		}
+		if !strings.HasSuffix(p.Hour, "Z") {
+			t.Errorf("hour %q missing Z suffix (browser would assume local time)", p.Hour)
 		}
 	}
 }

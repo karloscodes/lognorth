@@ -259,8 +259,8 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 			Count:      row.Count,
 			Count24h:   count24h,
 			Count7d:    count7d,
-			FirstSeen:  row.FirstSeen,
-			LastSeen:   row.LastSeen,
+			FirstSeen:  formatTimestampISO(firstSeenTime),
+			LastSeen:   formatTimestampISO(lastSeenTime),
 			Paths:      paths,
 			Active:     lastSeenTime.After(cutoff24h),
 			IsNew:      firstSeenTime.After(cutoff24h),
@@ -282,6 +282,16 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 	sortIssues(issues)
 
 	return issues, nil
+}
+
+// formatTimestampISO renders a time as RFC3339Nano UTC, which the browser's
+// `new Date()` parses unambiguously. Returns "" for the zero time so the
+// frontend can distinguish "missing" from a real timestamp.
+func formatTimestampISO(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339Nano)
 }
 
 // parseSQLiteTimestamp tries multiple formats that SQLite may return
@@ -551,6 +561,7 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 	}
 
 	lastSeenTime := parseSQLiteTimestamp(aggResult.LastSeen)
+	firstSeenTime := parseSQLiteTimestamp(aggResult.FirstSeen)
 	now := time.Now()
 	active := lastSeenTime.After(now.Add(-24 * time.Hour))
 
@@ -567,8 +578,8 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 			ErrorLine:  first.ErrorLine,
 			Hash:       hash,
 			Count:      count,
-			FirstSeen:  aggResult.FirstSeen,
-			LastSeen:   aggResult.LastSeen,
+			FirstSeen:  formatTimestampISO(firstSeenTime),
+			LastSeen:   formatTimestampISO(lastSeenTime),
 			Paths:      paths,
 			Unseen:     unseen,
 			Active:     active,
@@ -641,6 +652,7 @@ func getIssueByHashLegacy(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail
 	}
 
 	lastSeenTime := parseSQLiteTimestamp(aggResult.LastSeen)
+	firstSeenTime := parseSQLiteTimestamp(aggResult.FirstSeen)
 	active := lastSeenTime.After(time.Now().Add(-24 * time.Hour))
 
 	var seenRecord IssueSeen
@@ -652,8 +664,8 @@ func getIssueByHashLegacy(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail
 			Error:     errorFilter.Error,
 			Hash:      hash,
 			Count:     aggResult.Count,
-			FirstSeen: aggResult.FirstSeen,
-			LastSeen:  aggResult.LastSeen,
+			FirstSeen: formatTimestampISO(firstSeenTime),
+			LastSeen:  formatTimestampISO(lastSeenTime),
 			Paths:     paths,
 			Unseen:    unseen,
 			Active:    active,
@@ -717,7 +729,9 @@ func IsIssueMuted(db *gorm.DB, errorHash string) bool {
 	return result.Error == nil
 }
 
-// OccurrencePoint represents hourly occurrence count for frequency graphs
+// OccurrencePoint represents hourly occurrence count for frequency graphs.
+// Hour is the start of the hour bucket as RFC3339 UTC (e.g. "2026-04-14T11:00:00Z")
+// so the browser can `new Date(p.hour)` and group into the user's local timezone.
 type OccurrencePoint struct {
 	Hour  string `json:"hour"`
 	Count int    `json:"count"`
@@ -738,11 +752,11 @@ func GetIssueOccurrencesByHour(db *gorm.DB, hash string, apiKeyID uint, days int
 
 	if hashCount > 0 {
 		query := `
-			SELECT strftime('%Y-%m-%d %H', timestamp) as hour, COUNT(*) as count
+			SELECT strftime('%Y-%m-%dT%H:00:00Z', timestamp) as hour, COUNT(*) as count
 			FROM events
 			WHERE is_error = 1 AND api_key_id = ? AND datetime(timestamp) >= datetime(?)
 				AND (error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?)
-			GROUP BY strftime('%Y-%m-%d %H', timestamp)
+			GROUP BY strftime('%Y-%m-%dT%H:00:00Z', timestamp)
 			ORDER BY hour ASC
 		`
 		var points []OccurrencePoint
@@ -778,10 +792,10 @@ func GetIssueOccurrencesByHour(db *gorm.DB, hash string, apiKeyID uint, days int
 	}
 
 	query := fmt.Sprintf(`
-		SELECT strftime('%%Y-%%m-%%d %%H', timestamp) as hour, COUNT(*) as count
+		SELECT strftime('%%Y-%%m-%%dT%%H:00:00Z', timestamp) as hour, COUNT(*) as count
 		FROM events
 		WHERE is_error = 1 AND api_key_id = ? AND datetime(timestamp) >= datetime(?) AND %s
-		GROUP BY strftime('%%Y-%%m-%%d %%H', timestamp)
+		GROUP BY strftime('%%Y-%%m-%%dT%%H:00:00Z', timestamp)
 		ORDER BY hour ASC
 	`, whereClause)
 
