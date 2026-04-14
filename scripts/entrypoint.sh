@@ -30,12 +30,23 @@ case "$COMMAND" in
     log "Starting LogNorth server..."
     run_migrations
 
-    # Demo mode: reset and seed on every start
+    # Demo mode: reset and seed on every start.
+    #
+    # Wiping the DB is destructive, so we require an explicit second opt-in
+    # (LOGNORTH_DEMO_RESET_OK=true) on top of LOGNORTH_DEMO=true. Without it,
+    # demo containers boot against whatever data is already on disk — which
+    # is what you want if LOGNORTH_DEMO ever gets set on a non-demo container
+    # by accident (e.g. copy-pasted env config). One env var typo should not
+    # be able to wipe a customer database.
     if [ "$LOGNORTH_DEMO" = "true" ]; then
-      log "Demo mode: resetting database..."
-      rm -f /app/storage/*.db /app/storage/*.db-*
-      /app/seed-demo
-      log "Demo data seeded."
+      if [ "$LOGNORTH_DEMO_RESET_OK" = "true" ]; then
+        log "Demo mode: resetting database..."
+        rm -f /app/storage/*.db /app/storage/*.db-*
+        /app/seed-demo
+        log "Demo data seeded."
+      else
+        log "Demo mode active but LOGNORTH_DEMO_RESET_OK is not 'true' — skipping DB reset/seed. Existing data on disk will be served as-is."
+      fi
     fi
 
     exec /app/lognorth-server
