@@ -42,8 +42,10 @@ case "$COMMAND" in
       if [ "$LOGNORTH_DEMO_RESET_OK" = "true" ]; then
         log "Demo mode: resetting database..."
         rm -f /app/storage/*.db /app/storage/*.db-*
-        /app/seed-demo
-        log "Demo data seeded."
+        # Seed runs in the background so /_health answers within the
+        # kamal-proxy timeout. The demo page will look empty for ~60s
+        # after a restart — acceptable tradeoff vs. failed deploys.
+        (/app/seed-demo && log "Demo data seeded.") &
       else
         log "Demo mode active but LOGNORTH_DEMO_RESET_OK is not 'true' — skipping DB reset/seed. Existing data on disk will be served as-is."
       fi
