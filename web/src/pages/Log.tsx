@@ -185,6 +185,14 @@ function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; 
             JOB
           </span>
         )}
+        {ctx.environment && (
+          <span
+            className="relative font-mono text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 text-black/40 bg-black/[0.03]"
+            title={`environment: ${ctx.environment}`}
+          >
+            {ctx.environment}
+          </span>
+        )}
       </div>
 
       {/* Path / Message + inline metadata — entire section truncates */}

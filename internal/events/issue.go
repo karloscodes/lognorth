@@ -102,8 +102,8 @@ type IssueWithState struct {
 	Hash       string   `json:"hash"`
 	APIKeyID   uint     `json:"api_key_id"`
 	Count      int64    `json:"count"`
-	Count24h   int64    `json:"count_24h"`  // Occurrences in last 24 hours
-	Count7d    int64    `json:"count_7d"`   // Occurrences in last 7 days
+	Count24h   int64    `json:"count_24h"` // Occurrences in last 24 hours
+	Count7d    int64    `json:"count_7d"`  // Occurrences in last 7 days
 	FirstSeen  string   `json:"first_seen"`
 	LastSeen   string   `json:"last_seen"`
 	Paths      []string `json:"paths"`
@@ -126,7 +126,7 @@ type IssueAggregateRow struct {
 	APIKeyID      uint   `gorm:"column:api_key_id"`
 	Count         int64  `gorm:"column:count"`
 	FirstSeen     string `gorm:"column:first_seen"` // SQLite returns string from MIN()
-	LastSeen      string `gorm:"column:last_seen"`  // SQLite returns string from MAX()
+	LastSeen     string `gorm:"column:last_seen"`  // SQLite returns string from MAX()
 	Paths         string `gorm:"column:paths"`      // Comma-separated from GROUP_CONCAT
 }
 

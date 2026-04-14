@@ -65,12 +65,13 @@ type EventContext struct {
 	Job string `json:"job,omitempty"`
 
 	// Common fields
-	Error     string            `json:"error,omitempty"`
-	User      string            `json:"user,omitempty"`
-	IP        string            `json:"ip,omitempty"`
-	UserAgent string            `json:"user_agent,omitempty"`
-	Headers   map[string]string `json:"headers,omitempty"`
-	Body      string            `json:"body,omitempty"`
+	Error       string            `json:"error,omitempty"`
+	Environment string            `json:"environment,omitempty"`
+	User        string            `json:"user,omitempty"`
+	IP          string            `json:"ip,omitempty"`
+	UserAgent   string            `json:"user_agent,omitempty"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	Body        string            `json:"body,omitempty"`
 
 	// Error grouping fields (SDK-extracted)
 	ErrorType     string `json:"error_type,omitempty"`

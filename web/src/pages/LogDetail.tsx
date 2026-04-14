@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
-import { Clock, Hash, Briefcase, ArrowRight } from 'lucide-react'
+import { Clock, Hash, Briefcase, ArrowRight, Layers } from 'lucide-react'
 import { Layout } from '@/components/layout'
 import { getConfig, statusColor, methodColor, parseContext } from '@/lib/shared'
 import type { Application, LogEntry, LogContext } from '@/lib/shared'
@@ -84,6 +84,15 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                 {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
               </p>
             </div>
+            {ctx.environment && (
+              <div className="px-4 py-3">
+                <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
+                  <Layers className="w-3 h-3" />
+                  Environment
+                </div>
+                <p className="text-sm text-black font-mono font-semibold">{ctx.environment}</p>
+              </div>
+            )}
             {entry.trace_id ? (
               <a
                 href={`${logPath}?trace=${entry.trace_id}`}

@@ -100,6 +100,7 @@ export interface LogContext {
   job?: string
   // Common fields
   error?: string
+  environment?: string
   user?: string
   ip?: string
   user_agent?: string
