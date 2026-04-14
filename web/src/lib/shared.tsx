@@ -96,6 +96,11 @@ export interface LogContext {
   method?: string
   path?: string
   status?: number
+  // Route enrichment from SDKs
+  controller?: string
+  action?: string
+  route?: string
+  handler?: string
   // Job fields
   job?: string
   // Common fields

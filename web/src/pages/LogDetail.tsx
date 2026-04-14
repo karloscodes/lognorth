@@ -14,6 +14,14 @@ interface Props {
   issueHash?: string
 }
 
+function routeLabel(ctx: LogContext): string | null {
+  // Rails: controller + action render as "ConversationsController#index".
+  // Go/Node frameworks: usually route pattern + handler function name.
+  if (ctx.controller && ctx.action) return `${ctx.controller}#${ctx.action}`
+  if (ctx.route && ctx.handler) return `${ctx.route} · ${ctx.handler}`
+  return ctx.route || ctx.handler || null
+}
+
 export default function LogDetail({ entry, entryContext, relatedEntries, appId, appName, applications, issueHash }: Props) {
   const config = getConfig(entry.is_error)
   const Icon = config.icon
@@ -53,6 +61,9 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                   </span>
                 </div>
                 <p className="font-mono text-black mt-1 break-all">{ctx.path}</p>
+                {routeLabel(ctx) && (
+                  <p className="font-mono text-xs text-black/60 mt-1">{routeLabel(ctx)}</p>
+                )}
               </>
             ) : isJob ? (
               <>
