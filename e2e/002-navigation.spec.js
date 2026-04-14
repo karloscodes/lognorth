@@ -47,7 +47,10 @@ test.describe("Navigation Tests", () => {
 
 		await helpers.navigateTo("/settings");
 
-		await expect(page.locator("h1")).toContainText("Notifications");
+		// Settings page has multiple section headings (License, Notifications, ...).
+		// Asserting the first h1 fails when sections get reordered, so check that
+		// the Notifications section is rendered somewhere.
+		await expect(page.locator("h1", { hasText: "Notifications" })).toBeVisible();
 		helpers.log("Settings page loaded");
 	});
 
