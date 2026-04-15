@@ -15,9 +15,10 @@ import (
 // Sentinel errors returned by Rename so the HTTP layer can surface a
 // user-facing message without leaking gorm details.
 var (
-	ErrNameRequired  = errors.New("Name is required")
-	ErrNameTooLong   = errors.New("Name must be 60 characters or fewer")
-	ErrNameDuplicate = errors.New("Another app already uses this name")
+	ErrNameRequired  = errors.New("Name can't be empty")
+	ErrNameTooLong   = errors.New("Too long — 60 characters max")
+	ErrNameDuplicate = errors.New("That name's taken")
+	ErrAppNotFound   = errors.New("Can't find that app")
 )
 
 // KeyType distinguishes between key types
@@ -156,7 +157,14 @@ func Rename(db *gorm.DB, id uint, newName string) error {
 		return ErrNameDuplicate
 	}
 
-	return db.Model(&APIKey{}).Where("id = ?", id).Update("name", trimmed).Error
+	result := db.Model(&APIKey{}).Where("id = ?", id).Update("name", trimmed)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrAppNotFound
+	}
+	return nil
 }
 
 // HasAny returns true if at least one API key exists

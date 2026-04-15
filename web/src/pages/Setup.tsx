@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Copy, Check, Trash2, Key, Activity, Pencil, X } from 'lucide-react'
-import { router } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
 
 interface APIKey {
@@ -30,33 +29,6 @@ export default function Setup({ apiKeys = [], flash }: Props) {
   const [showKeyFor, setShowKeyFor] = useState<number | null>(null)
   const [copiedKey, setCopiedKey] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [draftName, setDraftName] = useState('')
-  const editInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (editingId !== null) editInputRef.current?.focus()
-  }, [editingId])
-
-  const startEdit = (app: APIKey) => {
-    setEditingId(app.id)
-    setDraftName(app.name)
-  }
-  const cancelEdit = () => {
-    setEditingId(null)
-    setDraftName('')
-  }
-  const saveEdit = (appId: number) => {
-    const trimmed = draftName.trim()
-    if (!trimmed) return
-    router.post(
-      `/apps/api-keys/${appId}/rename`,
-      { name: trimmed },
-      {
-        preserveScroll: true,
-        onFinish: () => setEditingId(null),
-      },
-    )
-  }
 
   const copyKey = () => {
     if (flash?.newKey) {
@@ -176,17 +148,17 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                   <div className="flex-1 min-w-0">
                     {editingId === app.id ? (
                       <form
-                        onSubmit={(e) => { e.preventDefault(); saveEdit(app.id) }}
+                        action={`/apps/api-keys/${app.id}/rename`}
+                        method="POST"
                         className="flex items-center gap-2"
                       >
                         <input
-                          ref={editInputRef}
                           type="text"
                           name="name"
-                          value={draftName}
+                          defaultValue={app.name}
+                          placeholder="App name"
                           maxLength={60}
-                          onChange={(e) => setDraftName(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Escape') cancelEdit() }}
+                          autoFocus
                           className="flex-1 min-w-0 px-2 py-1 text-lg font-bold text-black border-2 border-accent bg-white focus:outline-none"
                         />
                         <button
@@ -197,7 +169,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                         </button>
                         <button
                           type="button"
-                          onClick={cancelEdit}
+                          onClick={() => setEditingId(null)}
                           className="p-1.5 text-black/40 hover:text-black transition-colors"
                           aria-label="Cancel"
                         >
@@ -211,7 +183,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                         </a>
                         <button
                           type="button"
-                          onClick={() => startEdit(app)}
+                          onClick={() => setEditingId(app.id)}
                           className="p-1 opacity-0 group-hover:opacity-100 text-black/30 hover:text-black transition-all"
                           title="Rename"
                         >

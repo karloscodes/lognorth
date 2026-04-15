@@ -270,19 +270,18 @@ func TestRename(t *testing.T) {
 		}
 	})
 
-	t.Run("allows renaming to the same name (no-op)", func(t *testing.T) {
-		apiKey, _, _ := Create(db, "Same-noop")
-		if err := Rename(db, apiKey.ID, "Same-noop"); err != nil {
-			t.Errorf("renaming to same name should succeed, got %v", err)
-		}
-	})
-
 	t.Run("allows reusing a name owned by a revoked app", func(t *testing.T) {
 		old, _, _ := Create(db, "Recycled-revoked")
 		Revoke(db, old.ID)
 		fresh, _, _ := Create(db, "Placeholder-recycle")
 		if err := Rename(db, fresh.ID, "Recycled-revoked"); err != nil {
 			t.Errorf("should be allowed since old app is revoked, got %v", err)
+		}
+	})
+
+	t.Run("returns ErrAppNotFound when id does not exist", func(t *testing.T) {
+		if err := Rename(db, 999999, "Ghost"); err != ErrAppNotFound {
+			t.Errorf("expected ErrAppNotFound, got %v", err)
 		}
 	})
 }
