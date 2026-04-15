@@ -61,6 +61,14 @@ type EventContext struct {
 	Path   string `json:"path,omitempty"`
 	Status int    `json:"status,omitempty"`
 
+	// Route enrichment — SDKs populate what their framework exposes.
+	// Rails: controller + action. Express/chi/fiber: route pattern + handler name.
+	// All optional; display in the UI only when present.
+	Controller string `json:"controller,omitempty"`
+	Action     string `json:"action,omitempty"`
+	Route      string `json:"route,omitempty"`
+	Handler    string `json:"handler,omitempty"`
+
 	// Job fields
 	Job string `json:"job,omitempty"`
 
