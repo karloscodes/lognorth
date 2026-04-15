@@ -176,7 +176,7 @@ func (e *AlertEngine) CheckNewErrorOrRegression(ctx map[string]any, apiKeyID uin
 
 	if result.Error == gorm.ErrRecordNotFound {
 		// NEW ERROR - always alert
-		e.sendAlert(alertNewError, appName, errorMsg, hash, 0, 0, 0)
+		e.sendAlert(alertNewError, appName, errorMsg, hash, 0)
 		e.db.Create(&IssueSeen{
 			ErrorHash:        hash,
 			SeenAt:           now,
@@ -196,7 +196,7 @@ func (e *AlertEngine) CheckNewErrorOrRegression(ctx map[string]any, apiKeyID uin
 	// Check REGRESSION - always alert if quiet period passed
 	if IsRegression(seen.LastOccurrenceAt) {
 		quietPeriod := time.Since(seen.LastOccurrenceAt)
-		e.sendAlert(alertRegression, appName, errorMsg, hash, 0, 0, quietPeriod)
+		e.sendAlert(alertRegression, appName, errorMsg, hash, quietPeriod)
 		seen.LastNotifiedAt = now
 	}
 
@@ -292,71 +292,44 @@ const (
 	alertRegression
 )
 
-func (e *AlertEngine) sendAlert(typ alertType, appName, errorMsg, hash string, _, _ float64, duration time.Duration) {
+func (e *AlertEngine) sendAlert(typ alertType, appName, errorMsg, hash string, duration time.Duration) {
 	var subject, body string
 
 	switch typ {
 	case alertNewError:
-		subject = fmt.Sprintf("[LogNorth] New error in %s", appName)
-		body = fmt.Sprintf("A new error appeared in %s:\n\n%s", appName, errorMsg)
+		subject = fmt.Sprintf("%s: new error", appName)
+		body = errorMsg
 
 	case alertRegression:
-		subject = fmt.Sprintf("[LogNorth] Regression in %s", appName)
-		body = fmt.Sprintf("An error returned in %s after being quiet for %s:\n\n%s",
-			appName, formatDuration(duration), errorMsg)
+		subject = fmt.Sprintf("%s: error returned after %s", appName, formatDuration(duration))
+		body = errorMsg
 	}
 
 	if e.settings.BaseURL != "" {
-		body += fmt.Sprintf("\n\nView issue: %s/issues/%s", e.settings.BaseURL, hash)
+		body += fmt.Sprintf("\n\n%s/issues/%s", e.settings.BaseURL, hash)
 	}
-	body += "\n\n--\nLogNorth"
 
 	e.settings.SendEmail(subject, body)
 }
 
 func (e *AlertEngine) sendGroupedSpikeAlert(spikes []endpointStatus) {
+	var subject, body string
 	if len(spikes) == 1 {
 		s := spikes[0]
-		subject := fmt.Sprintf("[LogNorth] Error spike on %s", s.path)
-		body := fmt.Sprintf("Error rate spiked:\n\n%s: %.1f%% errors (normally %s)",
-			s.path, s.currentRate, formatBaseline(s.baseline))
-		e.sendWithLink(subject, body, "/endpoints")
-		return
+		subject = fmt.Sprintf("error spike on %s", s.path)
+		body = fmt.Sprintf("%s is at %.1f%% errors — normally %s.", s.path, s.currentRate, formatBaseline(s.baseline))
+	} else {
+		subject = fmt.Sprintf("%d endpoints spiking", len(spikes))
+		lines := make([]string, len(spikes))
+		for i, s := range spikes {
+			lines[i] = fmt.Sprintf("• %s: %.1f%% (normally %s)", s.path, s.currentRate, formatBaseline(s.baseline))
+		}
+		body = strings.Join(lines, "\n")
 	}
 
-	subject := fmt.Sprintf("[LogNorth] %d endpoints spiking", len(spikes))
-	lines := make([]string, len(spikes))
-	for i, s := range spikes {
-		lines[i] = fmt.Sprintf("• %s: %.1f%% errors (normally %s)", s.path, s.currentRate, formatBaseline(s.baseline))
+	if e.settings.BaseURL != "" {
+		body += fmt.Sprintf("\n\n%s/endpoints", e.settings.BaseURL)
 	}
-	body := "Multiple endpoints have elevated error rates:\n\n" + strings.Join(lines, "\n")
-	e.sendWithLink(subject, body, "/endpoints")
-}
-
-func (e *AlertEngine) sendGroupedRecoveryAlert(recovered []endpointStatus) {
-	if len(recovered) == 1 {
-		r := recovered[0]
-		subject := fmt.Sprintf("[LogNorth] Recovered: %s", r.path)
-		body := fmt.Sprintf("Error rate returned to normal:\n\n%s: %.1f%% errors (was spiking for %s)",
-			r.path, r.currentRate, formatDuration(r.duration))
-		e.sendWithLink(subject, body, "")
-		return
-	}
-
-	subject := fmt.Sprintf("[LogNorth] %d endpoints recovered", len(recovered))
-	lines := make([]string, len(recovered))
-	for i, r := range recovered {
-		lines[i] = fmt.Sprintf("• %s: %.1f%% (was spiking for %s)", r.path, r.currentRate, formatDuration(r.duration))
-	}
-	body := "Multiple endpoints returned to normal:\n\n" + strings.Join(lines, "\n")
-	e.sendWithLink(subject, body, "")
-}
-
-func (e *AlertEngine) sendWithLink(subject, body, path string) {
-	if e.settings.BaseURL != "" && path != "" {
-		body += fmt.Sprintf("\n\nView: %s%s", e.settings.BaseURL, path)
-	}
-	body += "\n\n--\nLogNorth"
 	e.settings.SendEmail(subject, body)
 }
 
@@ -371,13 +344,16 @@ func formatBaseline(baseline float64) string {
 	return fmt.Sprintf("%.1f%%", baseline)
 }
 
+// formatDuration renders a duration as a compact "15m" / "2h" / "3d" string.
+// Used in alert subjects where screen real estate is tight and users already
+// understand the unit abbreviations from log UIs.
 func formatDuration(d time.Duration) string {
 	if d < time.Hour {
-		return fmt.Sprintf("%d minutes", int(d.Minutes()))
+		return fmt.Sprintf("%dm", int(d.Minutes()))
 	}
 	hours := int(d.Hours())
 	if hours < 24 {
-		return fmt.Sprintf("%d hours", hours)
+		return fmt.Sprintf("%dh", hours)
 	}
-	return fmt.Sprintf("%d days", hours/24)
+	return fmt.Sprintf("%dd", hours/24)
 }

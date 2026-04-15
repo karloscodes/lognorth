@@ -57,7 +57,7 @@ func (j *DigestSender) ProcessBatch(ctx *cartridge.JobContext) error {
 	}
 
 	// Build digest email
-	subject := fmt.Sprintf("LogNorth Daily Digest - %s", now.Format("Jan 2"))
+	subject := fmt.Sprintf("Daily digest, %s", now.Format("Jan 2"))
 	body := j.buildDigestBody(db, items, s)
 
 	if err := s.SendEmail(subject, body); err != nil {
@@ -76,28 +76,13 @@ func (j *DigestSender) ProcessBatch(ctx *cartridge.JobContext) error {
 func (j *DigestSender) buildDigestBody(db *gorm.DB, items []events.DigestItem, s *settings.Settings) string {
 	var sb strings.Builder
 
-	sb.WriteString("Yesterday's summary across your apps:\n\n")
-
-	// Group warnings
-	var warnings []string
-	for _, item := range items {
-		warnings = append(warnings, fmt.Sprintf("- %s", item.Message))
-	}
-
-	if len(warnings) > 0 {
-		sb.WriteString("WARNINGS (resolved automatically)\n")
-		sb.WriteString(strings.Join(warnings, "\n"))
-		sb.WriteString("\n\n")
-	}
-
-	// Add stats summary
-	sb.WriteString("STATS\n")
+	sb.WriteString("Yesterday across your apps:\n\n")
 
 	var keys []apikeys.APIKey
 	db.Where("active = ?", true).Find(&keys)
 
 	yesterday := time.Now().AddDate(0, 0, -1)
-
+	wroteStats := false
 	for _, key := range keys {
 		var totalEvents, totalErrors int64
 
@@ -111,13 +96,25 @@ func (j *DigestSender) buildDigestBody(db *gorm.DB, items []events.DigestItem, s
 
 		if totalEvents > 0 {
 			errorRate := float64(totalErrors) / float64(totalEvents) * 100
-			sb.WriteString(fmt.Sprintf("- %s: %d events, %d errors (%.2f%%)\n",
+			sb.WriteString(fmt.Sprintf("- %s: %d events, %d errors (%.1f%%)\n",
 				key.Name, totalEvents, totalErrors, errorRate))
+			wroteStats = true
 		}
 	}
 
-	sb.WriteString("\nNo action needed - just keeping you informed.\n")
-	sb.WriteString(fmt.Sprintf("\nView all: %s\n", s.BaseURL))
+	if len(items) > 0 {
+		if wroteStats {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Transient warnings that resolved on their own:\n")
+		for _, item := range items {
+			sb.WriteString(fmt.Sprintf("- %s\n", item.Message))
+		}
+	}
+
+	if s.BaseURL != "" {
+		sb.WriteString(fmt.Sprintf("\n%s\n", s.BaseURL))
+	}
 
 	return sb.String()
 }
