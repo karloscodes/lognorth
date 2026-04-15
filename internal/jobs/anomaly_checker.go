@@ -158,31 +158,24 @@ func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB) {
 		var key apikeys.APIKey
 		db.First(&key, spike.APIKeyID)
 
-		// Get baseline for context
+		// Get baseline for context (mean only — the simplified email copy
+		// dropped the z-score, so stddev isn't used here anymore).
 		hourOfWeek := events.HourOfWeek(time.Now())
 		baseline := events.GetOrCreateBaseline(db, spike.APIKeyID, spike.Path, hourOfWeek)
-		mean, stddev := events.GetEffectiveBaseline(baseline)
+		mean, _ := events.GetEffectiveBaseline(baseline)
 
 		currentRate, _, _ := events.GetCurrentErrorRate(db, spike.APIKeyID, spike.Path)
 
-		subject := fmt.Sprintf("[CRITICAL] %s: Error spike detected", key.Name)
-		body := fmt.Sprintf(`%s is experiencing more errors than usual.
+		subject := fmt.Sprintf("%s: error spike", key.Name)
+		body := fmt.Sprintf(`%s is at %.1f%% errors — normally %.1f%%.
+%d errors in the last %d min.
 
-What's happening:
-- Endpoint: %s
-- Current error rate: %.1f%% (normally %.1f%%)
-- Started: %s ago
-- Total errors: %d
-
-This is significantly higher than normal for this time of day.
-
-View details: %s/apps/%d/issues`,
-			key.Name,
+%s/apps/%d/issues`,
 			spike.Path,
 			currentRate,
 			mean,
-			time.Since(spike.SpikeStartAt).Round(time.Minute),
 			spike.ErrorCount,
+			int(time.Since(spike.SpikeStartAt).Minutes()),
 			s.BaseURL,
 			spike.APIKeyID,
 		)
@@ -207,27 +200,14 @@ func (j *AnomalyChecker) sendSilenceAlerts(db *gorm.DB, s *settings.Settings) {
 		baseline := events.GetOrCreateVolumeBaseline(db, silence.APIKeyID, silence.Path, hourOfWeek)
 		mean, _ := events.GetEffectiveVolumeBaseline(baseline)
 
-		_, currentVolume, _ := events.GetCurrentErrorRate(db, silence.APIKeyID, silence.Path)
+		subject := fmt.Sprintf("%s: no traffic", key.Name)
+		body := fmt.Sprintf(`%s has been silent for %d min.
+Normally ~%.0f requests.
 
-		subject := fmt.Sprintf("[CRITICAL] %s: Traffic disappeared", key.Name)
-		body := fmt.Sprintf(`%s is not receiving expected traffic.
-
-What's happening:
-- Endpoint: %s
-- Current volume: %d requests (expected: %.0f)
-- Silent since: %s ago
-
-This could mean:
-- Upstream service is down
-- Deployment broke something
-- Network issue
-
-View details: %s/apps/%d/issues`,
-			key.Name,
+%s/apps/%d/issues`,
 			silence.Path,
-			currentVolume,
+			int(time.Since(silence.SilenceStartAt).Minutes()),
 			mean,
-			time.Since(silence.SilenceStartAt).Round(time.Minute),
 			s.BaseURL,
 			silence.APIKeyID,
 		)
