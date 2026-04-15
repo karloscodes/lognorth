@@ -158,10 +158,11 @@ func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB) {
 		var key apikeys.APIKey
 		db.First(&key, spike.APIKeyID)
 
-		// Get baseline for context
+		// Get baseline for context (mean only — the simplified email copy
+		// dropped the z-score, so stddev isn't used here anymore).
 		hourOfWeek := events.HourOfWeek(time.Now())
 		baseline := events.GetOrCreateBaseline(db, spike.APIKeyID, spike.Path, hourOfWeek)
-		mean, stddev := events.GetEffectiveBaseline(baseline)
+		mean, _ := events.GetEffectiveBaseline(baseline)
 
 		currentRate, _, _ := events.GetCurrentErrorRate(db, spike.APIKeyID, spike.Path)
 
