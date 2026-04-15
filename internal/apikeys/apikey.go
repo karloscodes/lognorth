@@ -4,9 +4,20 @@ package apikeys
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
+)
+
+// Sentinel errors returned by Rename so the HTTP layer can surface a
+// user-facing message without leaking gorm details.
+var (
+	ErrNameRequired  = errors.New("Name is required")
+	ErrNameTooLong   = errors.New("Name must be 60 characters or fewer")
+	ErrNameDuplicate = errors.New("Another app already uses this name")
 )
 
 // KeyType distinguishes between key types
@@ -123,6 +134,29 @@ func Revoke(db *gorm.DB, id uint) error {
 // Delete removes an API key
 func Delete(db *gorm.DB, id uint) error {
 	return db.Delete(&APIKey{}, id).Error
+}
+
+// Rename updates the display name of an app API key. Trims whitespace,
+// enforces a 60-char limit, and rejects names already in use by another
+// active app. Returns one of ErrName* on validation failure.
+func Rename(db *gorm.DB, id uint, newName string) error {
+	trimmed := strings.TrimSpace(newName)
+	if trimmed == "" {
+		return ErrNameRequired
+	}
+	if utf8.RuneCountInString(trimmed) > 60 {
+		return ErrNameTooLong
+	}
+
+	var dup int64
+	db.Model(&APIKey{}).
+		Where("id != ? AND name = ? AND active = ?", id, trimmed, true).
+		Count(&dup)
+	if dup > 0 {
+		return ErrNameDuplicate
+	}
+
+	return db.Model(&APIKey{}).Where("id = ?", id).Update("name", trimmed).Error
 }
 
 // HasAny returns true if at least one API key exists

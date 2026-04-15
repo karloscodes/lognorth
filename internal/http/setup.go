@@ -94,6 +94,25 @@ func RevokeAPIKeyAction(ctx *cartridge.Context) error {
 	return ctx.Redirect("/apps", fiber.StatusFound)
 }
 
+// RenameAPIKeyAction handles POST /apps/api-keys/:id/rename
+func RenameAPIKeyAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	id, err := ctx.Ctx.ParamsInt("id")
+	if err != nil || id <= 0 {
+		flash.SetFlash(ctx.Ctx, "error", "Invalid app")
+		return ctx.Redirect("/apps", fiber.StatusFound)
+	}
+
+	if err := apikeys.Rename(db, uint(id), ctx.FormValue("name")); err != nil {
+		flash.SetFlash(ctx.Ctx, "error", err.Error())
+		return ctx.Redirect("/apps", fiber.StatusFound)
+	}
+
+	flash.SetFlash(ctx.Ctx, "success", "Renamed")
+	return ctx.Redirect("/apps", fiber.StatusFound)
+}
+
 // DeleteAPIKeyAction handles DELETE /apps/api-keys/:id (or POST with _method=DELETE)
 func DeleteAPIKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()

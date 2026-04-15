@@ -225,3 +225,65 @@ func TestValidateAppKey(t *testing.T) {
 	}
 }
 
+func TestRename(t *testing.T) {
+	// Single DB for the whole test; each case uses its own app rows so there
+	// is no cross-case interference. (setupTestDB's filename uses t.Name(),
+	// which contains "/" for subtests and fails to open.)
+	db := setupTestDB(t)
+
+	t.Run("updates the name and trims whitespace", func(t *testing.T) {
+		apiKey, _, _ := Create(db, "Original-trim")
+		if err := Rename(db, apiKey.ID, "   Renamed   "); err != nil {
+			t.Fatalf("Rename failed: %v", err)
+		}
+		reloaded, _ := FindByID(db, apiKey.ID)
+		if reloaded.Name != "Renamed" {
+			t.Errorf("expected name 'Renamed', got %q", reloaded.Name)
+		}
+	})
+
+	t.Run("rejects empty or whitespace-only names", func(t *testing.T) {
+		apiKey, _, _ := Create(db, "Keep-empty")
+		for _, name := range []string{"", "   ", "\t\n"} {
+			if err := Rename(db, apiKey.ID, name); err != ErrNameRequired {
+				t.Errorf("name %q: expected ErrNameRequired, got %v", name, err)
+			}
+		}
+		reloaded, _ := FindByID(db, apiKey.ID)
+		if reloaded.Name != "Keep-empty" {
+			t.Errorf("name should not have changed, got %q", reloaded.Name)
+		}
+	})
+
+	t.Run("rejects names over 60 chars", func(t *testing.T) {
+		apiKey, _, _ := Create(db, "Keep-long")
+		if err := Rename(db, apiKey.ID, strings.Repeat("a", 61)); err != ErrNameTooLong {
+			t.Errorf("expected ErrNameTooLong, got %v", err)
+		}
+	})
+
+	t.Run("rejects a name already in use by another active app", func(t *testing.T) {
+		Create(db, "Alpha-dup")
+		beta, _, _ := Create(db, "Beta-dup")
+		if err := Rename(db, beta.ID, "Alpha-dup"); err != ErrNameDuplicate {
+			t.Errorf("expected ErrNameDuplicate, got %v", err)
+		}
+	})
+
+	t.Run("allows renaming to the same name (no-op)", func(t *testing.T) {
+		apiKey, _, _ := Create(db, "Same-noop")
+		if err := Rename(db, apiKey.ID, "Same-noop"); err != nil {
+			t.Errorf("renaming to same name should succeed, got %v", err)
+		}
+	})
+
+	t.Run("allows reusing a name owned by a revoked app", func(t *testing.T) {
+		old, _, _ := Create(db, "Recycled-revoked")
+		Revoke(db, old.ID)
+		fresh, _, _ := Create(db, "Placeholder-recycle")
+		if err := Rename(db, fresh.ID, "Recycled-revoked"); err != nil {
+			t.Errorf("should be allowed since old app is revoked, got %v", err)
+		}
+	})
+}
+

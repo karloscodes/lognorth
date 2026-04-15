@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Copy, Check, Trash2, Key, Activity } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Copy, Check, Trash2, Key, Activity, Pencil, X } from 'lucide-react'
+import { router } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
 
 interface APIKey {
@@ -28,6 +29,34 @@ export default function Setup({ apiKeys = [], flash }: Props) {
   const [copied, setCopied] = useState(false)
   const [showKeyFor, setShowKeyFor] = useState<number | null>(null)
   const [copiedKey, setCopiedKey] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [draftName, setDraftName] = useState('')
+  const editInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingId !== null) editInputRef.current?.focus()
+  }, [editingId])
+
+  const startEdit = (app: APIKey) => {
+    setEditingId(app.id)
+    setDraftName(app.name)
+  }
+  const cancelEdit = () => {
+    setEditingId(null)
+    setDraftName('')
+  }
+  const saveEdit = (appId: number) => {
+    const trimmed = draftName.trim()
+    if (!trimmed) return
+    router.post(
+      `/apps/api-keys/${appId}/rename`,
+      { name: trimmed },
+      {
+        preserveScroll: true,
+        onFinish: () => setEditingId(null),
+      },
+    )
+  }
 
   const copyKey = () => {
     if (flash?.newKey) {
@@ -145,9 +174,51 @@ export default function Setup({ apiKeys = [], flash }: Props) {
 
                   {/* App info */}
                   <div className="flex-1 min-w-0">
-                    <a href={`/apps/${app.id}/issues`} className="block">
-                      <span className="text-lg font-bold text-black hover:underline">{app.name}</span>
-                    </a>
+                    {editingId === app.id ? (
+                      <form
+                        onSubmit={(e) => { e.preventDefault(); saveEdit(app.id) }}
+                        className="flex items-center gap-2"
+                      >
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          name="name"
+                          value={draftName}
+                          maxLength={60}
+                          onChange={(e) => setDraftName(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Escape') cancelEdit() }}
+                          className="flex-1 min-w-0 px-2 py-1 text-lg font-bold text-black border-2 border-accent bg-white focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          className="px-3 py-1 text-sm font-semibold text-black border border-black/20 hover:border-black/40 transition-colors"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="p-1.5 text-black/40 hover:text-black transition-colors"
+                          aria-label="Cancel"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </form>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <a href={`/apps/${app.id}/issues`} className="block">
+                          <span className="text-lg font-bold text-black hover:underline">{app.name}</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(app)}
+                          className="p-1 opacity-0 group-hover:opacity-100 text-black/30 hover:text-black transition-all"
+                          title="Rename"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                     <div className="flex items-center gap-4 mt-1 text-sm text-black/50">
                       <span className="flex items-center gap-1.5">
                         <Activity className="w-3.5 h-3.5" />

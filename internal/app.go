@@ -259,6 +259,7 @@ func MountRoutes(server *cartridge.Server) {
 	// Setup page (apps management)
 	server.Get("/apps", lbhttp.SetupPageAction, protectedConfig)
 	server.Post("/apps/api-keys", lbhttp.CreateAPIKeyAction, protectedConfig)
+	server.Post("/apps/api-keys/:id/rename", lbhttp.RenameAPIKeyAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/revoke", lbhttp.RevokeAPIKeyAction, protectedConfig)
 	server.Delete("/apps/api-keys/:id", lbhttp.DeleteAPIKeyAction, protectedConfig)
 
