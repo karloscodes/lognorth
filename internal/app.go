@@ -282,6 +282,9 @@ func MountRoutes(server *cartridge.Server) {
 	// Issue detail page
 	server.Get("/apps/:id/issues/:hash", lbhttp.AppIssueDetailPageAction, protectedConfig)
 
+	// Global issue detail (email alerts link here) — redirects to app-scoped page
+	server.Get("/issues/:hash", lbhttp.IssueDetailPageAction, protectedConfig)
+
 	// Issue actions
 	server.Post("/issues/seen", lbhttp.MarkAllIssuesSeenAction, protectedConfig)
 	server.Post("/issues/:hash/seen", lbhttp.MarkIssueSeenAction, protectedConfig)
