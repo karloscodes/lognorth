@@ -166,7 +166,7 @@ func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB) {
 
 		currentRate, _, _ := events.GetCurrentErrorRate(db, spike.APIKeyID, spike.Path)
 
-		subject := fmt.Sprintf("%s: error spike", key.Name)
+		subject := fmt.Sprintf("%s — spike: %s at %.1f%%", key.Name, spike.Path, currentRate)
 		body := fmt.Sprintf(`%s is at %.1f%% errors — normally %.1f%%.
 %d errors in the last %d min.
 
@@ -200,13 +200,14 @@ func (j *AnomalyChecker) sendSilenceAlerts(db *gorm.DB, s *settings.Settings) {
 		baseline := events.GetOrCreateVolumeBaseline(db, silence.APIKeyID, silence.Path, hourOfWeek)
 		mean, _ := events.GetEffectiveVolumeBaseline(baseline)
 
-		subject := fmt.Sprintf("%s: no traffic", key.Name)
+		silentMin := int(time.Since(silence.SilenceStartAt).Minutes())
+		subject := fmt.Sprintf("%s — silent: %s for %d min", key.Name, silence.Path, silentMin)
 		body := fmt.Sprintf(`%s has been silent for %d min.
 Normally ~%.0f requests.
 
 %s/apps/%d/issues`,
 			silence.Path,
-			int(time.Since(silence.SilenceStartAt).Minutes()),
+			silentMin,
 			mean,
 			s.BaseURL,
 			silence.APIKeyID,

@@ -120,7 +120,9 @@ func (p *EventProcessor) processBatch(ctx *cartridge.JobContext, batchSize int) 
 				if apiKey, err := apikeys.FindByID(db, ie.APIKeyID); err == nil {
 					appName = apiKey.Name
 				}
-				events.NotifyIfNeeded(db, eventCtx.ToMap(), ie.APIKeyID, appName)
+				if engine, err := events.NewAlertEngine(db); err == nil {
+					engine.CheckNewErrorOrRegression(eventCtx.ToMap(), ie.APIKeyID, appName)
+				}
 			}
 		}
 
