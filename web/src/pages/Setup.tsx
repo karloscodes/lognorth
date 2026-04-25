@@ -10,8 +10,9 @@ interface APIKey {
   active: boolean
   today_total: number
   last_seen: number | null
-  silence_threshold_minutes?: number
-  is_silent?: boolean
+  ping_url?: string
+  ping_disabled?: boolean
+  is_down?: boolean
 }
 
 interface Flash {
@@ -204,33 +205,63 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                           'Waiting for events'
                         )}
                       </span>
-                      <form
-                        action={`/apps/api-keys/${app.id}/silence-threshold`}
-                        method="POST"
-                        className="flex items-center gap-1.5"
-                      >
-                        <span className="text-black/40">·</span>
-                        {app.is_silent && (
-                          <span className="w-2 h-2 rounded-full bg-[#e11d48]" title="Silent — no events received" />
-                        )}
-                        <span>Alert if silent</span>
-                        <input
-                          type="number"
-                          name="minutes"
-                          min={0}
-                          max={1440}
-                          defaultValue={app.silence_threshold_minutes ?? 0}
-                          className="w-14 px-1.5 py-0.5 text-sm font-mono tabular-nums text-black border border-black/10 focus:border-black/40 focus:outline-none"
-                          aria-label="Silence threshold in minutes (0 = off)"
-                        />
-                        <span>min</span>
-                        <button
-                          type="submit"
-                          className="text-xs text-black/40 hover:text-black px-1.5 py-0.5 border border-black/10 hover:border-black/30 transition-colors"
-                        >
-                          Save
-                        </button>
-                      </form>
+                      <span className="text-black/40">·</span>
+                      <span className="flex items-center gap-1.5" title={
+                        app.ping_disabled ? 'Uptime check disabled'
+                          : app.is_down ? 'Down — not responding'
+                          : app.ping_url ? `Up — pinging ${app.ping_url}`
+                          : 'Waiting to detect URL from first event'
+                      }>
+                        <span className={`w-2 h-2 rounded-full ${
+                          app.ping_disabled ? 'bg-black/20'
+                            : app.is_down ? 'bg-[#e11d48]'
+                            : app.ping_url ? 'bg-emerald-500'
+                            : 'bg-black/30'
+                        }`} />
+                        {app.ping_disabled ? 'Uptime off'
+                          : app.is_down ? 'Down'
+                          : app.ping_url ? (
+                            <span className="font-mono text-xs truncate max-w-[200px]" title={app.ping_url}>{app.ping_url}</span>
+                          )
+                          : 'Detecting…'
+                        }
+                      </span>
+                      <details className="group/uptime">
+                        <summary className="cursor-pointer text-xs text-black/30 hover:text-black list-none">[edit]</summary>
+                        <div className="absolute mt-1 p-3 border border-black/10 bg-white shadow-md z-10 flex flex-col gap-2 min-w-[280px]">
+                          <form
+                            action={`/apps/api-keys/${app.id}/ping-url`}
+                            method="POST"
+                            className="flex items-center gap-2"
+                          >
+                            <input
+                              type="text"
+                              name="url"
+                              defaultValue={app.ping_url ?? ''}
+                              placeholder="https://yourapp.com"
+                              className="flex-1 px-2 py-1 text-sm font-mono text-black border border-black/10 focus:border-black/40 focus:outline-none"
+                            />
+                            <button
+                              type="submit"
+                              className="text-xs px-2 py-1 border border-black/20 hover:border-black/40 transition-colors"
+                            >
+                              Save
+                            </button>
+                          </form>
+                          <form
+                            action={`/apps/api-keys/${app.id}/toggle-ping`}
+                            method="POST"
+                          >
+                            <input type="hidden" name="disabled" value={app.ping_disabled ? 'false' : 'true'} />
+                            <button
+                              type="submit"
+                              className="text-xs text-black/50 hover:text-black"
+                            >
+                              {app.ping_disabled ? 'Re-enable check' : 'Disable check'}
+                            </button>
+                          </form>
+                        </div>
+                      </details>
                     </div>
                   </div>
 

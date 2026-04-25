@@ -263,7 +263,8 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/apps", lbhttp.SetupPageAction, protectedConfig)
 	server.Post("/apps/api-keys", lbhttp.CreateAPIKeyAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/rename", lbhttp.RenameAPIKeyAction, protectedConfig)
-	server.Post("/apps/api-keys/:id/silence-threshold", lbhttp.SetSilenceThresholdAction, protectedConfig)
+	server.Post("/apps/api-keys/:id/ping-url", lbhttp.SetPingURLAction, protectedConfig)
+	server.Post("/apps/api-keys/:id/toggle-ping", lbhttp.TogglePingAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/revoke", lbhttp.RevokeAPIKeyAction, protectedConfig)
 	server.Delete("/apps/api-keys/:id", lbhttp.DeleteAPIKeyAction, protectedConfig)
 

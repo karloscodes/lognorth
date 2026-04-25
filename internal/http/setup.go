@@ -1,8 +1,6 @@
 package http
 
 import (
-	"strconv"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/flash"
@@ -13,15 +11,16 @@ import (
 
 // AppForSetup represents an app with activity stats for the setup page
 type AppForSetup struct {
-	ID                      uint   `json:"id"`
-	Name                    string `json:"name"`
-	Key                     string `json:"key"`
-	KeyPrefix               string `json:"key_prefix"`
-	Active                  bool   `json:"active"`
-	TodayTotal              int64  `json:"today_total"`
-	LastSeen                *int64 `json:"last_seen"` // Unix timestamp, nil if never
-	SilenceThresholdMinutes int    `json:"silence_threshold_minutes"`
-	IsSilent                bool   `json:"is_silent"`
+	ID           uint   `json:"id"`
+	Name         string `json:"name"`
+	Key          string `json:"key"`
+	KeyPrefix    string `json:"key_prefix"`
+	Active       bool   `json:"active"`
+	TodayTotal   int64  `json:"today_total"`
+	LastSeen     *int64 `json:"last_seen"` // Unix timestamp, nil if never
+	PingURL      string `json:"ping_url"`
+	PingDisabled bool   `json:"ping_disabled"`
+	IsDown       bool   `json:"is_down"`
 }
 
 // SetupPageAction handles GET /apps (Inertia page)
@@ -37,13 +36,14 @@ func SetupPageAction(ctx *cartridge.Context) error {
 	apps := make([]AppForSetup, 0, len(keys))
 	for _, k := range keys {
 		app := AppForSetup{
-			ID:                      k.ID,
-			Name:                    k.Name,
-			Key:                     k.Key,
-			KeyPrefix:               k.KeyPrefix,
-			Active:                  k.Active,
-			SilenceThresholdMinutes: k.SilenceThresholdMinutes,
-			IsSilent:                k.IsSilent,
+			ID:           k.ID,
+			Name:         k.Name,
+			Key:          k.Key,
+			KeyPrefix:    k.KeyPrefix,
+			Active:       k.Active,
+			PingURL:      k.PingURL,
+			PingDisabled: k.PingDisabled,
+			IsDown:       k.IsDown,
 		}
 		if k.Active {
 			stats := events.GetStats(db, k.ID)
@@ -119,8 +119,8 @@ func RenameAPIKeyAction(ctx *cartridge.Context) error {
 	return ctx.Redirect("/apps", fiber.StatusFound)
 }
 
-// SetSilenceThresholdAction handles POST /apps/api-keys/:id/silence-threshold
-func SetSilenceThresholdAction(ctx *cartridge.Context) error {
+// SetPingURLAction handles POST /apps/api-keys/:id/ping-url
+func SetPingURLAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
 	id, err := ctx.Ctx.ParamsInt("id")
@@ -129,23 +129,35 @@ func SetSilenceThresholdAction(ctx *cartridge.Context) error {
 		return ctx.Redirect("/apps", fiber.StatusFound)
 	}
 
-	minutes, _ := strconv.Atoi(ctx.FormValue("minutes"))
-	if minutes < 0 {
-		minutes = 0
-	}
-	if minutes > 1440 { // cap at 24 hours
-		minutes = 1440
+	if err := apikeys.SetPingURL(db, uint(id), ctx.FormValue("url")); err != nil {
+		flash.SetFlash(ctx.Ctx, "error", "Couldn't update URL")
+		return ctx.Redirect("/apps", fiber.StatusFound)
 	}
 
-	if err := apikeys.SetSilenceThreshold(db, uint(id), minutes); err != nil {
+	flash.SetFlash(ctx.Ctx, "success", "Ping URL updated")
+	return ctx.Redirect("/apps", fiber.StatusFound)
+}
+
+// TogglePingAction handles POST /apps/api-keys/:id/toggle-ping
+func TogglePingAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	id, err := ctx.Ctx.ParamsInt("id")
+	if err != nil || id <= 0 {
+		flash.SetFlash(ctx.Ctx, "error", "Invalid app")
+		return ctx.Redirect("/apps", fiber.StatusFound)
+	}
+
+	disabled := ctx.FormValue("disabled") == "true"
+	if err := apikeys.SetPingDisabled(db, uint(id), disabled); err != nil {
 		flash.SetFlash(ctx.Ctx, "error", "Couldn't update")
 		return ctx.Redirect("/apps", fiber.StatusFound)
 	}
 
-	if minutes == 0 {
+	if disabled {
 		flash.SetFlash(ctx.Ctx, "success", "Uptime check disabled")
 	} else {
-		flash.SetFlash(ctx.Ctx, "success", "Uptime check updated")
+		flash.SetFlash(ctx.Ctx, "success", "Uptime check enabled")
 	}
 	return ctx.Redirect("/apps", fiber.StatusFound)
 }

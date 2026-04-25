@@ -38,13 +38,15 @@ type APIKey struct {
 	Active    bool      `gorm:"default:true" json:"active"`
 	LastUsed  time.Time `json:"last_used,omitempty"`
 
-	// Uptime ping (passive silence detection).
-	// SilenceThresholdMinutes = 0 means the check is disabled for this app.
-	// Recommended value when enabling: 5.
-	SilenceThresholdMinutes int       `gorm:"default:0" json:"silence_threshold_minutes"`
-	IsSilent                bool      `gorm:"default:false" json:"is_silent"`
-	SilenceStartAt          time.Time `json:"silence_start_at,omitempty"`
-	LastSilenceAlertAt      time.Time `json:"last_silence_alert_at,omitempty"`
+	// Uptime ping (active HTTP probe). CoC: auto-discovered URL from
+	// context.host on first event, pinged every minute, alert after 3
+	// consecutive fails. No knobs unless the user wants to override.
+	PingURL          string    `gorm:"size:500" json:"ping_url"`
+	PingDisabled     bool      `gorm:"default:false" json:"ping_disabled"`
+	IsDown           bool      `gorm:"default:false" json:"is_down"`
+	ConsecutiveFails int       `gorm:"default:0" json:"consecutive_fails"`
+	DownSince        time.Time `json:"down_since,omitempty"`
+	LastPingedAt     time.Time `json:"last_pinged_at,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -146,18 +148,30 @@ func Delete(db *gorm.DB, id uint) error {
 	return db.Delete(&APIKey{}, id).Error
 }
 
-// SetSilenceThreshold sets the per-app silence threshold (in minutes).
-// Pass 0 to disable the uptime check. Setting any value resets any current
-// silent state so the next sweep starts fresh.
-func SetSilenceThreshold(db *gorm.DB, id uint, minutes int) error {
-	if minutes < 0 {
-		minutes = 0
-	}
+// SetPingURL sets the URL the uptime checker pings. Clears any current
+// down state so the next probe starts fresh. Empty URL disables until
+// auto-discovery picks one up again on the next event.
+func SetPingURL(db *gorm.DB, id uint, url string) error {
+	url = strings.TrimSpace(url)
 	return db.Model(&APIKey{}).Where("id = ?", id).Updates(map[string]any{
-		"silence_threshold_minutes": minutes,
-		"is_silent":                 false,
-		"silence_start_at":          nil,
+		"ping_url":          url,
+		"ping_disabled":     false,
+		"is_down":           false,
+		"consecutive_fails": 0,
+		"down_since":        nil,
 	}).Error
+}
+
+// SetPingDisabled flips the user's explicit opt-out. When disabled,
+// auto-discovery is also suppressed.
+func SetPingDisabled(db *gorm.DB, id uint, disabled bool) error {
+	updates := map[string]any{"ping_disabled": disabled}
+	if disabled {
+		updates["is_down"] = false
+		updates["consecutive_fails"] = 0
+		updates["down_since"] = nil
+	}
+	return db.Model(&APIKey{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // Rename updates the display name of an app API key. Trims whitespace,

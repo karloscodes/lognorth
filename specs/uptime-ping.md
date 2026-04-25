@@ -1,48 +1,61 @@
-# Feature: Uptime Ping (Heartbeat)
+# Feature: Uptime Ping (active HTTP probe, CoC)
 
 ## Goal
-Detect when an app stops sending events (crash, deploy gone wrong, network split) and notify before users do. Today LogNorth only knows about errors that *arrive* — silence is invisible.
+Tell the user when their app is unreachable, with zero configuration in the happy path.
 
 ## Behavior
 
-### Two modes — pick the simpler that works
+### Convention over Configuration
+No knobs. Everything has a sensible default that applies to every app:
 
-**Mode A — Passive (no SDK change)**
-- "App is silent" = no event from this `api_key_id` for N minutes (default 5).
-- Background sweeper runs every minute. For each app with notification enabled:
-  - Compute `last_event_at` from events table
-  - If `now - last_event_at > threshold` and not already notified → send "Silent" alert
-  - When events resume, send "Recovered" alert
-- Per-app threshold setting (default 5 min, off by default for new apps to avoid noise on quiet apps).
+| Decision | Convention |
+|---|---|
+| URL to ping | Auto-discovered from `context.host` of the most recent event |
+| Frequency | Every 1 minute |
+| Timeout | 5 seconds |
+| HTTP method | GET |
+| Failure threshold | 3 consecutive fails = down |
+| Acceptable status | 2xx / 3xx / 4xx = up; 5xx or timeout = down |
+| HTTPS by default | Auto-discovery prepends `https://` to the host |
+| Bootstrap grace | 10 minutes after app creation, no alerts |
+| Internal hosts | Skipped during auto-discovery (localhost, RFC1918, .local, .internal) |
 
-**Mode B — Active heartbeat (opt-in)**
-- SDK sends `POST /api/v1/heartbeat` every 60s with no payload
-- Server tracks `last_heartbeat_at` per api_key
-- Same down/up notification logic, but threshold can be tighter (e.g. 2 min) since heartbeats are predictable
+### Auto-discovery
+1. Sweeper sees an app without `ping_url`.
+2. Queries the most recent event's `context.host` for that app.
+3. If the host is public (not internal/loopback), saves it as `ping_url` with `https://` prefix.
+4. Next sweep iteration probes it.
 
-### Recommendation
-Start with Mode A. Most apps with the SDK installed will be sending events constantly; passive detection costs zero SDK work. Add Mode B later for low-traffic apps where errors-only detection is too lossy.
+### Probe
+Every minute, for each active app where `ping_disabled = false` and `ping_url != ''`:
+- HTTP GET the URL with 5s timeout.
+- 2xx/3xx/4xx → up. Reset `consecutive_fails`.
+- 5xx or transport error → fail. `consecutive_fails++`.
+- 3 consecutive fails AND was up → mark down, fire one notification.
+- Recovers from down → fire one recovery notification, clear state.
 
-### UI
-- Apps page shows a green/red dot per app indicating "live" / "silent"
-- Settings: per-app toggle "Alert me when this app goes silent for [N] minutes"
-- Notification channels reuse existing email / webhook config
+### User overrides (rare)
+- Edit `ping_url` if auto-detection got the wrong host (e.g., picked an internal hostname).
+- Toggle `ping_disabled` to opt out entirely (e.g., background-only worker with no public URL).
 
-### Anti-noise
-- Don't alert during the first 10 minutes after enabling (avoid bootstrap false-positives)
-- One alert per silent-period; recovery alert clears it
-- Suppress for muted apps
+### Notifications
+Reuse existing `settings.SendNotification` channel (email / webhook / whatever the user has configured).
 
 ## Acceptance
-- [ ] Background sweeper runs every minute
-- [ ] Silent → notification sent once, not repeatedly
-- [ ] Recovery → notification sent once
-- [ ] Per-app threshold setting in UI, default 5 min
-- [ ] Off by default for new apps
-- [ ] Apps page shows live/silent indicator
-- [ ] Quiet test app (no events) doesn't trigger if threshold disabled
+- [x] Background sweeper runs every minute
+- [x] Auto-discovers URL from `context.host` on apps without one
+- [x] Skips internal hosts (localhost, RFC1918, .local, .internal)
+- [x] HTTP probe with 5s timeout
+- [x] 3 consecutive fails before transitioning to down
+- [x] Down → one notification, not repeated per probe
+- [x] Recovery → one notification
+- [x] Bootstrap grace (10 min) prevents alerts on freshly-created apps
+- [x] User can edit ping URL via UI
+- [x] User can disable / re-enable the check
+- [x] Status indicator on apps page (up / down / disabled / detecting)
 
 ## Notes
-- Adds modest schema: `api_keys.silence_threshold_minutes`, `api_keys.silence_alert_at` (nullable).
-- The sweeper can piggyback on the existing background goroutine if there is one; otherwise a tiny ticker.
-- Out of scope: external HTTP uptime probing of the user's own services. That's a different product.
+- Schema lives on `api_keys` (not a separate table) since it's per-app and tightly coupled to app lifecycle.
+- The previous passive-sweep design was replaced because passive depends on the SDK still working — and the SDK breaks during exactly the failure modes (server down, network split) we want to detect.
+- TCP probes are intentionally **not** in scope. HTTP covers virtually every web-app failure case. Add TCP if a real customer asks.
+- Mode B (active heartbeat from SDK) was dropped — active HTTP probe from LogNorth is more reliable and requires no SDK change.
