@@ -108,7 +108,7 @@ type IssueWithState struct {
 	LastSeen   string   `json:"last_seen"`
 	Paths      []string `json:"paths"`
 	Unseen     bool     `json:"unseen"` // New occurrences since last viewed
-	Active     bool     `json:"active"` // Had occurrences in last 24h
+	Active     bool     `json:"active"` // Had occurrences in last 7 days
 	Muted      bool     `json:"muted"`  // User muted this issue
 	IsNew      bool     `json:"is_new"` // First seen < 24h ago
 	Trend      string   `json:"trend"`  // "up", "down", "stable"
@@ -198,6 +198,7 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 
 	now := time.Now()
 	cutoff24h := now.Add(-24 * time.Hour)
+	activeCutoff := now.Add(-7 * 24 * time.Hour)
 
 	// Collect hashes for trend and period count computation
 	hashes := make([]string, 0, len(rows))
@@ -262,7 +263,7 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 			FirstSeen:  formatTimestampISO(firstSeenTime),
 			LastSeen:   formatTimestampISO(lastSeenTime),
 			Paths:      paths,
-			Active:     lastSeenTime.After(cutoff24h),
+			Active:     lastSeenTime.After(activeCutoff),
 			IsNew:      firstSeenTime.After(cutoff24h),
 			Trend:      trend,
 		}
@@ -563,7 +564,7 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 	lastSeenTime := ParseSQLiteTimestamp(aggResult.LastSeen)
 	firstSeenTime := ParseSQLiteTimestamp(aggResult.FirstSeen)
 	now := time.Now()
-	active := lastSeenTime.After(now.Add(-24 * time.Hour))
+	active := lastSeenTime.After(now.Add(-7 * 24 * time.Hour))
 
 	var seenRecord IssueSeen
 	db.Where("error_hash = ?", hash).First(&seenRecord)
@@ -653,7 +654,7 @@ func getIssueByHashLegacy(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail
 
 	lastSeenTime := ParseSQLiteTimestamp(aggResult.LastSeen)
 	firstSeenTime := ParseSQLiteTimestamp(aggResult.FirstSeen)
-	active := lastSeenTime.After(time.Now().Add(-24 * time.Hour))
+	active := lastSeenTime.After(time.Now().Add(-7 * 24 * time.Hour))
 
 	var seenRecord IssueSeen
 	db.Where("error_hash = ?", hash).First(&seenRecord)

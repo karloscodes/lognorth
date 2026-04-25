@@ -79,7 +79,7 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
                 <h2 className="text-sm font-bold text-black/50 uppercase tracking-wide">
                   Active
                 </h2>
-                <span className="text-xs text-black/40">Last 24 hours</span>
+                <span className="text-xs text-black/40">Last 7 days</span>
               </div>
               <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
                 {activeIssues.map((issue) => (
