@@ -1,6 +1,8 @@
 package http
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/flash"
@@ -70,10 +72,16 @@ func CreateAPIKeyAction(ctx *cartridge.Context) error {
 		name = "default"
 	}
 
-	_, fullKey, err := apikeys.Create(db, name)
+	apiKey, fullKey, err := apikeys.Create(db, name)
 	if err != nil {
 		flash.SetFlash(ctx.Ctx, "error", "Failed to create API key")
 		return ctx.Redirect("/apps", fiber.StatusFound)
+	}
+
+	// Optional: set the ping URL provided at create time. Failure here
+	// shouldn't roll back app creation — the user can fix it via [edit].
+	if url := strings.TrimSpace(ctx.FormValue("url")); url != "" {
+		_ = apikeys.SetPingURL(db, apiKey.ID, url)
 	}
 
 	// Store the full key in flash so user can copy it

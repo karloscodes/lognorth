@@ -28,6 +28,7 @@ interface Props {
 
 export default function Setup({ apiKeys = [], flash }: Props) {
   const [appName, setAppName] = useState('')
+  const [appURL, setAppURL] = useState('')
   const [copied, setCopied] = useState(false)
   const [showKeyFor, setShowKeyFor] = useState<number | null>(null)
   const [copiedKey, setCopiedKey] = useState<number | null>(null)
@@ -70,6 +71,14 @@ export default function Setup({ apiKeys = [], flash }: Props) {
               value={appName}
               onChange={(e) => setAppName(e.target.value)}
               autoFocus
+              className="w-full px-4 py-3 border-2 border-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder:text-black/40"
+            />
+            <input
+              type="url"
+              name="url"
+              placeholder="App URL (e.g. https://yourapp.com) — optional"
+              value={appURL}
+              onChange={(e) => setAppURL(e.target.value)}
               className="w-full px-4 py-3 border-2 border-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder:text-black/40"
             />
             <button
@@ -210,7 +219,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                         app.ping_disabled ? 'Uptime check disabled'
                           : app.is_down ? 'Down — not responding'
                           : app.ping_url ? `Up — pinging ${app.ping_url}`
-                          : 'Waiting to detect URL from first event'
+                          : 'Add a URL to enable uptime monitoring'
                       }>
                         <span className={`w-2 h-2 rounded-full ${
                           app.ping_disabled ? 'bg-black/20'
@@ -223,7 +232,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                           : app.ping_url ? (
                             <span className="font-mono text-xs truncate max-w-[200px]" title={app.ping_url}>{app.ping_url}</span>
                           )
-                          : 'Detecting…'
+                          : 'No URL'
                         }
                       </span>
                       <details className="group/uptime">
@@ -332,6 +341,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
 function AddAppCard() {
   const [showForm, setShowForm] = useState(false)
   const [appName, setAppName] = useState('')
+  const [appURL, setAppURL] = useState('')
 
   if (!showForm) {
     return (
@@ -346,33 +356,46 @@ function AddAppCard() {
 
   return (
     <div className="p-5 border border-black/10 bg-white">
-      <form action="/apps/api-keys" method="POST" className="flex gap-3">
+      <form action="/apps/api-keys" method="POST" className="flex flex-col gap-3">
+        <div className="flex gap-3">
+          <input
+            type="text"
+            name="name"
+            placeholder="App name (e.g. Production)"
+            value={appName}
+            onChange={(e) => setAppName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setShowForm(false)
+            }}
+            autoFocus
+            className="flex-1 px-4 py-2.5 bg-white border border-black/20 focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
+          />
+          <button
+            type="submit"
+            disabled={!appName.trim()}
+            className="px-5 py-2.5 bg-black text-white font-semibold hover:bg-black/80 disabled:opacity-40 transition-colors"
+          >
+            Create
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowForm(false)}
+            className="px-4 py-2.5 text-black/50 hover:text-black transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
         <input
-          type="text"
-          name="name"
-          placeholder="App name (e.g. Production)"
-          value={appName}
-          onChange={(e) => setAppName(e.target.value)}
+          type="url"
+          name="url"
+          placeholder="App URL (e.g. https://yourapp.com) — optional, for uptime monitoring"
+          value={appURL}
+          onChange={(e) => setAppURL(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setShowForm(false)
           }}
-          autoFocus
-          className="flex-1 px-4 py-2.5 bg-white border border-black/20 focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
+          className="w-full px-4 py-2.5 bg-white border border-black/20 focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
         />
-        <button
-          type="submit"
-          disabled={!appName.trim()}
-          className="px-5 py-2.5 bg-black text-white font-semibold hover:bg-black/80 disabled:opacity-40 transition-colors"
-        >
-          Create
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowForm(false)}
-          className="px-4 py-2.5 text-black/50 hover:text-black transition-colors"
-        >
-          Cancel
-        </button>
       </form>
     </div>
   )

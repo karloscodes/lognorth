@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/karloscodes/cartridge"
@@ -15,9 +14,8 @@ import (
 )
 
 // UptimeSweeper actively probes each app's URL every minute and alerts on
-// transitions (up -> down, down -> up). CoC: no per-app config; URL is
-// auto-discovered from the most recent event's `context.host` and the
-// user can override or opt out.
+// transitions (up -> down, down -> up). The URL is set when the app is
+// created or via the [edit] UI. Apps without a URL are skipped.
 type UptimeSweeper struct {
 	client *http.Client
 }
@@ -47,7 +45,7 @@ const (
 	pingUserAgent     = "LogNorth Uptime/1.0 (+https://lognorth.com)"
 )
 
-// ProcessBatch runs auto-discovery and active probes for all eligible apps.
+// ProcessBatch probes the configured URL for all eligible apps.
 func (s *UptimeSweeper) ProcessBatch(ctx *cartridge.JobContext) error {
 	db := ctx.DB
 
@@ -72,8 +70,7 @@ func (s *UptimeSweeper) ProcessBatch(ctx *cartridge.JobContext) error {
 	return nil
 }
 
-// checkApp resolves the URL (auto-discovering if needed), probes it, and
-// applies state transitions.
+// checkApp probes the configured URL and applies state transitions.
 func (s *UptimeSweeper) checkApp(db *gorm.DB, key *apikeys.APIKey, settingsRow *settings.Settings, now time.Time) {
 	// Bootstrap grace: don't alert during the first 10 minutes after an
 	// app is created. Avoids paging on apps that haven't been deployed.
@@ -82,13 +79,7 @@ func (s *UptimeSweeper) checkApp(db *gorm.DB, key *apikeys.APIKey, settingsRow *
 	}
 
 	if key.PingURL == "" {
-		// Try auto-discovery from a recent event's host header.
-		if url := discoverURL(db, key.ID); url != "" {
-			key.PingURL = url
-			db.Model(key).Update("ping_url", url)
-		} else {
-			return // no URL yet — wait for first event with a host
-		}
+		return // no URL set; user adds one via [edit]
 	}
 
 	up := s.probe(key.PingURL)
@@ -137,62 +128,6 @@ func (s *UptimeSweeper) probe(url string) bool {
 	defer resp.Body.Close()
 
 	return resp.StatusCode < 500
-}
-
-// discoverURL pulls the most recent event's host header for this app and
-// returns it as a URL. Skips internal/loopback hosts that aren't useful
-// to ping from outside the user's network.
-func discoverURL(db *gorm.DB, apiKeyID uint) string {
-	var host string
-	db.Raw(`
-		SELECT json_extract(context, '$.host')
-		FROM events
-		WHERE api_key_id = ?
-			AND json_extract(context, '$.host') IS NOT NULL
-			AND json_extract(context, '$.host') != ''
-		ORDER BY timestamp DESC
-		LIMIT 1
-	`, apiKeyID).Scan(&host)
-
-	host = strings.TrimSpace(host)
-	if host == "" {
-		return ""
-	}
-	if isInternalHost(host) {
-		return ""
-	}
-
-	// Default to https. If the user explicitly wants http, they can
-	// override via the settings UI.
-	return "https://" + host
-}
-
-// isInternalHost returns true for hosts we shouldn't auto-ping (loopback,
-// RFC1918-ish, .local, .internal). User can still set these manually.
-func isInternalHost(host string) bool {
-	h := strings.ToLower(host)
-	// Strip port if present.
-	if i := strings.IndexByte(h, ':'); i >= 0 {
-		h = h[:i]
-	}
-	switch {
-	case h == "localhost",
-		strings.HasPrefix(h, "127."),
-		strings.HasPrefix(h, "10."),
-		strings.HasPrefix(h, "192.168."),
-		strings.HasSuffix(h, ".local"),
-		strings.HasSuffix(h, ".internal"):
-		return true
-	}
-	// 172.16.0.0 — 172.31.255.255 (RFC1918)
-	if strings.HasPrefix(h, "172.") {
-		var second int
-		fmt.Sscanf(h, "172.%d.", &second)
-		if second >= 16 && second <= 31 {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *UptimeSweeper) notifyDown(settingsRow *settings.Settings, key *apikeys.APIKey) {

@@ -38,9 +38,9 @@ type APIKey struct {
 	Active    bool      `gorm:"default:true" json:"active"`
 	LastUsed  time.Time `json:"last_used,omitempty"`
 
-	// Uptime ping (active HTTP probe). CoC: auto-discovered URL from
-	// context.host on first event, pinged every minute, alert after 3
-	// consecutive fails. No knobs unless the user wants to override.
+	// Uptime ping (active HTTP probe). The user provides the URL when
+	// adding the app (or via the [edit] UI). Pinged every minute, alert
+	// after 3 consecutive fails. Apps without a URL are skipped.
 	PingURL          string    `gorm:"size:500" json:"ping_url"`
 	PingDisabled     bool      `gorm:"default:false" json:"ping_disabled"`
 	IsDown           bool      `gorm:"default:false" json:"is_down"`
