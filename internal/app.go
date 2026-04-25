@@ -70,6 +70,9 @@ func NewApp() (*Application, error) {
 	anomalyChecker := cartridge.NewJobDispatcher(logger, dbManager, 5*time.Minute, jobs.NewAnomalyChecker())
 	digestSender := cartridge.NewJobDispatcher(logger, dbManager, 1*time.Minute, jobs.NewDigestSender())
 
+	// Uptime ping (passive silence detection at the app level).
+	uptimeSweeper := cartridge.NewJobDispatcher(logger, dbManager, 1*time.Minute, jobs.NewUptimeSweeper())
+
 	// Configure server
 	serverConfig := cartridge.DefaultServerConfig()
 	// Sec-Fetch-Site is enabled per-route for web routes, disabled for API
@@ -94,7 +97,7 @@ func NewApp() (*Application, error) {
 		DBManager:         dbManager,
 		ServerConfig:      serverConfig,
 		RouteMountFunc:    MountRoutes,
-		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, baselineUpdater, anomalyChecker, digestSender},
+		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, baselineUpdater, anomalyChecker, digestSender, uptimeSweeper},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create application: %w", err)
@@ -260,6 +263,7 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/apps", lbhttp.SetupPageAction, protectedConfig)
 	server.Post("/apps/api-keys", lbhttp.CreateAPIKeyAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/rename", lbhttp.RenameAPIKeyAction, protectedConfig)
+	server.Post("/apps/api-keys/:id/silence-threshold", lbhttp.SetSilenceThresholdAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/revoke", lbhttp.RevokeAPIKeyAction, protectedConfig)
 	server.Delete("/apps/api-keys/:id", lbhttp.DeleteAPIKeyAction, protectedConfig)
 

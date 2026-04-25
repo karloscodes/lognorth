@@ -10,6 +10,8 @@ interface APIKey {
   active: boolean
   today_total: number
   last_seen: number | null
+  silence_threshold_minutes?: number
+  is_silent?: boolean
 }
 
 interface Flash {
@@ -202,6 +204,33 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                           'Waiting for events'
                         )}
                       </span>
+                      <form
+                        action={`/apps/api-keys/${app.id}/silence-threshold`}
+                        method="POST"
+                        className="flex items-center gap-1.5"
+                      >
+                        <span className="text-black/40">·</span>
+                        {app.is_silent && (
+                          <span className="w-2 h-2 rounded-full bg-[#e11d48]" title="Silent — no events received" />
+                        )}
+                        <span>Alert if silent</span>
+                        <input
+                          type="number"
+                          name="minutes"
+                          min={0}
+                          max={1440}
+                          defaultValue={app.silence_threshold_minutes ?? 0}
+                          className="w-14 px-1.5 py-0.5 text-sm font-mono tabular-nums text-black border border-black/10 focus:border-black/40 focus:outline-none"
+                          aria-label="Silence threshold in minutes (0 = off)"
+                        />
+                        <span>min</span>
+                        <button
+                          type="submit"
+                          className="text-xs text-black/40 hover:text-black px-1.5 py-0.5 border border-black/10 hover:border-black/30 transition-colors"
+                        >
+                          Save
+                        </button>
+                      </form>
                     </div>
                   </div>
 

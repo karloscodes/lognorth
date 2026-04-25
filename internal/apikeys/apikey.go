@@ -37,6 +37,15 @@ type APIKey struct {
 	KeyType   KeyType   `gorm:"size:10;not null;default:'app'" json:"key_type"`
 	Active    bool      `gorm:"default:true" json:"active"`
 	LastUsed  time.Time `json:"last_used,omitempty"`
+
+	// Uptime ping (passive silence detection).
+	// SilenceThresholdMinutes = 0 means the check is disabled for this app.
+	// Recommended value when enabling: 5.
+	SilenceThresholdMinutes int       `gorm:"default:0" json:"silence_threshold_minutes"`
+	IsSilent                bool      `gorm:"default:false" json:"is_silent"`
+	SilenceStartAt          time.Time `json:"silence_start_at,omitempty"`
+	LastSilenceAlertAt      time.Time `json:"last_silence_alert_at,omitempty"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -135,6 +144,20 @@ func Revoke(db *gorm.DB, id uint) error {
 // Delete removes an API key
 func Delete(db *gorm.DB, id uint) error {
 	return db.Delete(&APIKey{}, id).Error
+}
+
+// SetSilenceThreshold sets the per-app silence threshold (in minutes).
+// Pass 0 to disable the uptime check. Setting any value resets any current
+// silent state so the next sweep starts fresh.
+func SetSilenceThreshold(db *gorm.DB, id uint, minutes int) error {
+	if minutes < 0 {
+		minutes = 0
+	}
+	return db.Model(&APIKey{}).Where("id = ?", id).Updates(map[string]any{
+		"silence_threshold_minutes": minutes,
+		"is_silent":                 false,
+		"silence_start_at":          nil,
+	}).Error
 }
 
 // Rename updates the display name of an app API key. Trims whitespace,

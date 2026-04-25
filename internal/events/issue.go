@@ -233,8 +233,8 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 			}
 		}
 
-		lastSeenTime := parseSQLiteTimestamp(row.LastSeen)
-		firstSeenTime := parseSQLiteTimestamp(row.FirstSeen)
+		lastSeenTime := ParseSQLiteTimestamp(row.LastSeen)
+		firstSeenTime := ParseSQLiteTimestamp(row.FirstSeen)
 
 		// Compute trend for this issue
 		trend := "stable"
@@ -294,8 +294,8 @@ func formatTimestampISO(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)
 }
 
-// parseSQLiteTimestamp tries multiple formats that SQLite may return
-func parseSQLiteTimestamp(s string) time.Time {
+// ParseSQLiteTimestamp tries multiple formats that SQLite may return
+func ParseSQLiteTimestamp(s string) time.Time {
 	for _, layout := range []string{
 		time.RFC3339,
 		"2006-01-02 15:04:05.999999999-07:00",
@@ -560,8 +560,8 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 		paths = paths[:10]
 	}
 
-	lastSeenTime := parseSQLiteTimestamp(aggResult.LastSeen)
-	firstSeenTime := parseSQLiteTimestamp(aggResult.FirstSeen)
+	lastSeenTime := ParseSQLiteTimestamp(aggResult.LastSeen)
+	firstSeenTime := ParseSQLiteTimestamp(aggResult.FirstSeen)
 	now := time.Now()
 	active := lastSeenTime.After(now.Add(-24 * time.Hour))
 
@@ -651,8 +651,8 @@ func getIssueByHashLegacy(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail
 		paths = paths[:10]
 	}
 
-	lastSeenTime := parseSQLiteTimestamp(aggResult.LastSeen)
-	firstSeenTime := parseSQLiteTimestamp(aggResult.FirstSeen)
+	lastSeenTime := ParseSQLiteTimestamp(aggResult.LastSeen)
+	firstSeenTime := ParseSQLiteTimestamp(aggResult.FirstSeen)
 	active := lastSeenTime.After(time.Now().Add(-24 * time.Hour))
 
 	var seenRecord IssueSeen
