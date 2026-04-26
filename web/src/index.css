@@ -42,6 +42,8 @@
   }
   html {
     overflow-y: scroll; /* Prevent layout shift from scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: gray transparent;
   }
   body {
     @apply bg-background text-foreground;
