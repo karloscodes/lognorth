@@ -183,7 +183,7 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
         <div className="mb-16">
           <h1 className="text-2xl font-bold text-black mb-2">License</h1>
           <p className="text-black/50 text-sm mb-6">
-            Beta ends April 30, 2026. A valid license will be required after that.
+            A valid license is required to process events. Without one, events still arrive but are not processed.
           </p>
 
           {licenseStatus === 'valid' && (

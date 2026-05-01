@@ -20,6 +20,12 @@ func NewEventProcessor() *EventProcessor {
 func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 	db := ctx.DB
 
+	// Without a valid license, events still land in ingested_events but
+	// are not processed. Buying a license processes them retroactively.
+	if !lbhttp.IsLicenseConfigured() {
+		return nil
+	}
+
 	// Count unprocessed events
 	unprocessedCount, err := events.CountUnprocessed(db)
 	if err != nil {

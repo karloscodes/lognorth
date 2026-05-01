@@ -17,6 +17,11 @@ func SetLicenseConfigured(v bool) {
 	licenseConfigured = v
 }
 
+// IsLicenseConfigured returns true if a valid license is in place
+func IsLicenseConfigured() bool {
+	return licenseConfigured
+}
+
 // SetDevMode enables development mode
 func SetDevMode(enabled bool) {
 	devMode = enabled
