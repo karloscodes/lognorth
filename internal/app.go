@@ -20,6 +20,7 @@ import (
 	"lognorth/internal/database"
 	lbhttp "lognorth/internal/http"
 	"lognorth/internal/jobs"
+	"lognorth/internal/license"
 	"lognorth/internal/onboarding"
 	"lognorth/internal/settings"
 )
@@ -73,6 +74,9 @@ func NewApp() (*Application, error) {
 	// Uptime ping (passive silence detection at the app level).
 	uptimeSweeper := cartridge.NewJobDispatcher(logger, dbManager, 1*time.Minute, jobs.NewUptimeSweeper())
 
+	// License revalidation: hits Polar once a day to catch revoked/expired keys.
+	licenseChecker := cartridge.NewJobDispatcher(logger, dbManager, 24*time.Hour, jobs.NewLicenseChecker())
+
 	// Configure server
 	serverConfig := cartridge.DefaultServerConfig()
 	// Sec-Fetch-Site is enabled per-route for web routes, disabled for API
@@ -97,7 +101,7 @@ func NewApp() (*Application, error) {
 		DBManager:         dbManager,
 		ServerConfig:      serverConfig,
 		RouteMountFunc:    MountRoutes,
-		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, baselineUpdater, anomalyChecker, digestSender, uptimeSweeper},
+		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, baselineUpdater, anomalyChecker, digestSender, uptimeSweeper, licenseChecker},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create application: %w", err)
@@ -105,7 +109,7 @@ func NewApp() (*Application, error) {
 
 	// Set initial license status from database
 	if s, err := settings.Get(dbManager.GetConnection()); err == nil {
-		lbhttp.SetLicenseConfigured(s.LicenseStatus == "valid")
+		license.SetConfigured(s.LicenseStatus == "valid")
 	}
 
 	return &Application{

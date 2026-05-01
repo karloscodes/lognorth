@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/smtp"
-	"os"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/config"
-	"lognorth/internal/polar"
+	"lognorth/internal/license"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
 )
@@ -143,7 +141,7 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 			s.LicenseStatus = ""
 			s.LicenseEmail = ""
 		} else {
-			status, email := validateLicenseKey(input.LicenseKey)
+			status, email := license.Validate(context.Background(), input.LicenseKey)
 			s.LicenseStatus = status
 			s.LicenseEmail = email
 		}
@@ -154,7 +152,7 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 	}
 
 	// Update cached license status
-	SetLicenseConfigured(s.LicenseStatus == "valid")
+	license.SetConfigured(s.LicenseStatus == "valid")
 
 	return ctx.Ctx.JSON(fiber.Map{
 		"success":        true,
@@ -252,28 +250,3 @@ func RevokeAgentKeyAction(ctx *cartridge.Context) error {
 	return ctx.Ctx.JSON(fiber.Map{"success": true})
 }
 
-// validateLicenseKey checks a license key against Polar and returns (status, email)
-func validateLicenseKey(key string) (string, string) {
-	client := polar.NewClient()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	// Try sandbox in development
-	if os.Getenv("LOGNORTH_ENV") == "development" || os.Getenv("LOGNORTH_ENV") == "" {
-		client.BaseURL = polar.SandboxBaseURL
-		resp, err := client.ValidateLicense(ctx, polar.SandboxOrgID, key)
-		if err == nil && resp != nil && resp.ID != "" {
-			return polar.LicenseStatus(resp), resp.Customer.Email
-		}
-	}
-
-	// Try production
-	client.BaseURL = polar.ProductionBaseURL
-	resp, err := client.ValidateLicense(ctx, polar.ProductionOrgID, key)
-	if err == nil && resp != nil && resp.ID != "" {
-		return polar.LicenseStatus(resp), resp.Customer.Email
-	}
-
-	return "invalid", ""
-}

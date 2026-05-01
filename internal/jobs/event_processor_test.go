@@ -12,7 +12,7 @@ import (
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
-	lbhttp "lognorth/internal/http"
+	"lognorth/internal/license"
 	"lognorth/internal/settings"
 )
 
@@ -80,9 +80,9 @@ func TestEventProcessor_SkipsWhenLicenseMissing(t *testing.T) {
 	db := setupProcessorDB(t)
 	seedIngested(t, db)
 
-	prev := lbhttp.IsLicenseConfigured()
-	lbhttp.SetLicenseConfigured(false)
-	t.Cleanup(func() { lbhttp.SetLicenseConfigured(prev) })
+	prev := license.IsConfigured()
+	license.SetConfigured(false)
+	t.Cleanup(func() { license.SetConfigured(prev) })
 
 	if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
 		t.Fatalf("ProcessBatch: %v", err)
@@ -109,9 +109,9 @@ func TestEventProcessor_ProcessesWhenLicensed(t *testing.T) {
 	db := setupProcessorDB(t)
 	seedIngested(t, db)
 
-	prev := lbhttp.IsLicenseConfigured()
-	lbhttp.SetLicenseConfigured(true)
-	t.Cleanup(func() { lbhttp.SetLicenseConfigured(prev) })
+	prev := license.IsConfigured()
+	license.SetConfigured(true)
+	t.Cleanup(func() { license.SetConfigured(prev) })
 
 	if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
 		t.Fatalf("ProcessBatch: %v", err)

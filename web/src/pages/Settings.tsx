@@ -216,11 +216,16 @@ export default function Settings({ settings, hasPassword = false, userEmail = ''
               placeholder="Paste your license key"
               className="w-full px-3 py-2 border border-black/20 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
             />
-            <p className="text-sm text-black/50 mt-2">
-              <a href="https://lognorth.com/#pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
-                Buy a license →
+            {licenseStatus !== 'valid' && (
+              <a
+                href="https://buy.polar.sh/polar_cl_HUhnZchaYYtSmTR20EtVi2BHJkoKypUJHgS001PLGBK"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-3 bg-black text-white font-semibold px-4 py-2 hover:bg-black/80 text-sm"
+              >
+                Get your license →
               </a>
-            </p>
+            )}
           </div>
         </div>
 

@@ -6,6 +6,7 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 	lbhttp "lognorth/internal/http"
+	"lognorth/internal/license"
 )
 
 // EventProcessor handles processing of ingested events
@@ -22,7 +23,7 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 
 	// Without a valid license, events still land in ingested_events but
 	// are not processed. Buying a license processes them retroactively.
-	if !lbhttp.IsLicenseConfigured() {
+	if !license.IsConfigured() {
 		return nil
 	}
 
