@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -71,8 +72,9 @@ func seedIngested(t *testing.T, db *gorm.DB) uint {
 
 func newJobCtx(db *gorm.DB) *cartridge.JobContext {
 	return &cartridge.JobContext{
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		DB:     db,
+		Context: context.Background(),
+		Logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		DB:      db,
 	}
 }
 

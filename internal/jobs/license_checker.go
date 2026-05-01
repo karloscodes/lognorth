@@ -25,7 +25,11 @@ func (j *LicenseChecker) ProcessBatch(ctx *cartridge.JobContext) error {
 		return nil
 	}
 
-	status, email := license.Validate(ctx.Context, s.LicenseKey)
+	status, email, err := license.Validate(ctx.Context, s.LicenseKey)
+	if err != nil {
+		ctx.Logger.Warn("license recheck skipped (Polar unreachable)", "error", err)
+		return nil
+	}
 
 	if status != s.LicenseStatus || email != s.LicenseEmail {
 		s.LicenseStatus = status

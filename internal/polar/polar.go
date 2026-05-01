@@ -16,11 +16,15 @@ const (
 	initialRetryWait = 200 * time.Millisecond
 	maxRetryWait     = 1 * time.Second
 
-	ProductionBaseURL = "https://api.polar.sh/v1"
-	ProductionOrgID   = "6fdc5c60-15e4-4427-9e4b-f59030977543"
+	ProductionOrgID = "6fdc5c60-15e4-4427-9e4b-f59030977543"
+	SandboxOrgID    = "8b2ed80f-f53a-4340-8d3b-67678e882384"
+)
 
-	SandboxBaseURL = "https://sandbox-api.polar.sh/v1"
-	SandboxOrgID   = "8b2ed80f-f53a-4340-8d3b-67678e882384"
+// Base URLs are vars (not consts) so tests can point the client at an
+// httptest server or an unreachable address. Don't reassign in production.
+var (
+	ProductionBaseURL = "https://api.polar.sh/v1"
+	SandboxBaseURL    = "https://sandbox-api.polar.sh/v1"
 )
 
 type Client struct {

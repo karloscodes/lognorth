@@ -27,11 +27,19 @@ func IsConfigured() bool {
 	return configured.Load()
 }
 
-// Validate checks a license key against Polar and returns (status, email).
-// Status is one of "valid", "invalid", "expired".
-func Validate(ctx context.Context, key string) (string, string) {
+// Validate checks a license key against Polar.
+//
+// Returns ("valid"|"invalid"|"expired", email, nil) on a definitive answer
+// (Polar replied), or ("", "", err) on transient failures (network, 5xx
+// after retries). Callers should treat err != nil as "no opinion" and
+// keep whatever they have stored — flipping a paying customer to invalid
+// because Polar had a bad day is not OK.
+//
+// Sandbox is tried first in development so devs can use sandbox keys;
+// production is the fallback there and the only call in production.
+func Validate(ctx context.Context, key string) (status, email string, err error) {
 	if key == "" {
-		return "", ""
+		return "", "", nil
 	}
 
 	client := polar.NewClient()
@@ -40,15 +48,18 @@ func Validate(ctx context.Context, key string) (string, string) {
 
 	if os.Getenv("LOGNORTH_ENV") == "development" || os.Getenv("LOGNORTH_ENV") == "" {
 		client.BaseURL = polar.SandboxBaseURL
-		if resp, err := client.ValidateLicense(ctx, polar.SandboxOrgID, key); err == nil && resp != nil && resp.ID != "" {
-			return polar.LicenseStatus(resp), resp.Customer.Email
+		if resp, sandboxErr := client.ValidateLicense(ctx, polar.SandboxOrgID, key); sandboxErr == nil && resp != nil && resp.ID != "" {
+			return polar.LicenseStatus(resp), resp.Customer.Email, nil
 		}
 	}
 
 	client.BaseURL = polar.ProductionBaseURL
-	if resp, err := client.ValidateLicense(ctx, polar.ProductionOrgID, key); err == nil && resp != nil && resp.ID != "" {
-		return polar.LicenseStatus(resp), resp.Customer.Email
+	resp, prodErr := client.ValidateLicense(ctx, polar.ProductionOrgID, key)
+	if prodErr != nil {
+		return "", "", prodErr
 	}
-
-	return "invalid", ""
+	if resp == nil || resp.ID == "" {
+		return "invalid", "", nil
+	}
+	return polar.LicenseStatus(resp), resp.Customer.Email, nil
 }

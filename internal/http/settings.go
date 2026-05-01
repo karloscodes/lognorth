@@ -141,7 +141,12 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 			s.LicenseStatus = ""
 			s.LicenseEmail = ""
 		} else {
-			status, email := license.Validate(context.Background(), input.LicenseKey)
+			status, email, err := license.Validate(context.Background(), input.LicenseKey)
+			if err != nil {
+				return ctx.Ctx.Status(503).JSON(fiber.Map{
+					"error": "Couldn't reach the license server. Try again in a moment.",
+				})
+			}
 			s.LicenseStatus = status
 			s.LicenseEmail = email
 		}
