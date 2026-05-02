@@ -14,8 +14,11 @@ import (
 	"lognorth/internal/users"
 )
 
-// SettingsPageAction handles GET /settings
-func SettingsPageAction(ctx *cartridge.Context) error {
+// renderSettingsPage loads the full settings + auxiliary props and
+// renders one of the four sub-page Inertia components. Each sub-page
+// only edits its own subset of fields but receives the full settings
+// object so saves don't clobber the others.
+func renderSettingsPage(ctx *cartridge.Context, component string) error {
 	db := ctx.DB()
 	cfg := config.GetConfig()
 
@@ -24,12 +27,10 @@ func SettingsPageAction(ctx *cartridge.Context) error {
 		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
 	}
 
-	// Auto-populate base URL from config if not set
 	if s.BaseURL == "" {
 		s.BaseURL = cfg.GetBaseURL()
 	}
 
-	// Get current user's email for default notification recipient
 	var userEmail string
 	if userID, ok := ctx.Session.GetUserID(ctx.Ctx); ok {
 		if user, err := users.FindByID(db, userID); err == nil {
@@ -37,13 +38,32 @@ func SettingsPageAction(ctx *cartridge.Context) error {
 		}
 	}
 
-	return RenderPage(ctx.Ctx, "Settings", Props{
+	return RenderPage(ctx.Ctx, component, Props{
 		"settings":       s,
 		"hasPassword":    s.HasPassword(),
 		"userEmail":      userEmail,
 		"agentKeyPrefix": s.AgentKeyPrefix,
-		"hasLicense":     s.LicenseKey != "",
 	})
+}
+
+// SettingsLicensePageAction handles GET /settings/license
+func SettingsLicensePageAction(ctx *cartridge.Context) error {
+	return renderSettingsPage(ctx, "SettingsLicense")
+}
+
+// SettingsAlertsPageAction handles GET /settings/alerts
+func SettingsAlertsPageAction(ctx *cartridge.Context) error {
+	return renderSettingsPage(ctx, "SettingsAlerts")
+}
+
+// SettingsDataPageAction handles GET /settings/data
+func SettingsDataPageAction(ctx *cartridge.Context) error {
+	return renderSettingsPage(ctx, "SettingsData")
+}
+
+// SettingsDeveloperPageAction handles GET /settings/developer
+func SettingsDeveloperPageAction(ctx *cartridge.Context) error {
+	return renderSettingsPage(ctx, "SettingsDeveloper")
 }
 
 // UpdateSettingsInput represents the settings update request

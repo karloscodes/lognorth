@@ -300,8 +300,14 @@ func MountRoutes(server *cartridge.Server) {
 	server.Post("/issues/:hash/mute", lbhttp.MuteIssueAction, protectedConfig)
 	server.Post("/issues/:hash/unmute", lbhttp.UnmuteIssueAction, protectedConfig)
 
-	// Settings
-	server.Get("/settings", lbhttp.SettingsPageAction, protectedConfig)
+	// Settings — split into per-concern sub-pages. /settings redirects.
+	server.Get("/settings", func(ctx *cartridge.Context) error {
+		return ctx.Ctx.Redirect("/settings/license")
+	}, protectedConfig)
+	server.Get("/settings/license", lbhttp.SettingsLicensePageAction, protectedConfig)
+	server.Get("/settings/alerts", lbhttp.SettingsAlertsPageAction, protectedConfig)
+	server.Get("/settings/data", lbhttp.SettingsDataPageAction, protectedConfig)
+	server.Get("/settings/developer", lbhttp.SettingsDeveloperPageAction, protectedConfig)
 	server.Post("/settings", lbhttp.UpdateSettingsAction, protectedConfig)
 	server.Post("/settings/test", lbhttp.TestNotificationAction, protectedConfig)
 	server.Post("/settings/test-smtp", lbhttp.TestSMTPAction, protectedConfig)

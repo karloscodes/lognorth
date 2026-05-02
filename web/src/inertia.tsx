@@ -10,7 +10,10 @@ import Onboarding from './pages/Onboarding'
 import Log from './pages/Log'
 import LogDetail from './pages/LogDetail'
 import Issues from './pages/Issues'
-import Settings from './pages/Settings'
+import SettingsLicense from './pages/settings/License'
+import SettingsAlerts from './pages/settings/Alerts'
+import SettingsData from './pages/settings/Data'
+import SettingsDeveloper from './pages/settings/Developer'
 import Endpoints from './pages/Endpoints'
 import IssueDetail from './pages/IssueDetail'
 
@@ -23,7 +26,10 @@ const pages: Record<string, React.ComponentType<any>> = {
   Log,
   LogDetail,
   Issues,
-  Settings,
+  SettingsLicense,
+  SettingsAlerts,
+  SettingsData,
+  SettingsDeveloper,
   Endpoints,
   IssueDetail,
 }

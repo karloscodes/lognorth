@@ -7,6 +7,7 @@ import (
 	"github.com/karloscodes/cartridge/inertia"
 
 	"lognorth/internal/config"
+	"lognorth/internal/license"
 )
 
 var devMode bool
@@ -42,6 +43,12 @@ func RenderPage(c *fiber.Ctx, component string, props inertia.Props) error {
 
 	if notifications := systemNotifications(cfg); len(notifications) > 0 {
 		props["notifications"] = notifications
+	}
+
+	// Surface license status to the layout so it can warn when events
+	// are arriving but not being processed.
+	if _, exists := props["licenseValid"]; !exists {
+		props["licenseValid"] = license.IsConfigured()
 	}
 
 	return inertia.RenderPage(c, component, props)

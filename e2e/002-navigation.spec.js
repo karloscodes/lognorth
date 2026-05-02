@@ -42,16 +42,36 @@ test.describe("Navigation Tests", () => {
 		helpers.log(`Home page: ${hasIssues ? "has issues" : "all clear"}`);
 	});
 
-	test("Can access Settings page", async ({ page }) => {
-		helpers.log("Testing settings page");
+	test("Settings is split into sub-pages with sidebar nav", async ({ page }) => {
+		helpers.log("Testing settings sub-pages");
 
+		// /settings redirects to /settings/license
 		await helpers.navigateTo("/settings");
+		await expect(page).toHaveURL(/\/settings\/license$/);
 
-		// Settings page has multiple section headings (License, Notifications, ...).
-		// Asserting the first h1 fails when sections get reordered, so check that
-		// the Notifications section is rendered somewhere.
-		await expect(page.locator("h1", { hasText: "Notifications" })).toBeVisible();
-		helpers.log("Settings page loaded");
+		// Sidebar with the four sub-pages
+		const nav = page.locator("nav").filter({ hasText: "License" });
+		await expect(nav.getByRole("link", { name: "License" })).toBeVisible();
+		await expect(nav.getByRole("link", { name: "Alerts" })).toBeVisible();
+		await expect(nav.getByRole("link", { name: "Data" })).toBeVisible();
+		await expect(nav.getByRole("link", { name: "Developer" })).toBeVisible();
+
+		// Each sub-page renders its own h2
+		await expect(page.locator("h2", { hasText: "License" })).toBeVisible();
+
+		await page.getByRole("link", { name: "Alerts" }).click();
+		await expect(page).toHaveURL(/\/settings\/alerts$/);
+		await expect(page.locator("h2", { hasText: "Alerts" })).toBeVisible();
+
+		await page.getByRole("link", { name: "Data" }).click();
+		await expect(page).toHaveURL(/\/settings\/data$/);
+		await expect(page.locator("h2", { hasText: "Data retention" })).toBeVisible();
+
+		await page.getByRole("link", { name: "Developer" }).click();
+		await expect(page).toHaveURL(/\/settings\/developer$/);
+		await expect(page.locator("h2", { hasText: "Agent API" })).toBeVisible();
+
+		helpers.log("All settings sub-pages reachable via sidebar");
 	});
 
 	test("Can access Apps management", async ({ page }) => {
