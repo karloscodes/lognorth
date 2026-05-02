@@ -47,25 +47,28 @@ echo ""
 echo "=== Running Tests ==="
 make test
 
-# Build Docker image (smoke test)
+# Cleanup runs no matter how this script exits — success, failure, or
+# Ctrl-C. Belongs at the top so anything created below is covered.
+CONTAINER_NAME="lognorth-release-test-$$"
+cleanup() {
+    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+    docker rmi "$DOCKER_IMAGE:test" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT INT TERM
+
+# Build Docker image (smoke test) — host platform only, just for the
+# local health check. The pushed image (further down) is multi-arch.
 echo ""
-echo "=== Building Docker Image ==="
+echo "=== Building Docker Image (smoke test, host arch) ==="
 docker build --tag "$DOCKER_IMAGE:test" .
 
 # Smoke test: start container and verify it becomes healthy
 echo ""
 echo "=== Smoke Testing Container ==="
-CONTAINER_NAME="lognorth-release-test-$$"
 TEST_PRIVATE_KEY=$(openssl rand -hex 32)
 docker run -d --name "$CONTAINER_NAME" -p 3333:8080 \
   -e LOGNORTH_PRIVATE_KEY="$TEST_PRIVATE_KEY" \
   "$DOCKER_IMAGE:test"
-
-cleanup() {
-    echo "Cleaning up test container..."
-    docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
-}
-trap cleanup EXIT
 
 # Wait for healthy (up to 30 seconds)
 HEALTHY=false
@@ -85,15 +88,23 @@ else
     exit 1
 fi
 
-# Stop test container and clean up smoke test image
-docker rm -f "$CONTAINER_NAME" > /dev/null 2>&1
-trap - EXIT
-docker rmi "$DOCKER_IMAGE:test" > /dev/null 2>&1 || true
-
-# Push Docker image
+# Push Docker image — multi-arch via buildx. Building only for the host
+# arch (e.g. arm64 on Apple Silicon) silently ships a broken image to the
+# amd64 servers in the fleet — which is exactly how v0.8.0 went out.
 echo ""
-echo "=== Pushing Docker Image ==="
-docker build --push --tag "$DOCKER_IMAGE:$DOCKER_VERSION" --tag "$DOCKER_IMAGE:latest" .
+echo "=== Pushing Multi-Arch Docker Image (linux/amd64, linux/arm64) ==="
+BUILDER_NAME="lognorth-multiarch"
+if ! docker buildx inspect "$BUILDER_NAME" >/dev/null 2>&1; then
+    docker buildx create --name "$BUILDER_NAME" --driver docker-container --use >/dev/null
+else
+    docker buildx use "$BUILDER_NAME" >/dev/null
+fi
+docker buildx build \
+    --platform linux/amd64,linux/arm64 \
+    --tag "$DOCKER_IMAGE:$DOCKER_VERSION" \
+    --tag "$DOCKER_IMAGE:latest" \
+    --push \
+    .
 
 echo ""
 echo "=== Creating Tag ==="
