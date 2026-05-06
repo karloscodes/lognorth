@@ -3,7 +3,7 @@ module lognorth
 go 1.25.5
 
 require (
-	github.com/gofiber/fiber/v2 v2.52.12
+	github.com/gofiber/fiber/v2 v2.52.13
 	github.com/karloscodes/cartridge v0.13.2
 	github.com/karloscodes/matcha v0.12.18
 	github.com/valyala/fasthttp v1.68.0
