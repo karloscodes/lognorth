@@ -1,0 +1,52 @@
+version: 2
+updates:
+  # Go modules - grouped into one PR, monthly
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      go-all:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps(go)"
+    ignore:
+      # First-party - bumped manually when a new version is cut
+      - dependency-name: "github.com/karloscodes/*"
+
+  # npm (web dashboard) - grouped, monthly
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      npm-web:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps(web)"
+
+  # npm (e2e tests) - grouped, monthly
+  - package-ecosystem: "npm"
+    directory: "/e2e"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      npm-e2e:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps(e2e)"
+
+  # GitHub Actions - grouped, monthly
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      actions-all:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
