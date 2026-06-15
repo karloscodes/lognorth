@@ -186,7 +186,7 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
             <div className="flex flex-col gap-2">
               {!isDemo && (
                 <a
-                  href="mailto:me@karloscodes.com?subject=LogNorth feedback"
+                  href="mailto:karloscodes@suppyhq.com?subject=LogNorth feedback"
                   className="font-semibold text-sm hover:underline"
                 >
                   email me →
