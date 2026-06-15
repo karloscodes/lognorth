@@ -70,9 +70,9 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
         onClick={handleClick}
         className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-foreground/[0.02] ${
           isCriticalErrorRate
-            ? 'bg-rose-50 shadow-[inset_4px_0_0_0_#e11d48]'
+            ? 'bg-[#e11d48]/10 shadow-[inset_4px_0_0_0_#e11d48]'
             : isHighErrorRate
-              ? 'bg-rose-50/50 shadow-[inset_3px_0_0_0_#e11d48]'
+              ? 'bg-[#e11d48]/[0.06] shadow-[inset_3px_0_0_0_#e11d48]'
               : hasErrors
                 ? 'shadow-[inset_3px_0_0_0_#e11d48]'
                 : ''

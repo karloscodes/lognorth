@@ -186,7 +186,7 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
             <div className="flex flex-col gap-2">
               {!isDemo && (
                 <a
-                  href="mailto:me@karloscodes.com?subject=LogNorth feedback"
+                  href="mailto:karloscodes@suppyhq.com?subject=LogNorth feedback"
                   className="font-semibold text-sm hover:underline"
                 >
                   email me →
@@ -246,12 +246,12 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
   return (
     <div className="min-h-screen bg-card">
       {isDemo && (
-        <div className="bg-red-600 text-background text-center text-xs font-bold py-1.5 tracking-wide uppercase sticky top-0 z-[60]">
+        <div className="bg-red-600 text-white text-center text-xs font-bold py-1.5 tracking-wide uppercase sticky top-0 z-[60]">
           This is a demo. Everything is read-only.
         </div>
       )}
       {!isDemo && !licenseValid && (
-        <div className="bg-foreground text-background text-center text-xs font-medium py-1.5 sticky top-0 z-[60]">
+        <div className="bg-[#e11d48] text-white text-center text-xs font-medium py-1.5 sticky top-0 z-[60]">
           No valid license — events are being received but not processed.{' '}
           <Link href="/settings" className="underline hover:no-underline">
             Enter your license key →

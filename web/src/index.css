@@ -50,6 +50,10 @@
     @apply bg-background text-foreground;
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   }
+  /* Form controls default to white in browsers — give them a dark surface */
+  input, textarea, select {
+    @apply bg-background text-foreground;
+  }
 }
 
 @layer utilities {

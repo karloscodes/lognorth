@@ -166,7 +166,7 @@ export interface Issue {
 export const errorConfig = {
   error: {
     icon: AlertTriangle,
-    colors: 'text-[#e11d48] bg-rose-50',
+    colors: 'text-[#e11d48] bg-[#e11d48]/10',
     label: 'Error',
   },
   success: {

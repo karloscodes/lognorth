@@ -134,7 +134,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
   return (
     <div
       className={`flex items-center gap-4 p-5 transition-colors hover:bg-foreground/[0.02] ${
-        isUnseen && !issue.muted ? 'shadow-[inset_3px_0_0_0_#e11d48] bg-rose-50/50' : ''
+        isUnseen && !issue.muted ? 'shadow-[inset_3px_0_0_0_#e11d48] bg-[#e11d48]/[0.06]' : ''
       } ${issue.muted ? 'opacity-50' : ''}`}
     >
       {/* Main content - clickable link */}

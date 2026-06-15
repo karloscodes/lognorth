@@ -36,7 +36,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {issueHash && appId && (
         <a
           href={`/apps/${appId}/issues/${issueHash}`}
-          className="flex items-center justify-between px-4 py-3 mb-4 border-2 border-[#e11d48]/20 bg-rose-50/50 hover:bg-rose-50 transition-colors"
+          className="flex items-center justify-between px-4 py-3 mb-4 border-2 border-[#e11d48]/20 bg-[#e11d48]/[0.06] hover:bg-[#e11d48]/10 transition-colors"
         >
           <span className="text-sm text-[#e11d48] font-semibold">This error is a tracked issue</span>
           <span className="text-xs bg-[#e11d48] text-background px-2 py-1 font-bold">View Issue →</span>
@@ -68,8 +68,8 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
             ) : isJob ? (
               <>
                 <div className="flex items-center gap-3">
-                  <Briefcase className="w-5 h-5 text-purple-600" />
-                  <span className="font-mono text-xl font-bold text-purple-600">{ctx.job}</span>
+                  <Briefcase className="w-5 h-5 text-accent" />
+                  <span className="font-mono text-xl font-bold text-accent">{ctx.job}</span>
                 </div>
                 <p className="text-foreground mt-1">{entry.message}</p>
               </>
@@ -137,7 +137,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {ctx.error && (
         <div className="mb-8">
           <h3 className="text-sm font-semibold text-[#e11d48] uppercase tracking-wider mb-3">Error</h3>
-          <div className="bg-rose-50 border-2 border-[#e11d48] p-4">
+          <div className="bg-[#e11d48]/10 border-2 border-[#e11d48] p-4">
             <pre className="text-sm font-mono whitespace-pre-wrap text-[#e11d48] font-bold break-words">
               {ctx.error}
             </pre>

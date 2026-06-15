@@ -113,7 +113,7 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
               <a
                 key={app.id}
                 href={`/apps/${app.id}/issues`}
-                className="flex items-center justify-between p-4 border-2 border-[#e11d48] bg-rose-50 hover:bg-rose-100 transition-all"
+                className="flex items-center justify-between p-4 border-2 border-[#e11d48] bg-[#e11d48]/10 hover:bg-[#e11d48]/20 transition-all"
               >
                 <div className="flex items-baseline gap-3">
                   <span className="font-bold text-foreground text-lg">{app.name}</span>

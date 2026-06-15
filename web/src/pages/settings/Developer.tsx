@@ -97,7 +97,7 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
       )}
 
       {agentKeyError && (
-        <div className="mb-6 p-3 bg-rose-50 text-[#e11d48] text-sm font-medium border border-[#e11d48]">
+        <div className="mb-6 p-3 bg-[#e11d48]/10 text-[#e11d48] text-sm font-medium border border-[#e11d48]">
           {agentKeyError}
         </div>
       )}
@@ -121,7 +121,7 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
             <button
               type="button"
               onClick={revokeAgentKey}
-              className="px-4 py-2 border border-red-500/30 text-sm font-semibold text-red-600 hover:border-red-500 hover:bg-red-50 transition-colors"
+              className="px-4 py-2 border border-red-500/30 text-sm font-semibold text-red-600 hover:border-red-500 hover:bg-[#e11d48]/10 transition-colors"
             >
               Revoke
             </button>

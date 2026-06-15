@@ -296,7 +296,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                       <input type="hidden" name="_method" value="DELETE" />
                       <button
                         type="submit"
-                        className="p-2 opacity-0 group-hover:opacity-100 text-foreground/30 hover:text-[#e11d48] hover:bg-rose-50 transition-all"
+                        className="p-2 opacity-0 group-hover:opacity-100 text-foreground/30 hover:text-[#e11d48] hover:bg-[#e11d48]/10 transition-all"
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />
