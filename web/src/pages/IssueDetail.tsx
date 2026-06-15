@@ -463,7 +463,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                 days.map((day, i) => {
                   const dayStr = format(day, 'yyyy-MM-dd')
                   const count = bucketCount(dayStr, bucket)
-                  const intensity = count > 0 ? Math.max(0.25, count / maxBucket) : 0
+                  const intensity = count > 0 ? Math.max(0.4, count / maxBucket) : 0
                   const isHovered = hoveredCell?.day === day && hoveredCell?.bucket === bucket
                   return (
                     <div
@@ -472,7 +472,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                       style={{
                         aspectRatio: '1',
                         borderRadius: 2,
-                        backgroundColor: count > 0 ? `rgba(225, 29, 72, ${intensity})` : 'rgba(0,0,0,0.06)',
+                        backgroundColor: count > 0 ? `rgba(225, 29, 72, ${intensity})` : 'rgba(255,255,255,0.06)',
                       }}
                       onMouseEnter={() => setHoveredCell({ day, bucket, count })}
                       onMouseLeave={() => setHoveredCell(null)}
@@ -525,7 +525,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                 width: 11,
                 height: 11,
                 borderRadius: 2,
-                backgroundColor: i === 0 ? 'rgba(0,0,0,0.06)' : `rgba(225,29,72,${opacity})`,
+                backgroundColor: i === 0 ? 'rgba(255,255,255,0.06)' : `rgba(225,29,72,${opacity})`,
               }}
             />
           ))}
