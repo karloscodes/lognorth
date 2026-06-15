@@ -68,24 +68,24 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
     <>
       <button
         onClick={handleClick}
-        className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-black/[0.02] ${
+        className={`w-full flex items-center gap-3 py-4 px-5 text-left transition-colors hover:bg-foreground/[0.02] ${
           isCriticalErrorRate
-            ? 'bg-rose-50 shadow-[inset_4px_0_0_0_#e11d48]'
+            ? 'bg-[#e11d48]/10 shadow-[inset_4px_0_0_0_#e11d48]'
             : isHighErrorRate
-              ? 'bg-rose-50/50 shadow-[inset_3px_0_0_0_#e11d48]'
+              ? 'bg-[#e11d48]/[0.06] shadow-[inset_3px_0_0_0_#e11d48]'
               : hasErrors
                 ? 'shadow-[inset_3px_0_0_0_#e11d48]'
                 : ''
         }`}
       >
         {/* Path */}
-        <Code className={`text-sm truncate flex-1 ${isCriticalErrorRate ? 'text-black font-bold' : 'text-black font-semibold'}`}>
+        <Code className={`text-sm truncate flex-1 ${isCriticalErrorRate ? 'text-foreground font-bold' : 'text-foreground font-semibold'}`}>
           {endpoint.path}
         </Code>
 
         {/* Stats */}
         <div className="flex items-center gap-4 shrink-0">
-          <Mono className="text-sm text-black/50 w-16 text-right">
+          <Mono className="text-sm text-foreground/50 w-16 text-right">
             {endpoint.total.toLocaleString()}
           </Mono>
           {hasErrors ? (
@@ -93,19 +93,19 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
               {errorRate}%
             </Mono>
           ) : (
-            <Mono className="text-sm text-black/20 w-16 text-right">—</Mono>
+            <Mono className="text-sm text-foreground/20 w-16 text-right">—</Mono>
           )}
-          <Mono className="text-xs text-black/50 w-16 text-right">
+          <Mono className="text-xs text-foreground/50 w-16 text-right">
             {endpoint.avg_duration}ms
           </Mono>
         </div>
       </button>
 
       {expanded && (
-        <div className="px-5 pb-4 bg-black/[0.015] border-t border-black/5">
+        <div className="px-5 pb-4 bg-foreground/[0.015] border-t border-foreground/5">
           <div className="py-4 space-y-4">
             {/* Stats summary */}
-            <div className="flex items-center gap-4 text-xs text-black/50">
+            <div className="flex items-center gap-4 text-xs text-foreground/50">
               <span><span className="font-mono tabular-nums">{endpoint.total.toLocaleString()}</span> requests</span>
               {hasErrors && (
                 <>
@@ -120,26 +120,26 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
             {/* Recent errors */}
             {hasErrors && (
               <div>
-                <p className="text-xs font-semibold text-black/50 uppercase tracking-wide mb-3">Recent errors</p>
+                <p className="text-xs font-semibold text-foreground/50 uppercase tracking-wide mb-3">Recent errors</p>
                 {loading ? (
-                  <p className="text-sm text-black/40">Loading...</p>
+                  <p className="text-sm text-foreground/40">Loading...</p>
                 ) : recentErrors.length > 0 ? (
                   <div className="space-y-2">
                     {recentErrors.map((err) => (
                       <a
                         key={err.id}
                         href={`/apps/${appId}/log/${err.id}`}
-                        className="block p-3 bg-white border border-black/10 hover:border-black/20 transition-colors"
+                        className="block p-3 bg-card border border-foreground/10 hover:border-foreground/20 transition-colors"
                       >
                         <Code className="text-sm text-[#e11d48] truncate block">{err.message}</Code>
-                        <p className="text-xs text-black/40 mt-1">
+                        <p className="text-xs text-foreground/40 mt-1">
                           {formatDistanceToNow(new Date(err.timestamp), { addSuffix: true })}
                         </p>
                       </a>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-black/40">No recent errors found</p>
+                  <p className="text-sm text-foreground/40">No recent errors found</p>
                 )}
               </div>
             )}
@@ -147,7 +147,7 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
             {/* View all link */}
             <a
               href={`/apps/${appId}/log?search=${encodeURIComponent(endpoint.path)}`}
-              className="inline-block text-sm font-semibold text-black/50 hover:text-black"
+              className="inline-block text-sm font-semibold text-foreground/50 hover:text-foreground"
             >
               View logs →
             </a>
@@ -186,14 +186,14 @@ export default function Endpoints({ endpoints: endpointsProp, appId, appName, ap
       {endpoints.length === 0 ? (
         <EmptyState title="Quiet so far" description="Requests appear once your app is connected." />
       ) : (
-        <div className="bg-white border border-black/10 overflow-hidden">
-          <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
+        <div className="bg-card border border-foreground/10 overflow-hidden">
+          <div className="flex items-center gap-3 py-3 px-5 border-b border-foreground/10 text-xs font-semibold text-foreground/40 uppercase tracking-wide">
             <span className="flex-1">Path</span>
             <span className="w-16 text-right">Requests</span>
             <span className="w-16 text-right">Error %</span>
             <span className="w-16 text-right">Avg ms</span>
           </div>
-          <div className="divide-y divide-black/10">
+          <div className="divide-y divide-foreground/10">
             {endpoints.map((endpoint) => (
               <EndpointRow key={endpoint.path} endpoint={endpoint} appId={appId} />
             ))}

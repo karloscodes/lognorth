@@ -20,7 +20,7 @@ export function SettingsLayout({
     <Layout currentPath="/settings">
       <div className="flex flex-col md:flex-row gap-12">
         <nav className="md:w-44 md:shrink-0">
-          <h1 className="text-2xl font-bold text-black mb-4 md:mb-6">Settings</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-4 md:mb-6">Settings</h1>
           <ul className="flex md:flex-col gap-1 md:gap-1 overflow-x-auto md:overflow-visible">
             {NAV.map((item) => {
               const active = currentPath.startsWith(item.path)
@@ -30,8 +30,8 @@ export function SettingsLayout({
                     href={item.path}
                     className={`block py-1.5 px-2 -mx-2 text-sm font-semibold whitespace-nowrap ${
                       active
-                        ? 'text-black border-l-2 border-black md:pl-3'
-                        : 'text-black/50 hover:text-black md:pl-3'
+                        ? 'text-foreground border-l-2 border-foreground md:pl-3'
+                        : 'text-foreground/50 hover:text-foreground md:pl-3'
                     }`}
                   >
                     {item.label}

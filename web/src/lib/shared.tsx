@@ -29,8 +29,8 @@ export function PageHeader({
   return (
     <div className="flex items-center justify-between mb-8">
       <div>
-        <h1 className="text-2xl font-bold text-black">{title}</h1>
-        {subtitle && <p className="text-sm text-black/50 mt-1">{subtitle}</p>}
+        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+        {subtitle && <p className="text-sm text-foreground/50 mt-1">{subtitle}</p>}
       </div>
       {children}
     </div>
@@ -48,10 +48,10 @@ export function EmptyState({
   children?: ReactNode
 }) {
   return (
-    <div className="border border-black/10 py-16 text-center">
-      <Inbox className="w-10 h-10 text-black/20 mx-auto mb-4" />
-      <p className="font-semibold text-black mb-1">{title}</p>
-      {description && <p className="text-sm text-black/50">{description}</p>}
+    <div className="border border-foreground/10 py-16 text-center">
+      <Inbox className="w-10 h-10 text-foreground/20 mx-auto mb-4" />
+      <p className="font-semibold text-foreground mb-1">{title}</p>
+      {description && <p className="text-sm text-foreground/50">{description}</p>}
       {children}
     </div>
   )
@@ -60,7 +60,7 @@ export function EmptyState({
 // List container with border and divide
 export function ListContainer({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
+    <div className="bg-card border border-foreground/10 divide-y divide-foreground/10 overflow-hidden">
       {children}
     </div>
   )
@@ -166,12 +166,12 @@ export interface Issue {
 export const errorConfig = {
   error: {
     icon: AlertTriangle,
-    colors: 'text-[#e11d48] bg-rose-50',
+    colors: 'text-[#e11d48] bg-[#e11d48]/10',
     label: 'Error',
   },
   success: {
     icon: CheckCircle,
-    colors: 'text-black/50 bg-black/[0.02]',
+    colors: 'text-foreground/50 bg-foreground/[0.02]',
     label: 'Success',
   },
 } as const
@@ -182,16 +182,16 @@ export const getConfig = (isError: boolean) =>
 // === Status Colors ===
 
 export const statusColor = (status?: number) => {
-  if (!status) return 'text-black/50'
+  if (!status) return 'text-foreground/50'
   if (status >= 500) return 'text-[#e11d48] font-semibold'
-  if (status >= 400) return 'text-black'
-  return 'text-black/50'
+  if (status >= 400) return 'text-foreground'
+  return 'text-foreground/50'
 }
 
 // === HTTP Method Colors ===
 
 // Methods have no color decoration - status codes carry the semantic weight
-export const methodColor = (_method?: string) => 'text-black/50'
+export const methodColor = (_method?: string) => 'text-foreground/50'
 
 // === Helper to parse context ===
 

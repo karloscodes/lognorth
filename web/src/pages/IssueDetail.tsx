@@ -40,7 +40,7 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
   return (
     <Layout currentPath="/issues" appId={appId} appName={appName} applications={applications}>
       {/* Header Card */}
-      <div className="border border-black/10 overflow-hidden mb-8">
+      <div className="border border-foreground/10 overflow-hidden mb-8">
         <div className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -50,19 +50,19 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
                   <span className="bg-[#e11d48]/10 text-[#e11d48] px-2 py-0.5 text-xs font-black">Active</span>
                 )}
                 {issue.muted && (
-                  <span className="bg-black/10 text-black px-2 py-0.5 text-xs font-black">Muted</span>
+                  <span className="bg-foreground/10 text-foreground px-2 py-0.5 text-xs font-black">Muted</span>
                 )}
               </div>
-              <Code className="text-lg leading-snug block text-black font-bold break-all">{issue.error}</Code>
+              <Code className="text-lg leading-snug block text-foreground font-bold break-all">{issue.error}</Code>
               {(errorClass || errorFile) && (
                 <div className="mt-2 text-sm font-mono">
-                  {errorClass && <span className="text-black font-semibold">{errorClass}</span>}
+                  {errorClass && <span className="text-foreground font-semibold">{errorClass}</span>}
                   {errorFile && (
-                    <span className="text-black/60">
+                    <span className="text-foreground/60">
                       {errorClass ? ' at ' : ''}{errorFile}{errorLine ? `:${errorLine}` : ''}
                     </span>
                   )}
-                  {errorCaller && <span className="text-black/40"> in {errorCaller}</span>}
+                  {errorCaller && <span className="text-foreground/40"> in {errorCaller}</span>}
                 </div>
               )}
               {alsoHappensAt && alsoHappensAt.length > 0 && (() => {
@@ -77,7 +77,7 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
                       {sameFile.slice(0, 2).map((loc, i) => (
                         <React.Fragment key={loc.hash}>
                           {i > 0 && ', '}
-                          <a href={`/apps/${appId}/issues/${loc.hash}`} className="underline hover:text-black/60">
+                          <a href={`/apps/${appId}/issues/${loc.hash}`} className="underline hover:text-foreground/60">
                             {loc.line}
                           </a>
                           {' '}({loc.count}x)
@@ -94,7 +94,7 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
                       {diffFile.slice(0, 2).map((loc, i) => (
                         <React.Fragment key={loc.hash}>
                           {i > 0 && ', '}
-                          <a href={`/apps/${appId}/issues/${loc.hash}`} className="underline hover:text-black/60">
+                          <a href={`/apps/${appId}/issues/${loc.hash}`} className="underline hover:text-foreground/60">
                             {loc.file}{loc.line > 0 ? `:${loc.line}` : ''}
                           </a>
                           {' '}({loc.count}x)
@@ -106,7 +106,7 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
                 }
 
                 return (
-                  <div className="mt-1 text-sm font-mono text-black/40">
+                  <div className="mt-1 text-sm font-mono text-foreground/40">
                     {parts.map((p, i) => <React.Fragment key={i}>{i > 0 ? ', ' : ''}{p}</React.Fragment>)}
                   </div>
                 )
@@ -114,36 +114,36 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
             </div>
             <button
               onClick={toggleMute}
-              className="shrink-0 px-4 py-2 text-sm font-bold border border-black/10 hover:border-black/20 text-black/70 hover:text-black transition-colors"
+              className="shrink-0 px-4 py-2 text-sm font-bold border border-foreground/10 hover:border-foreground/20 text-foreground/70 hover:text-foreground transition-colors"
             >
               {issue.muted ? 'Unmute' : 'Mute'}
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 border-t border-black/10 divide-x divide-black/10 bg-black/[0.02]">
+        <div className="grid grid-cols-3 border-t border-foreground/10 divide-x divide-foreground/10 bg-foreground/[0.02]">
           <div className="px-5 py-3">
-            <div className="text-xs text-black/70 font-bold mb-1">Times</div>
+            <div className="text-xs text-foreground/70 font-bold mb-1">Times</div>
             <Mono className="text-2xl font-black text-[#e11d48]">{issue.count}</Mono>
           </div>
           <div className="px-5 py-3">
-            <div className="text-xs text-black/70 font-bold mb-1">First seen</div>
-            <Mono className="text-sm text-black font-semibold">{formatDistanceToNow(new Date(issue.first_seen), { addSuffix: true })}</Mono>
+            <div className="text-xs text-foreground/70 font-bold mb-1">First seen</div>
+            <Mono className="text-sm text-foreground font-semibold">{formatDistanceToNow(new Date(issue.first_seen), { addSuffix: true })}</Mono>
           </div>
           <div className="px-5 py-3">
-            <div className="text-xs text-black/70 font-bold mb-1">Last seen</div>
-            <Mono className="text-sm text-black font-semibold">{formatDistanceToNow(new Date(issue.last_seen), { addSuffix: true })}</Mono>
+            <div className="text-xs text-foreground/70 font-bold mb-1">Last seen</div>
+            <Mono className="text-sm text-foreground font-semibold">{formatDistanceToNow(new Date(issue.last_seen), { addSuffix: true })}</Mono>
           </div>
         </div>
       </div>
 
       {/* Stack Trace */}
       {stackTrace && (
-        <details className="mb-8 border border-black/10">
-          <summary className="px-4 py-3 text-sm font-black text-black uppercase tracking-wider cursor-pointer hover:bg-black/[0.02]">
+        <details className="mb-8 border border-foreground/10">
+          <summary className="px-4 py-3 text-sm font-black text-foreground uppercase tracking-wider cursor-pointer hover:bg-foreground/[0.02]">
             Stack Trace
           </summary>
-          <pre className="px-4 py-3 text-xs font-mono text-black/80 overflow-x-auto whitespace-pre border-t border-black/10 bg-black/[0.02]">
+          <pre className="px-4 py-3 text-xs font-mono text-foreground/80 overflow-x-auto whitespace-pre border-t border-foreground/10 bg-foreground/[0.02]">
             {stackTrace}
           </pre>
         </details>
@@ -164,11 +164,11 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
       {/* Recent Occurrences Timeline */}
       {recentEntries.length > 0 && (
         <div className="mb-8">
-          <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
+          <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-4">
             Last {recentEntries.length} times
           </h3>
           <div className="relative pl-6">
-            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-black/20" />
+            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-foreground/20" />
             {recentEntries.map((entry, idx) => (
               <TimelineEntry key={entry.id} entry={entry} appId={appId} isFirst={idx === 0} />
             ))}
@@ -200,25 +200,25 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
 
   return (
     <div className="mb-8">
-      <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
+      <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-4">
         Request Context
       </h3>
-      <div className="border-2 border-black/10 overflow-hidden font-mono text-xs">
+      <div className="border-2 border-foreground/10 overflow-hidden font-mono text-xs">
         {/* Request wrapper header */}
         {requestEntry && requestCtx && requestConfig && (() => {
           const ReqIcon = requestConfig.icon
           return (
             <a
               href={`${logPath}/${requestEntry.id}`}
-              className="flex items-center gap-2 px-4 py-2.5 bg-black/[0.02] border-b border-black/10 hover:bg-black/[0.04] transition-colors"
+              className="flex items-center gap-2 px-4 py-2.5 bg-foreground/[0.02] border-b border-foreground/10 hover:bg-foreground/[0.04] transition-colors"
             >
               <div className={`p-1 ${requestConfig.colors}`}>
                 <ReqIcon className="w-3 h-3" />
               </div>
               {requestCtx.method && <span className={`font-bold ${methodColor(requestCtx.method)}`}>{requestCtx.method}</span>}
-              <span className="text-black/70">{requestCtx.path}</span>
+              <span className="text-foreground/70">{requestCtx.path}</span>
               {requestCtx.status && <span className={`font-bold ${statusColor(requestCtx.status)}`}>{requestCtx.status}</span>}
-              <span className="text-black/40 ml-auto shrink-0">{requestEntry.duration_ms}ms</span>
+              <span className="text-foreground/40 ml-auto shrink-0">{requestEntry.duration_ms}ms</span>
             </a>
           )
         })()}
@@ -230,7 +230,7 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
           const EIcon = eConfig.icon
           const eCtx = parseContext(e.context)
           const isLast = i === childEntries.length - 1
-          const borderClass = !isLast ? 'border-b border-black/5' : ''
+          const borderClass = !isLast ? 'border-b border-foreground/5' : ''
           const indent = requestEntry ? 'pl-8' : 'pl-4'
 
           const content = (
@@ -238,18 +238,18 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
               <div className={`p-1 ${eConfig.colors}`}>
                 <EIcon className="w-3 h-3" />
               </div>
-              <span className={`truncate ${isCurrent ? 'text-black font-bold' : 'text-black/70'}`}>{eCtx.path || e.message}</span>
-              {eCtx.error_file && <span className="text-black/40">{eCtx.error_file}{eCtx.error_line ? `:${eCtx.error_line}` : ''}</span>}
+              <span className={`truncate ${isCurrent ? 'text-foreground font-bold' : 'text-foreground/70'}`}>{eCtx.path || e.message}</span>
+              {eCtx.error_file && <span className="text-foreground/40">{eCtx.error_file}{eCtx.error_line ? `:${eCtx.error_line}` : ''}</span>}
               {eCtx.method && <span className={`font-bold ${methodColor(eCtx.method)}`}>{eCtx.method}</span>}
               {eCtx.status && <span className={`font-bold ${statusColor(eCtx.status)}`}>{eCtx.status}</span>}
-              {e.duration_ms > 0 && <span className="text-black/40 ml-auto shrink-0">{e.duration_ms}ms</span>}
+              {e.duration_ms > 0 && <span className="text-foreground/40 ml-auto shrink-0">{e.duration_ms}ms</span>}
             </>
           )
 
           if (isCurrent) {
             return (
-              <div key={e.id} className={`relative flex items-center gap-2 ${indent} pr-4 py-2.5 bg-black/[0.04] ${borderClass}`}>
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-black" />
+              <div key={e.id} className={`relative flex items-center gap-2 ${indent} pr-4 py-2.5 bg-foreground/[0.04] ${borderClass}`}>
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-foreground" />
                 {content}
               </div>
             )
@@ -259,7 +259,7 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
             <a
               key={e.id}
               href={`${logPath}/${e.id}`}
-              className={`flex items-center gap-2 ${indent} pr-4 py-2.5 hover:bg-black/[0.02] transition-colors ${borderClass}`}
+              className={`flex items-center gap-2 ${indent} pr-4 py-2.5 hover:bg-foreground/[0.02] transition-colors ${borderClass}`}
             >
               {content}
             </a>
@@ -270,7 +270,7 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
         {errorEntry.trace_id && (
           <a
             href={`${logPath}?trace=${errorEntry.trace_id}`}
-            className="flex items-center justify-between px-4 py-2.5 border-t border-black/10 font-mono text-xs font-bold text-black/60 hover:text-black transition-colors"
+            className="flex items-center justify-between px-4 py-2.5 border-t border-foreground/10 font-mono text-xs font-bold text-foreground/60 hover:text-foreground transition-colors"
           >
             <span>{traceEntries.length} {traceEntries.length === 1 ? 'entry' : 'entries'} in this trace</span>
             <span>View full trace →</span>
@@ -290,12 +290,12 @@ function TimelineEntry({ entry, appId, isFirst }: { entry: LogEntry; appId: numb
   return (
     <a href={`${logPath}/${entry.id}`} className="relative flex items-start gap-3 pb-5 last:pb-0 group block">
       <div className={`absolute left-[-17px] top-1.5 w-[9px] h-[9px] border-2 ${
-        isFirst ? 'bg-[#e11d48] border-[#e11d48]' : 'bg-white border-black/40 group-hover:border-black/60'
+        isFirst ? 'bg-[#e11d48] border-[#e11d48]' : 'bg-card border-foreground/40 group-hover:border-foreground/60'
       }`} />
       <div className="flex-1 min-w-0 py-0.5">
         <div className="flex items-center gap-2">
           {isJob ? (
-            <span className="font-mono text-sm font-black text-black">{ctx.job}</span>
+            <span className="font-mono text-sm font-black text-foreground">{ctx.job}</span>
           ) : (
             <>
               {ctx.method && (
@@ -304,18 +304,18 @@ function TimelineEntry({ entry, appId, isFirst }: { entry: LogEntry; appId: numb
               {ctx.status && (
                 <span className={`font-mono text-sm font-black ${statusColor(ctx.status)}`}>{ctx.status}</span>
               )}
-              <Code className="text-sm text-black/80 font-semibold truncate group-hover:text-black">{ctx.path || entry.message}</Code>
+              <Code className="text-sm text-foreground/80 font-semibold truncate group-hover:text-foreground">{ctx.path || entry.message}</Code>
             </>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-0.5 text-xs text-black/60 font-mono">
+        <div className="flex items-center gap-2 mt-0.5 text-xs text-foreground/60 font-mono">
           <span className="font-semibold">{format(new Date(entry.timestamp), 'MMM d, HH:mm:ss')}</span>
           <span>·</span>
           <span>{entry.duration_ms}ms</span>
           {entry.trace_id && (
             <>
               <span>·</span>
-              <span className="text-black/40">trace:{entry.trace_id.slice(0, 8)}</span>
+              <span className="text-foreground/40">trace:{entry.trace_id.slice(0, 8)}</span>
             </>
           )}
         </div>
@@ -414,27 +414,27 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
   if (numCols === 0) {
     return (
       <div className="mb-8" ref={containerRef}>
-        <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
+        <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-4">
           Frequency
         </h3>
-        <div className="border border-black/10 p-4 h-[200px]" />
+        <div className="border border-foreground/10 p-4 h-[200px]" />
       </div>
     )
   }
 
   return (
     <div className="mb-8" ref={containerRef}>
-      <h3 className="text-sm font-black text-black uppercase tracking-wider mb-4">
+      <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-4">
         Frequency
       </h3>
-      <div className="border border-black/10 p-4 relative">
+      <div className="border border-foreground/10 p-4 relative">
         <div className="flex">
           {/* Row labels */}
           <div className="shrink-0 pr-2" style={{ width: LABEL_WIDTH }}>
             {TIME_BUCKETS.map((bucket, i) => (
               <div
                 key={bucket.label}
-                className="text-[9px] font-mono text-black/70 font-bold text-right flex items-center justify-end"
+                className="text-[9px] font-mono text-foreground/70 font-bold text-right flex items-center justify-end"
                 style={{ height: 13 }}
               >
                 {i % 2 === 0 ? bucket.label : ''}
@@ -463,7 +463,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                 days.map((day, i) => {
                   const dayStr = format(day, 'yyyy-MM-dd')
                   const count = bucketCount(dayStr, bucket)
-                  const intensity = count > 0 ? Math.max(0.25, count / maxBucket) : 0
+                  const intensity = count > 0 ? Math.max(0.4, count / maxBucket) : 0
                   const isHovered = hoveredCell?.day === day && hoveredCell?.bucket === bucket
                   return (
                     <div
@@ -472,7 +472,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                       style={{
                         aspectRatio: '1',
                         borderRadius: 2,
-                        backgroundColor: count > 0 ? `rgba(225, 29, 72, ${intensity})` : 'rgba(0,0,0,0.06)',
+                        backgroundColor: count > 0 ? `rgba(225, 29, 72, ${intensity})` : 'rgba(255,255,255,0.06)',
                       }}
                       onMouseEnter={() => setHoveredCell({ day, bucket, count })}
                       onMouseLeave={() => setHoveredCell(null)}
@@ -493,7 +493,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                 return (
                   <span
                     key={i}
-                    className="text-[9px] font-mono text-black/60 font-bold whitespace-nowrap absolute"
+                    className="text-[9px] font-mono text-foreground/60 font-bold whitespace-nowrap absolute"
                     style={{ left }}
                   >
                     {format(day, 'MMM d')}
@@ -507,7 +507,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
         {/* Hover tooltip - floating */}
         {hoveredCell && (
           <div className="absolute bottom-2 left-0 right-0 text-xs text-center pointer-events-none">
-            <span className="bg-black text-white px-2 py-1">
+            <span className="bg-foreground text-background px-2 py-1">
               {format(hoveredCell.day, 'EEE, MMM d')} {hoveredCell.bucket.label}
               <span className="mx-2">·</span>
               <span className="font-mono font-semibold">{hoveredCell.count} error{hoveredCell.count !== 1 ? 's' : ''}</span>
@@ -516,7 +516,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
         )}
 
         {/* Legend */}
-        <div className="flex items-center gap-1.5 mt-3 text-[10px] text-black/60 font-mono font-bold">
+        <div className="flex items-center gap-1.5 mt-3 text-[10px] text-foreground/60 font-mono font-bold">
           <span>Less</span>
           {[0, 0.25, 0.5, 0.75, 1].map((opacity, i) => (
             <div
@@ -525,7 +525,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                 width: 11,
                 height: 11,
                 borderRadius: 2,
-                backgroundColor: i === 0 ? 'rgba(0,0,0,0.06)' : `rgba(225,29,72,${opacity})`,
+                backgroundColor: i === 0 ? 'rgba(255,255,255,0.06)' : `rgba(225,29,72,${opacity})`,
               }}
             />
           ))}

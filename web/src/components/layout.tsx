@@ -48,7 +48,7 @@ function AppSelector({ appId, appName, applications }: { appId: number; appName:
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-2 px-3 py-1.5 border border-black/20 hover:border-black transition-colors text-sm font-semibold">
+        <button className="flex items-center gap-2 px-3 py-1.5 border border-foreground/20 hover:border-foreground transition-colors text-sm font-semibold">
           {appName}
           <ChevronDown className="w-4 h-4 opacity-50" />
         </button>
@@ -61,18 +61,18 @@ function AppSelector({ appId, appName, applications }: { appId: number; appName:
               onClick={() => handleSelect(app.id)}
               className={`flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors ${
                 app.id === appId
-                  ? 'bg-black text-white'
-                  : 'hover:bg-black/[0.05]'
+                  ? 'bg-foreground text-background'
+                  : 'hover:bg-foreground/[0.05]'
               }`}
             >
               <Check className={`w-4 h-4 ${app.id === appId ? 'opacity-100' : 'opacity-0'}`} />
               {app.name}
             </button>
           ))}
-          <div className="h-px bg-black/10 my-1" />
+          <div className="h-px bg-foreground/10 my-1" />
           <button
             onClick={() => handleSelect(null)}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-black/[0.02] text-black/50"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-foreground/[0.02] text-foreground/50"
           >
             <ArrowLeft className="w-4 h-4" />
             All apps
@@ -91,7 +91,7 @@ function LogoutButton() {
   return (
     <button
       onClick={handleLogout}
-      className="text-sm font-bold text-black"
+      className="text-sm font-bold text-foreground"
     >
       Logout
     </button>
@@ -157,30 +157,30 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
     <div ref={ref} className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-3">
       <div className="group">
         {open && (
-          <div className="bg-white border border-black/10 shadow-lg rounded-xl p-4 w-80 text-sm mb-3 max-h-96 overflow-y-auto">
+          <div className="bg-card border border-foreground/10 shadow-lg rounded-xl p-4 w-80 text-sm mb-3 max-h-96 overflow-y-auto">
             {state.unread.map((n, i) => (
-              <div key={n.id} className={i > 0 ? 'mt-3 pt-3 border-t border-black/10' : ''}>
+              <div key={n.id} className={i > 0 ? 'mt-3 pt-3 border-t border-foreground/10' : ''}>
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold text-sm text-black mb-1">{n.title}</p>
-                  <button onClick={() => handleDismiss(n.id)} className="text-black/30 hover:text-black text-xs shrink-0">✕</button>
+                  <p className="font-semibold text-sm text-foreground mb-1">{n.title}</p>
+                  <button onClick={() => handleDismiss(n.id)} className="text-foreground/30 hover:text-foreground text-xs shrink-0">✕</button>
                 </div>
-                <p className="text-black/70 text-xs leading-relaxed whitespace-pre-wrap break-all">{n.body}</p>
+                <p className="text-foreground/70 text-xs leading-relaxed whitespace-pre-wrap break-all">{n.body}</p>
               </div>
             ))}
             {state.read.map((n, i) => (
               <div
                 key={n.id}
-                className={`${state.unread.length > 0 || i > 0 ? 'mt-3 pt-3 border-t border-black/10' : ''} cursor-pointer`}
+                className={`${state.unread.length > 0 || i > 0 ? 'mt-3 pt-3 border-t border-foreground/10' : ''} cursor-pointer`}
                 onClick={() => setExpandedRead(expandedRead === n.id ? null : n.id)}
               >
-                <p className="text-sm text-black/40 hover:text-black/60 transition-colors">{n.title}</p>
+                <p className="text-sm text-foreground/40 hover:text-foreground/60 transition-colors">{n.title}</p>
                 {expandedRead === n.id && (
-                  <p className="text-black/40 text-xs leading-relaxed whitespace-pre-wrap break-all mt-1">{n.body}</p>
+                  <p className="text-foreground/40 text-xs leading-relaxed whitespace-pre-wrap break-all mt-1">{n.body}</p>
                 )}
               </div>
             ))}
-            {(state.unread.length > 0 || state.read.length > 0) && <div className="mt-3 pt-3 border-t border-black/10" />}
-            <p className="text-black/70 text-sm leading-relaxed mb-3">
+            {(state.unread.length > 0 || state.read.length > 0) && <div className="mt-3 pt-3 border-t border-foreground/10" />}
+            <p className="text-foreground/70 text-sm leading-relaxed mb-3">
               Something broken or an idea?
             </p>
             <div className="flex flex-col gap-2">
@@ -196,7 +196,7 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
                 href="https://github.com/karloscodes/karloscodes/issues/new/choose"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-black/50 hover:text-black hover:underline transition-colors"
+                className="text-sm text-foreground/50 hover:text-foreground hover:underline transition-colors"
               >
                 open an issue →
               </a>
@@ -217,7 +217,7 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
               />
             </div>
             {hasNotifications && (
-              <span className="absolute top-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse" />
+              <span className="absolute top-0 right-0 w-4 h-4 bg-[#00D678]/100 rounded-full border-2 border-border animate-pulse" />
             )}
           </div>
         </div>
@@ -244,14 +244,14 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
   const hasErrors = currentApp?.stats?.errors && currentApp.stats.errors > 0
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-card">
       {isDemo && (
         <div className="bg-red-600 text-white text-center text-xs font-bold py-1.5 tracking-wide uppercase sticky top-0 z-[60]">
           This is a demo. Everything is read-only.
         </div>
       )}
       {!isDemo && !licenseValid && (
-        <div className="bg-black text-white text-center text-xs font-medium py-1.5 sticky top-0 z-[60]">
+        <div className="bg-[#e11d48] text-white text-center text-xs font-medium py-1.5 sticky top-0 z-[60]">
           No valid license — events are being received but not processed.{' '}
           <Link href="/settings" className="underline hover:no-underline">
             Enter your license key →
@@ -259,7 +259,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
         </div>
       )}
       {/* Navigation */}
-      <nav className="border-b border-black/10 sticky top-0 bg-white z-50">
+      <nav className="border-b border-foreground/10 sticky top-0 bg-card z-50">
         <div className="max-w-6xl mx-auto px-8">
           <div className="flex h-16 items-center gap-10">
             <Link href="/" className="flex items-center gap-3">
@@ -268,16 +268,16 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
 
             {isAppScoped ? (
               <>
-                <div className="h-6 w-px bg-black/10" />
+                <div className="h-6 w-px bg-foreground/10" />
 
                 <AppSelector appId={appId} appName={appName} applications={applications} />
 
                 <nav className="flex items-center gap-6">
                   <Link
                     href={`/apps/${appId}/issues`}
-                    className={`flex items-center gap-2 py-5 text-sm font-bold text-black border-b-2 ${
+                    className={`flex items-center gap-2 py-5 text-sm font-bold text-foreground border-b-2 ${
                       currentPath?.includes('/issues')
-                        ? 'border-black'
+                        ? 'border-foreground'
                         : 'border-transparent'
                     }`}
                   >
@@ -288,9 +288,9 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
                   </Link>
                   <Link
                     href={`/apps/${appId}/log`}
-                    className={`py-5 text-sm font-bold text-black border-b-2 ${
+                    className={`py-5 text-sm font-bold text-foreground border-b-2 ${
                       currentPath?.includes('/log')
-                        ? 'border-black'
+                        ? 'border-foreground'
                         : 'border-transparent'
                     }`}
                   >
@@ -298,9 +298,9 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
                   </Link>
                   <Link
                     href={`/apps/${appId}/endpoints`}
-                    className={`py-5 text-sm font-bold text-black border-b-2 ${
+                    className={`py-5 text-sm font-bold text-foreground border-b-2 ${
                       currentPath?.includes('/endpoints')
-                        ? 'border-black'
+                        ? 'border-foreground'
                         : 'border-transparent'
                     }`}
                   >
@@ -312,9 +312,9 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
               <nav className="flex items-center gap-6">
                 <Link
                   href="/"
-                  className={`py-5 text-sm font-bold text-black border-b-2 ${
+                  className={`py-5 text-sm font-bold text-foreground border-b-2 ${
                     currentPath === '/'
-                      ? 'border-black'
+                      ? 'border-foreground'
                       : 'border-transparent'
                   }`}
                 >
@@ -328,21 +328,21 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
             <div className="flex items-center gap-6">
               <Link
                 href="/apps"
-                className="text-sm font-bold text-black"
+                className="text-sm font-bold text-foreground"
               >
                 Apps
               </Link>
 
               <Link
                 href="/settings"
-                className="text-sm font-bold text-black"
+                className="text-sm font-bold text-foreground"
               >
                 Settings
               </Link>
 
               {!isDemo && (
                 <>
-                  <div className="h-5 w-px bg-black/10" />
+                  <div className="h-5 w-px bg-foreground/10" />
                   <LogoutButton />
                 </>
               )}

@@ -126,10 +126,10 @@ function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; 
   return (
     <a
       href={href}
-      className={`relative flex items-center gap-3 py-3 px-5 overflow-hidden transition-colors hover:bg-black/[0.02] ${showErrorBorder ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
+      className={`relative flex items-center gap-3 py-3 px-5 overflow-hidden transition-colors hover:bg-foreground/[0.02] ${showErrorBorder ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}
     >
       {/* Timestamp */}
-      <span className="text-xs text-black/40 tabular-nums shrink-0 font-mono" style={{ width: '145px' }}>
+      <span className="text-xs text-foreground/40 tabular-nums shrink-0 font-mono" style={{ width: '145px' }}>
         {formatTime(new Date(entry.timestamp))}
       </span>
 
@@ -137,51 +137,51 @@ function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; 
       <div className="w-14 shrink-0 relative flex items-center justify-center" style={{ height: '20px' }}>
         {treeLine === 'parent' && (
           /* Vertical line down from GET badge center */
-          <span className="absolute w-px bg-black/15" style={{ left: badgeCenterX, top: '50%', bottom: '-16px' }} />
+          <span className="absolute w-px bg-foreground/15" style={{ left: badgeCenterX, top: '50%', bottom: '-16px' }} />
         )}
         {treeLine === 'first-child' && (
           <>
             {/* L-shape: vertical from parent down, then horizontal to dot */}
-            <span className="absolute w-px bg-black/15" style={{ left: badgeCenterX, top: '-16px', bottom: '50%' }} />
-            <span className="absolute h-px bg-black/15" style={{ left: badgeCenterX, top: '50%', width: dotX - badgeCenterX }} />
+            <span className="absolute w-px bg-foreground/15" style={{ left: badgeCenterX, top: '-16px', bottom: '50%' }} />
+            <span className="absolute h-px bg-foreground/15" style={{ left: badgeCenterX, top: '50%', width: dotX - badgeCenterX }} />
             {/* Vertical line continues down to next children */}
-            <span className="absolute w-px bg-black/15" style={{ left: dotX, top: '50%', bottom: '-16px' }} />
+            <span className="absolute w-px bg-foreground/15" style={{ left: dotX, top: '50%', bottom: '-16px' }} />
             {/* Dot */}
-            <span className="absolute w-[5px] h-[5px] rounded-full bg-black/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
+            <span className="absolute w-[5px] h-[5px] rounded-full bg-foreground/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
           </>
         )}
         {treeLine === 'only-child' && (
           <>
             {/* L-shape only, no line continuing down */}
-            <span className="absolute w-px bg-black/15" style={{ left: badgeCenterX, top: '-16px', bottom: '50%' }} />
-            <span className="absolute h-px bg-black/15" style={{ left: badgeCenterX, top: '50%', width: dotX - badgeCenterX }} />
+            <span className="absolute w-px bg-foreground/15" style={{ left: badgeCenterX, top: '-16px', bottom: '50%' }} />
+            <span className="absolute h-px bg-foreground/15" style={{ left: badgeCenterX, top: '50%', width: dotX - badgeCenterX }} />
             {/* Dot */}
-            <span className="absolute w-[5px] h-[5px] rounded-full bg-black/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
+            <span className="absolute w-[5px] h-[5px] rounded-full bg-foreground/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
           </>
         )}
         {treeLine === 'child' && (
           <>
             {/* Vertical line through dot position */}
-            <span className="absolute w-px bg-black/15" style={{ left: dotX, top: '-16px', bottom: '-16px' }} />
+            <span className="absolute w-px bg-foreground/15" style={{ left: dotX, top: '-16px', bottom: '-16px' }} />
             {/* Dot */}
-            <span className="absolute w-[5px] h-[5px] rounded-full bg-black/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
+            <span className="absolute w-[5px] h-[5px] rounded-full bg-foreground/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
           </>
         )}
         {treeLine === 'last-child' && (
           <>
             {/* Vertical line from top to dot center */}
-            <span className="absolute w-px bg-black/15" style={{ left: dotX, top: '-16px', bottom: '50%' }} />
+            <span className="absolute w-px bg-foreground/15" style={{ left: dotX, top: '-16px', bottom: '50%' }} />
             {/* Dot */}
-            <span className="absolute w-[5px] h-[5px] rounded-full bg-black/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
+            <span className="absolute w-[5px] h-[5px] rounded-full bg-foreground/25" style={{ left: dotX - 2, top: 'calc(50% - 2.5px)' }} />
           </>
         )}
         {ctx.method && (
-          <span className="relative font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+          <span className="relative font-mono text-xs font-semibold px-1.5 py-0.5 text-foreground/50 bg-foreground/[0.04]">
             {ctx.method}
           </span>
         )}
         {ctx.job && !ctx.method && (
-          <span className="relative font-mono text-xs font-semibold px-1.5 py-0.5 text-black/50 bg-black/[0.04]">
+          <span className="relative font-mono text-xs font-semibold px-1.5 py-0.5 text-foreground/50 bg-foreground/[0.04]">
             JOB
           </span>
         )}
@@ -190,11 +190,11 @@ function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; 
       {/* Path / Message + inline metadata — entire section truncates */}
       <div className="flex-1 min-w-0 flex items-center gap-3 overflow-hidden">
         {isRequest ? (
-          <span className="font-mono text-sm text-black font-semibold truncate shrink-0" style={{ maxWidth: '40%' }}>
+          <span className="font-mono text-sm text-foreground font-semibold truncate shrink-0" style={{ maxWidth: '40%' }}>
             {ctx.path}
           </span>
         ) : (
-          <span className={`font-mono text-sm truncate ${isError ? 'text-[#e11d48] font-semibold' : 'text-black/60'}`} style={{ maxWidth: '50%' }}>
+          <span className={`font-mono text-sm truncate ${isError ? 'text-[#e11d48] font-semibold' : 'text-foreground/60'}`} style={{ maxWidth: '50%' }}>
             {entry.message || ctx.job || '—'}
           </span>
         )}
@@ -204,12 +204,12 @@ function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; 
           </span>
         )}
         {ctx.error_file && (
-          <span className="font-mono text-xs text-black/30 truncate min-w-0">
+          <span className="font-mono text-xs text-foreground/30 truncate min-w-0">
             {ctx.error_file}{ctx.error_line ? `:${ctx.error_line}` : ''}
           </span>
         )}
         {extraPairs.length > 0 && (
-          <span className="font-mono text-xs text-black/25 truncate min-w-0">
+          <span className="font-mono text-xs text-foreground/25 truncate min-w-0">
             {extraPairs.slice(0, 3).map(([k, v]) => `${k}=${String(v)}`).join('  ')}
           </span>
         )}
@@ -220,8 +220,8 @@ function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; 
         {ctx.status ? (
           <span className={`font-mono text-sm font-bold w-10 text-right ${
             ctx.status >= 500 ? 'text-[#e11d48]' :
-            ctx.status >= 400 ? 'text-black' :
-            'text-black/50'
+            ctx.status >= 400 ? 'text-foreground' :
+            'text-foreground/50'
           }`}>
             {ctx.status}
           </span>
@@ -229,7 +229,7 @@ function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; 
           <span className="w-10" />
         )}
         {entry.duration_ms > 0 ? (
-          <span className="font-mono text-xs text-black/50 tabular-nums w-14 text-right">
+          <span className="font-mono text-xs text-foreground/50 tabular-nums w-14 text-right">
             {entry.duration_ms}ms
           </span>
         ) : (
@@ -269,7 +269,7 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
   }
 
   return (
-    <div className={`border-b border-black/10 last:border-b-0 ${hasError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}>
+    <div className={`border-b border-foreground/10 last:border-b-0 ${hasError ? 'shadow-[inset_3px_0_0_0_#e11d48]' : ''}`}>
       {entries.map((entry, i) => (
         <LogRow
           key={entry.id}
@@ -305,7 +305,7 @@ function LogHistogram({ buckets: rawBuckets }: { buckets: HistogramBucket[] }) {
   const hoveredBucket = hoveredIdx !== null ? buckets[hoveredIdx] : null
 
   return (
-    <div className="mb-4 bg-white border border-black/10 p-3 relative">
+    <div className="mb-4 bg-card border border-foreground/10 p-3 relative">
       {/* Bars with gaps */}
       <div className="h-16 flex items-end gap-0.5">
         {buckets.map((bucket, i) => {
@@ -341,7 +341,7 @@ function LogHistogram({ buckets: rawBuckets }: { buckets: HistogramBucket[] }) {
       {/* Tooltip overlay - black background */}
       {hoveredBucket && (
         <div className="absolute bottom-1 left-0 right-0 text-xs text-center pointer-events-none">
-          <span className="bg-black text-white px-2 py-1">
+          <span className="bg-foreground text-background px-2 py-1">
             {new Date(hoveredBucket.timestamp).toLocaleString(undefined, {
               month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
             })}
@@ -496,14 +496,14 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             Logs
             {liveEnabled && (
               <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-[#e11d48] text-white text-xs font-semibold align-middle">
-                <span className="w-1.5 h-1.5 bg-white animate-pulse" />
+                <span className="w-1.5 h-1.5 bg-card animate-pulse" />
                 Live
               </span>
             )}
             {traceFilter && (
-              <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-black text-white text-xs font-semibold font-mono align-middle">
+              <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-foreground text-background text-xs font-semibold font-mono align-middle">
                 Trace: {traceFilter.slice(0, 8)}...
-                <button onClick={() => router.visit(basePath)} className="ml-1 hover:text-white/60 transition-colors">&times;</button>
+                <button onClick={() => router.visit(basePath)} className="ml-1 hover:text-background/60 transition-colors">&times;</button>
               </span>
             )}
           </>
@@ -518,17 +518,17 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all ${
               liveEnabled
                 ? 'bg-[#e11d48] text-white'
-                : 'border border-black/20 text-black/70 hover:border-black/40 hover:text-black'
+                : 'border border-foreground/20 text-foreground/70 hover:border-foreground/40 hover:text-foreground'
             }`}
           >
-            <span className={`w-2 h-2 ${liveEnabled ? 'bg-white animate-pulse' : 'bg-accent'}`} />
+            <span className={`w-2 h-2 ${liveEnabled ? 'bg-card animate-pulse' : 'bg-accent'}`} />
             {liveEnabled ? 'Stop' : 'Live'}
           </button>
         )}
       </PageHeader>
 
       {/* Filters Bar */}
-      <div className="flex items-center gap-4 mb-6 p-4 bg-white border border-black/10">
+      <div className="flex items-center gap-4 mb-6 p-4 bg-card border border-foreground/10">
         {/* Error Filter - ToggleGroup */}
         <ToggleGroup type="single" value={errorFilter} onValueChange={handleErrorFilter} disabled={liveEnabled}>
           <ToggleGroupItem value="all" aria-label="All">All</ToggleGroupItem>
@@ -536,7 +536,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           <ToggleGroupItem value="errors" aria-label="Errors">Errors</ToggleGroupItem>
         </ToggleGroup>
 
-        <div className="h-5 w-px bg-black/10" />
+        <div className="h-5 w-px bg-foreground/10" />
 
         {/* Date Filter */}
         <ToggleGroup type="single" value={datePreset} onValueChange={(v) => v && handleDateFilter(v as DatePreset)} disabled={liveEnabled}>
@@ -546,18 +546,18 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           <ToggleGroupItem value="all" aria-label="All time">All</ToggleGroupItem>
         </ToggleGroup>
 
-        <div className="h-5 w-px bg-black/10" />
+        <div className="h-5 w-px bg-foreground/10" />
 
         {/* Search */}
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
           <Input
             type="text"
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
-            className="pl-9 bg-black/[0.02] border-black/10"
+            className="pl-9 bg-foreground/[0.02] border-foreground/10"
             disabled={liveEnabled}
           />
         </div>
@@ -577,8 +577,8 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             disabled={liveEnabled}
             className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold transition-all ${
               groupEnabled
-                ? 'bg-black text-white'
-                : 'text-black/50 hover:text-black hover:bg-black/[0.02]'
+                ? 'bg-foreground text-background'
+                : 'text-foreground/50 hover:text-foreground hover:bg-foreground/[0.02]'
             } ${liveEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <Layers className="w-4 h-4" />
@@ -594,12 +594,12 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
 
       {/* Log List */}
       {entries.length === 0 ? (
-        <div className="bg-white border border-black/10 py-16 text-center">
-          <Inbox className="w-10 h-10 text-black/20 mx-auto mb-4" />
-          <p className="font-semibold text-black mb-1">
+        <div className="bg-card border border-foreground/10 py-16 text-center">
+          <Inbox className="w-10 h-10 text-foreground/20 mx-auto mb-4" />
+          <p className="font-semibold text-foreground mb-1">
             {hasFilters ? 'Nothing here' : 'Quiet so far'}
           </p>
-          <p className="text-sm text-black/50">
+          <p className="text-sm text-foreground/50">
             {hasFilters
               ? 'Try different filters.'
               : 'Logs appear once your app is connected.'}
@@ -611,8 +611,8 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           )}
         </div>
       ) : groupEnabled && !filters.trace && !filters.search ? (
-        <div className="bg-white border border-black/10 overflow-hidden">
-          <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
+        <div className="bg-card border border-foreground/10 overflow-hidden">
+          <div className="flex items-center gap-3 py-3 px-5 border-b border-foreground/10 text-xs font-semibold text-foreground/40 uppercase tracking-wide">
             <span style={{ width: '145px' }}>Time</span>
             <span className="w-14"></span>
             <span className="flex-1">Path</span>
@@ -624,15 +624,15 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           ))}
         </div>
       ) : (
-        <div className="bg-white border border-black/10 overflow-hidden">
-          <div className="flex items-center gap-3 py-3 px-5 border-b border-black/10 text-xs font-semibold text-black/40 uppercase tracking-wide">
+        <div className="bg-card border border-foreground/10 overflow-hidden">
+          <div className="flex items-center gap-3 py-3 px-5 border-b border-foreground/10 text-xs font-semibold text-foreground/40 uppercase tracking-wide">
             <span style={{ width: '145px' }}>Time</span>
             <span className="w-14"></span>
             <span className="flex-1">Path</span>
             <span className="w-10 text-right">Code</span>
             <span className="w-14 text-right">Duration</span>
           </div>
-          <div className="divide-y divide-black/10">
+          <div className="divide-y divide-foreground/10">
             {(filters.trace ? [...entries].sort((a, b) => a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0) : entries).filter(e => e && e.id).map((entry) => (
               <LogRow key={entry.id} entry={entry} appId={appId} />
             ))}
@@ -643,7 +643,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
       {/* Pagination */}
       {!liveEnabled && pagination.total > pagination.limit && (
         <div className="flex justify-between items-center mt-6 py-4">
-          <p className="text-sm text-black/50">
+          <p className="text-sm text-foreground/50">
             {pagination.offset + 1}–{Math.min(pagination.offset + pagination.limit, pagination.total)} of {pagination.total.toLocaleString()}
           </p>
           <div className="flex items-center gap-2">
@@ -659,7 +659,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             >
               Previous
             </Button>
-            <span className="text-sm text-black/50 px-2">
+            <span className="text-sm text-foreground/50 px-2">
               {currentPage} / {totalPages}
             </span>
             <Button

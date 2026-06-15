@@ -63,10 +63,10 @@ export default function SettingsLicense({ settings }: Props) {
   return (
     <SettingsLayout currentPath="/settings/license">
       <div className="flex items-baseline gap-3 mb-2 flex-wrap">
-        <h2 className="text-2xl font-bold text-black">License</h2>
+        <h2 className="text-2xl font-bold text-foreground">License</h2>
         {licenseStatus === 'valid' && (
           <span className="text-sm font-semibold text-accent">
-            ✓ Valid {licenseEmail && <span className="text-black/50 font-normal">· {licenseEmail}</span>}
+            ✓ Valid {licenseEmail && <span className="text-foreground/50 font-normal">· {licenseEmail}</span>}
           </span>
         )}
         {licenseStatus === 'invalid' && (
@@ -76,12 +76,12 @@ export default function SettingsLicense({ settings }: Props) {
           <span className="text-sm font-semibold text-red-600">Expired</span>
         )}
       </div>
-      <p className="text-black/50 text-sm mb-6">
+      <p className="text-foreground/50 text-sm mb-6">
         Required to process events. Without one, events still arrive but aren't processed.
       </p>
 
       <div>
-        <label className="block text-sm font-semibold text-black mb-1.5">License key</label>
+        <label className="block text-sm font-semibold text-foreground mb-1.5">License key</label>
         <input
           type="text"
           value={licenseKey}
@@ -90,13 +90,13 @@ export default function SettingsLicense({ settings }: Props) {
             setMessage(null)
           }}
           placeholder="Paste your license key"
-          className="w-full px-3 py-2 border border-black/20 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
+          className="w-full px-3 py-2 border border-foreground/20 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
         />
         <div className="flex items-center gap-3 mt-3">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-black text-white font-semibold px-4 py-2 hover:bg-black/80 disabled:opacity-50 text-sm"
+            className="bg-foreground text-background font-semibold px-4 py-2 hover:bg-foreground/80 disabled:opacity-50 text-sm"
           >
             {saving ? 'Saving...' : 'Save license'}
           </button>
@@ -113,7 +113,7 @@ export default function SettingsLicense({ settings }: Props) {
           {message && (
             <span
               className={`text-sm font-medium ${
-                message.type === 'success' ? 'text-black/60' : 'text-red-600'
+                message.type === 'success' ? 'text-foreground/60' : 'text-red-600'
               }`}
             >
               {message.text}
