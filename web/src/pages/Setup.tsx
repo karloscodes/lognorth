@@ -224,7 +224,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                         <span className={`w-2 h-2 rounded-full ${
                           app.ping_disabled ? 'bg-foreground/20'
                             : app.is_down ? 'bg-[#e11d48]'
-                            : app.ping_url ? 'bg-emerald-500'
+                            : app.ping_url ? 'bg-[#00D678]/100'
                             : 'bg-foreground/30'
                         }`} />
                         {app.ping_disabled ? 'Uptime off'

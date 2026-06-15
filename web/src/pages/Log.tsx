@@ -495,7 +495,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
           <>
             Logs
             {liveEnabled && (
-              <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-[#e11d48] text-background text-xs font-semibold align-middle">
+              <span className="ml-3 inline-flex items-center gap-1.5 px-2 py-1 bg-[#e11d48] text-white text-xs font-semibold align-middle">
                 <span className="w-1.5 h-1.5 bg-card animate-pulse" />
                 Live
               </span>
@@ -517,7 +517,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
             onClick={() => toggleLive(!liveEnabled)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-all ${
               liveEnabled
-                ? 'bg-[#e11d48] text-background'
+                ? 'bg-[#e11d48] text-white'
                 : 'border border-foreground/20 text-foreground/70 hover:border-foreground/40 hover:text-foreground'
             }`}
           >

@@ -217,7 +217,7 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
               />
             </div>
             {hasNotifications && (
-              <span className="absolute top-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-border animate-pulse" />
+              <span className="absolute top-0 right-0 w-4 h-4 bg-[#00D678]/100 rounded-full border-2 border-border animate-pulse" />
             )}
           </div>
         </div>

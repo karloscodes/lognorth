@@ -39,7 +39,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
           className="flex items-center justify-between px-4 py-3 mb-4 border-2 border-[#e11d48]/20 bg-[#e11d48]/[0.06] hover:bg-[#e11d48]/10 transition-colors"
         >
           <span className="text-sm text-[#e11d48] font-semibold">This error is a tracked issue</span>
-          <span className="text-xs bg-[#e11d48] text-background px-2 py-1 font-bold">View Issue →</span>
+          <span className="text-xs bg-[#e11d48] text-white px-2 py-1 font-bold">View Issue →</span>
         </a>
       )}
 

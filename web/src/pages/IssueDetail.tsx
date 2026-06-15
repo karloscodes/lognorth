@@ -45,7 +45,7 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-3">
-                <span className="bg-[#e11d48] text-background px-2 py-0.5 text-xs font-black uppercase">Error</span>
+                <span className="bg-[#e11d48] text-white px-2 py-0.5 text-xs font-black uppercase">Error</span>
                 {issue.active && (
                   <span className="bg-[#e11d48]/10 text-[#e11d48] px-2 py-0.5 text-xs font-black">Active</span>
                 )}
