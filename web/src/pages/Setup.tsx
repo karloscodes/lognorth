@@ -48,14 +48,14 @@ export default function Setup({ apiKeys = [], flash }: Props) {
   // First-time setup: clean page without header
   if (!hasApps && !flash?.newKey) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-card flex items-center justify-center">
         <div className="w-full max-w-sm px-6">
           <div className="text-center mb-8">
             <span className="text-4xl font-black font-wordmark tracking-tight"><span className="text-accent">[</span>lognorth<span className="text-accent">]</span></span>
-            <p className="text-sm font-medium text-black/60 mt-2">Logging you own.</p>
+            <p className="text-sm font-medium text-foreground/60 mt-2">Logging you own.</p>
           </div>
 
-          <h1 className="text-xl font-bold text-black text-center mb-6">Add your first app</h1>
+          <h1 className="text-xl font-bold text-foreground text-center mb-6">Add your first app</h1>
 
           {flash?.error && (
             <div className="bg-[#e11d48]/10 border-2 border-[#e11d48]/20 text-[#e11d48] px-4 py-3 text-sm font-medium mb-4">
@@ -71,7 +71,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
               value={appName}
               onChange={(e) => setAppName(e.target.value)}
               autoFocus
-              className="w-full px-4 py-3 border-2 border-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder:text-black/40"
+              className="w-full px-4 py-3 border-2 border-foreground/20 text-sm focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
             />
             <input
               type="url"
@@ -79,12 +79,12 @@ export default function Setup({ apiKeys = [], flash }: Props) {
               placeholder="App URL (e.g. https://yourapp.com) — optional"
               value={appURL}
               onChange={(e) => setAppURL(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-black/20 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent placeholder:text-black/40"
+              className="w-full px-4 py-3 border-2 border-foreground/20 text-sm focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
             />
             <button
               type="submit"
               disabled={!appName.trim()}
-              className="w-full py-3 bg-black text-white font-semibold hover:bg-black/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full py-3 bg-foreground text-background font-semibold hover:bg-foreground/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Create app
             </button>
@@ -99,8 +99,8 @@ export default function Setup({ apiKeys = [], flash }: Props) {
       <div>
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-black">Apps</h1>
-          <p className="text-sm text-black/50 mt-1">
+          <h1 className="text-2xl font-bold text-foreground">Apps</h1>
+          <p className="text-sm text-foreground/50 mt-1">
             <span className="font-mono tabular-nums">{activeApps.length}</span> app{activeApps.length !== 1 ? 's' : ''} configured
           </p>
         </div>
@@ -108,19 +108,19 @@ export default function Setup({ apiKeys = [], flash }: Props) {
         {/* New key alert */}
         {flash?.newKey && (
           <section className="mb-8">
-            <div className="border-2 border-black p-5">
-              <p className="font-semibold text-black mb-1">Copy your API key</p>
-              <p className="text-sm text-black/60 mb-4">You won't see this again.</p>
+            <div className="border-2 border-foreground p-5">
+              <p className="font-semibold text-foreground mb-1">Copy your API key</p>
+              <p className="text-sm text-foreground/60 mb-4">You won't see this again.</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 bg-black/[0.03] p-3 text-sm font-mono break-all select-all text-black">
+                <code className="flex-1 bg-foreground/[0.03] p-3 text-sm font-mono break-all select-all text-foreground">
                   {flash.newKey}
                 </code>
                 <button
                   onClick={copyKey}
                   type="button"
-                  className="p-3 border border-black/20 hover:bg-black/[0.02] transition-colors"
+                  className="p-3 border border-foreground/20 hover:bg-foreground/[0.02] transition-colors"
                 >
-                  {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5 text-black/70" />}
+                  {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5 text-foreground/70" />}
                 </button>
               </div>
             </div>
@@ -137,10 +137,10 @@ export default function Setup({ apiKeys = [], flash }: Props) {
             return (
               <div
                 key={app.id}
-                className={`bg-white border-2 overflow-hidden group transition-all ${
+                className={`bg-card border-2 overflow-hidden group transition-all ${
                   isActive
                     ? 'border-accent/40 border-l-4 border-l-accent hover:border-accent/60'
-                    : 'border-black/10 hover:border-black/30'
+                    : 'border-foreground/10 hover:border-foreground/30'
                 }`}
               >
                 {/* Main row */}
@@ -150,9 +150,9 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                     {isActive ? (
                       <span className="block w-full h-full bg-accent" />
                     ) : hasData ? (
-                      <span className="block w-full h-full bg-black/20" />
+                      <span className="block w-full h-full bg-foreground/20" />
                     ) : (
-                      <span className="block w-full h-full border-2 border-dashed border-black/30" />
+                      <span className="block w-full h-full border-2 border-dashed border-foreground/30" />
                     )}
                   </div>
 
@@ -171,18 +171,18 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                           placeholder="App name"
                           maxLength={60}
                           autoFocus
-                          className="flex-1 min-w-0 px-2 py-1 text-lg font-bold text-black border-2 border-accent bg-white focus:outline-none"
+                          className="flex-1 min-w-0 px-2 py-1 text-lg font-bold text-foreground border-2 border-accent bg-card focus:outline-none"
                         />
                         <button
                           type="submit"
-                          className="px-3 py-1 text-sm font-semibold text-black border border-black/20 hover:border-black/40 transition-colors"
+                          className="px-3 py-1 text-sm font-semibold text-foreground border border-foreground/20 hover:border-foreground/40 transition-colors"
                         >
                           Save
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditingId(null)}
-                          className="p-1.5 text-black/40 hover:text-black transition-colors"
+                          className="p-1.5 text-foreground/40 hover:text-foreground transition-colors"
                           aria-label="Cancel"
                         >
                           <X className="w-4 h-4" />
@@ -191,19 +191,19 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                     ) : (
                       <div className="flex items-center gap-2">
                         <a href={`/apps/${app.id}/issues`} className="block">
-                          <span className="text-lg font-bold text-black hover:underline">{app.name}</span>
+                          <span className="text-lg font-bold text-foreground hover:underline">{app.name}</span>
                         </a>
                         <button
                           type="button"
                           onClick={() => setEditingId(app.id)}
-                          className="p-1 opacity-0 group-hover:opacity-100 text-black/30 hover:text-black transition-all"
+                          className="p-1 opacity-0 group-hover:opacity-100 text-foreground/30 hover:text-foreground transition-all"
                           title="Rename"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     )}
-                    <div className="flex items-center gap-4 mt-1 text-sm text-black/50">
+                    <div className="flex items-center gap-4 mt-1 text-sm text-foreground/50">
                       <span className="flex items-center gap-1.5">
                         <Activity className="w-3.5 h-3.5" />
                         {app.today_total > 0 ? (
@@ -214,7 +214,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                           'Waiting for events'
                         )}
                       </span>
-                      <span className="text-black/40">·</span>
+                      <span className="text-foreground/40">·</span>
                       <span className="flex items-center gap-1.5" title={
                         app.ping_disabled ? 'Uptime check disabled'
                           : app.is_down ? 'Down — not responding'
@@ -222,10 +222,10 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                           : 'Add a URL to enable uptime monitoring'
                       }>
                         <span className={`w-2 h-2 rounded-full ${
-                          app.ping_disabled ? 'bg-black/20'
+                          app.ping_disabled ? 'bg-foreground/20'
                             : app.is_down ? 'bg-[#e11d48]'
                             : app.ping_url ? 'bg-emerald-500'
-                            : 'bg-black/30'
+                            : 'bg-foreground/30'
                         }`} />
                         {app.ping_disabled ? 'Uptime off'
                           : app.is_down ? 'Down'
@@ -236,8 +236,8 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                         }
                       </span>
                       <details className="group/uptime">
-                        <summary className="cursor-pointer text-xs text-black/30 hover:text-black list-none">[edit]</summary>
-                        <div className="absolute mt-1 p-3 border border-black/10 bg-white shadow-md z-10 flex flex-col gap-2 min-w-[280px]">
+                        <summary className="cursor-pointer text-xs text-foreground/30 hover:text-foreground list-none">[edit]</summary>
+                        <div className="absolute mt-1 p-3 border border-foreground/10 bg-card shadow-md z-10 flex flex-col gap-2 min-w-[280px]">
                           <form
                             action={`/apps/api-keys/${app.id}/ping-url`}
                             method="POST"
@@ -248,11 +248,11 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                               name="url"
                               defaultValue={app.ping_url ?? ''}
                               placeholder="https://yourapp.com"
-                              className="flex-1 px-2 py-1 text-sm font-mono text-black border border-black/10 focus:border-black/40 focus:outline-none"
+                              className="flex-1 px-2 py-1 text-sm font-mono text-foreground border border-foreground/10 focus:border-foreground/40 focus:outline-none"
                             />
                             <button
                               type="submit"
-                              className="text-xs px-2 py-1 border border-black/20 hover:border-black/40 transition-colors"
+                              className="text-xs px-2 py-1 border border-foreground/20 hover:border-foreground/40 transition-colors"
                             >
                               Save
                             </button>
@@ -264,7 +264,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                             <input type="hidden" name="disabled" value={app.ping_disabled ? 'false' : 'true'} />
                             <button
                               type="submit"
-                              className="text-xs text-black/50 hover:text-black"
+                              className="text-xs text-foreground/50 hover:text-foreground"
                             >
                               {app.ping_disabled ? 'Re-enable check' : 'Disable check'}
                             </button>
@@ -279,7 +279,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                     <button
                       type="button"
                       onClick={() => setShowKeyFor(isShowingKey ? null : app.id)}
-                      className="flex items-center gap-1.5 text-sm text-black/50 hover:text-black px-3 py-1.5 border border-black/10 hover:border-black/20 transition-colors"
+                      className="flex items-center gap-1.5 text-sm text-foreground/50 hover:text-foreground px-3 py-1.5 border border-foreground/10 hover:border-foreground/20 transition-colors"
                     >
                       <Key className="w-3.5 h-3.5" />
                       {isShowingKey ? 'Hide' : 'API Key'}
@@ -296,7 +296,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                       <input type="hidden" name="_method" value="DELETE" />
                       <button
                         type="submit"
-                        className="p-2 opacity-0 group-hover:opacity-100 text-black/30 hover:text-[#e11d48] hover:bg-rose-50 transition-all"
+                        className="p-2 opacity-0 group-hover:opacity-100 text-foreground/30 hover:text-[#e11d48] hover:bg-rose-50 transition-all"
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -308,8 +308,8 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                 {/* API Key display */}
                 {isShowingKey && (
                   <div className="px-5 pb-5 pt-0">
-                    <div className="flex items-center gap-2 p-3 bg-black/[0.02] border border-black/5">
-                      <code className="flex-1 text-sm font-mono break-all select-all text-black">
+                    <div className="flex items-center gap-2 p-3 bg-foreground/[0.02] border border-foreground/5">
+                      <code className="flex-1 text-sm font-mono break-all select-all text-foreground">
                         {app.key}
                       </code>
                       <button
@@ -319,9 +319,9 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                           setCopiedKey(app.id)
                           setTimeout(() => setCopiedKey(null), 2000)
                         }}
-                        className="p-2 bg-white border border-black/20 hover:border-black/40 transition-colors"
+                        className="p-2 bg-card border border-foreground/20 hover:border-foreground/40 transition-colors"
                       >
-                        {copiedKey === app.id ? <Check className="w-4 h-4 text-accent" /> : <Copy className="w-4 h-4 text-black/70" />}
+                        {copiedKey === app.id ? <Check className="w-4 h-4 text-accent" /> : <Copy className="w-4 h-4 text-foreground/70" />}
                       </button>
                     </div>
                   </div>
@@ -347,15 +347,15 @@ function AddAppCard() {
     return (
       <button
         onClick={() => setShowForm(true)}
-        className="w-full p-5 text-left border-2 border-dashed border-black/10 hover:border-black/30 hover:bg-black/[0.01] transition-colors"
+        className="w-full p-5 text-left border-2 border-dashed border-foreground/10 hover:border-foreground/30 hover:bg-foreground/[0.01] transition-colors"
       >
-        <span className="text-lg font-semibold text-black/50">+ Add app</span>
+        <span className="text-lg font-semibold text-foreground/50">+ Add app</span>
       </button>
     )
   }
 
   return (
-    <div className="p-5 border border-black/10 bg-white">
+    <div className="p-5 border border-foreground/10 bg-card">
       <form action="/apps/api-keys" method="POST" className="flex flex-col gap-3">
         <div className="flex gap-3">
           <input
@@ -368,19 +368,19 @@ function AddAppCard() {
               if (e.key === 'Escape') setShowForm(false)
             }}
             autoFocus
-            className="flex-1 px-4 py-2.5 bg-white border border-black/20 focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
+            className="flex-1 px-4 py-2.5 bg-card border border-foreground/20 focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
           />
           <button
             type="submit"
             disabled={!appName.trim()}
-            className="px-5 py-2.5 bg-black text-white font-semibold hover:bg-black/80 disabled:opacity-40 transition-colors"
+            className="px-5 py-2.5 bg-foreground text-background font-semibold hover:bg-foreground/80 disabled:opacity-40 transition-colors"
           >
             Create
           </button>
           <button
             type="button"
             onClick={() => setShowForm(false)}
-            className="px-4 py-2.5 text-black/50 hover:text-black transition-colors"
+            className="px-4 py-2.5 text-foreground/50 hover:text-foreground transition-colors"
           >
             Cancel
           </button>
@@ -394,7 +394,7 @@ function AddAppCard() {
           onKeyDown={(e) => {
             if (e.key === 'Escape') setShowForm(false)
           }}
-          className="w-full px-4 py-2.5 bg-white border border-black/20 focus:outline-none focus:ring-1 focus:ring-black focus:border-transparent placeholder:text-black/40"
+          className="w-full px-4 py-2.5 bg-card border border-foreground/20 focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
         />
       </form>
     </div>

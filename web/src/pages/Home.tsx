@@ -14,15 +14,15 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
     return (
       <Layout currentPath="/">
         <div className="py-20 max-w-md">
-          <h1 className="text-3xl font-bold text-black mb-3">
+          <h1 className="text-3xl font-bold text-foreground mb-3">
             Know when things break.
           </h1>
-          <p className="text-black/60 mb-6">
+          <p className="text-foreground/60 mb-6">
             Your errors. Your server. Your data.
           </p>
           <a
             href="/apps"
-            className="inline-flex px-5 py-2.5 bg-black text-white font-semibold hover:bg-black/80 transition-colors"
+            className="inline-flex px-5 py-2.5 bg-foreground text-background font-semibold hover:bg-foreground/80 transition-colors"
           >
             Add your first app
           </a>
@@ -78,11 +78,11 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
         {totalActive > 0 ? (
           <div className="flex items-baseline gap-2">
             <Mono className="text-5xl font-black text-[#e11d48]">{totalActive}</Mono>
-            <span className="text-xl font-semibold text-black/60">
+            <span className="text-xl font-semibold text-foreground/60">
               active issue{totalActive !== 1 ? 's' : ''}
             </span>
             {totalAll > totalActive && (
-              <span className="ml-3 text-sm text-black/40">
+              <span className="ml-3 text-sm text-foreground/40">
                 of <Mono>{totalAll}</Mono> total
               </span>
             )}
@@ -90,15 +90,15 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
         ) : (
           <div className="flex items-center gap-3">
             <span className="w-3 h-3 bg-accent" />
-            <span className="text-xl font-semibold text-black/60">All clear</span>
+            <span className="text-xl font-semibold text-foreground/60">All clear</span>
             {totalAll > 0 && (
-              <span className="text-sm text-black/40">
+              <span className="text-sm text-foreground/40">
                 · <Mono>{totalAll}</Mono> stale
               </span>
             )}
           </div>
         )}
-        <p className="text-sm text-black/40">
+        <p className="text-sm text-foreground/40">
           <Mono>{applications.length}</Mono> app{applications.length !== 1 ? 's' : ''}
         </p>
       </div>
@@ -116,9 +116,9 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
                 className="flex items-center justify-between p-4 border-2 border-[#e11d48] bg-rose-50 hover:bg-rose-100 transition-all"
               >
                 <div className="flex items-baseline gap-3">
-                  <span className="font-bold text-black text-lg">{app.name}</span>
+                  <span className="font-bold text-foreground text-lg">{app.name}</span>
                   {stats.total > stats.active && (
-                    <span className="text-xs text-black/40">
+                    <span className="text-xs text-foreground/40">
                       <Mono>{stats.total - stats.active}</Mono> stale
                     </span>
                   )}
@@ -149,9 +149,9 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
             <a
               key={app.id}
               href={`/apps/${app.id}/issues`}
-              className="flex items-center justify-between p-4 border border-black/10 hover:border-black/20 transition-all"
+              className="flex items-center justify-between p-4 border border-foreground/10 hover:border-foreground/20 transition-all"
             >
-              <span className="font-semibold text-black/70">{app.name}</span>
+              <span className="font-semibold text-foreground/70">{app.name}</span>
               <span className="w-3 h-3 bg-accent" />
             </a>
           ))}
@@ -159,7 +159,7 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
       )}
 
       <div className="mt-8">
-        <a href="/apps" className="text-sm font-semibold text-black/50 hover:text-black transition-colors">
+        <a href="/apps" className="text-sm font-semibold text-foreground/50 hover:text-foreground transition-colors">
           + Add app
         </a>
       </div>

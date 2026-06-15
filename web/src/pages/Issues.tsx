@@ -59,7 +59,7 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
         {hasUnseen && (
           <button
             onClick={markAllSeen}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-black/70 hover:text-black bg-white border border-black/10 hover:border-black/20 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-foreground/70 hover:text-foreground bg-card border border-foreground/10 hover:border-foreground/20 transition-colors"
           >
             <Check className="w-4 h-4" />
             Mark all seen
@@ -76,12 +76,12 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-2 h-2 rounded-full bg-[#e11d48]" />
-                <h2 className="text-sm font-bold text-black/50 uppercase tracking-wide">
+                <h2 className="text-sm font-bold text-foreground/50 uppercase tracking-wide">
                   Active
                 </h2>
-                <span className="text-xs text-black/40">Last 7 days</span>
+                <span className="text-xs text-foreground/40">Last 7 days</span>
               </div>
-              <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
+              <div className="bg-card border border-foreground/10 divide-y divide-foreground/10 overflow-hidden">
                 {activeIssues.map((issue) => (
                   <IssueRow
                     key={issue.hash}
@@ -98,13 +98,13 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
           {staleIssues.length > 0 && (
             <section>
               <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-3.5 h-3.5 text-black/40" />
-                <h2 className="text-sm font-bold text-black/50 uppercase tracking-wide">
+                <Clock className="w-3.5 h-3.5 text-foreground/40" />
+                <h2 className="text-sm font-bold text-foreground/50 uppercase tracking-wide">
                   Stale
                 </h2>
-                <span className="text-xs text-black/40">No recent occurrences</span>
+                <span className="text-xs text-foreground/40">No recent occurrences</span>
               </div>
-              <div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
+              <div className="bg-card border border-foreground/10 divide-y divide-foreground/10 overflow-hidden">
                 {staleIssues.map((issue) => (
                   <IssueRow
                     key={issue.hash}
@@ -133,7 +133,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
 
   return (
     <div
-      className={`flex items-center gap-4 p-5 transition-colors hover:bg-black/[0.02] ${
+      className={`flex items-center gap-4 p-5 transition-colors hover:bg-foreground/[0.02] ${
         isUnseen && !issue.muted ? 'shadow-[inset_3px_0_0_0_#e11d48] bg-rose-50/50' : ''
       } ${issue.muted ? 'opacity-50' : ''}`}
     >
@@ -146,7 +146,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
               isUnseen && !issue.muted
                 ? 'text-[#e11d48]'
                 : stale || issue.muted
-                  ? 'text-black/40'
+                  ? 'text-foreground/40'
                   : 'text-[#e11d48]/80'
             }`}>
               {issue.error_class}
@@ -155,17 +155,17 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
           {/* Error message */}
           <Code className={`leading-snug ${
             isUnseen && !issue.muted
-              ? 'font-semibold text-black'
+              ? 'font-semibold text-foreground'
               : stale || issue.muted
-                ? 'text-black/50'
-                : 'text-black/80'
+                ? 'text-foreground/50'
+                : 'text-foreground/80'
           }`}>
             {issue.error}
           </Code>
           {/* Location: file:line */}
           {issue.error_file && (
             <span className={`font-mono text-xs ${
-              stale || issue.muted ? 'text-black/30' : 'text-black/50'
+              stale || issue.muted ? 'text-foreground/30' : 'text-foreground/50'
             }`}>
               in {issue.error_file}{issue.error_line ? `:${issue.error_line}` : ''}
             </span>
@@ -176,10 +176,10 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-2 text-xs text-black/40">
+        <div className="flex items-center gap-2 mt-2 text-xs text-foreground/40">
           {appName && (
             <>
-              <span className="bg-black/5 text-black/60 px-1.5 py-0.5 font-medium">
+              <span className="bg-foreground/5 text-foreground/60 px-1.5 py-0.5 font-medium">
                 {appName}
               </span>
               <span>·</span>
@@ -193,7 +193,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
             </>
           )}
           {issue.paths?.length > 1 && (
-            <span className="text-black/30">+{issue.paths.length - 1}</span>
+            <span className="text-foreground/30">+{issue.paths.length - 1}</span>
           )}
         </div>
       </a>
@@ -203,7 +203,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
         <button
           type="button"
           onClick={toggleMute}
-          className="text-xs font-semibold text-black/50 hover:text-black transition-colors w-12 text-right"
+          className="text-xs font-semibold text-foreground/50 hover:text-foreground transition-colors w-12 text-right"
         >
           {issue.muted ? 'Unmute' : 'Mute'}
         </button>
@@ -214,7 +214,7 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
               <TrendingUp className="w-4 h-4 text-[#e11d48]" />
             )}
             {issue.trend === 'down' && !stale && (
-              <TrendingDown className="w-4 h-4 text-black/30" />
+              <TrendingDown className="w-4 h-4 text-foreground/30" />
             )}
           </span>
           <Mono
@@ -222,8 +222,8 @@ function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePat
               isUnseen && !issue.muted
                 ? 'text-[#e11d48]'
                 : stale || issue.muted
-                  ? 'text-black/30'
-                  : 'text-black'
+                  ? 'text-foreground/30'
+                  : 'text-foreground'
             }`}
             title={`${issue.count} occurrences`}
           >

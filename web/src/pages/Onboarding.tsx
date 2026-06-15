@@ -17,18 +17,18 @@ export default function Onboarding({ step, email, flash }: Props) {
   const [confirmPassword, setConfirmPassword] = useState('')
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
+    <div className="min-h-screen bg-card flex items-center justify-center">
       <div className="w-full max-w-sm px-6">
         {/* Logo */}
         <div className="text-center mb-8">
           <span className="text-4xl font-black font-wordmark tracking-tight"><span className="text-accent">[</span>lognorth<span className="text-accent">]</span></span>
-          <p className="text-sm font-medium text-black/60 mt-2">Logging you own.</p>
+          <p className="text-sm font-medium text-foreground/60 mt-2">Logging you own.</p>
         </div>
 
         {/* Progress */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          <div className={`w-3 h-3 rounded-full ${step === 'user_account' ? 'bg-black' : 'bg-black/20'}`} />
-          <div className={`w-3 h-3 rounded-full ${step === 'password' ? 'bg-black' : 'bg-black/20'}`} />
+          <div className={`w-3 h-3 rounded-full ${step === 'user_account' ? 'bg-foreground' : 'bg-foreground/20'}`} />
+          <div className={`w-3 h-3 rounded-full ${step === 'password' ? 'bg-foreground' : 'bg-foreground/20'}`} />
         </div>
 
         {flash?.type === 'error' && flash.message && (
@@ -39,14 +39,14 @@ export default function Onboarding({ step, email, flash }: Props) {
 
         {step === 'user_account' && (
           <>
-            <h1 className="text-xl font-bold text-black text-center mb-2">Create your account</h1>
-            <p className="text-sm text-black/60 text-center mb-8">
+            <h1 className="text-xl font-bold text-foreground text-center mb-2">Create your account</h1>
+            <p className="text-sm text-foreground/60 text-center mb-8">
               Set up your admin account to get started.
             </p>
 
             <form action="/setup/user" method="POST" className="space-y-5">
               <div>
-                <label htmlFor="email" className="block text-sm font-semibold text-black mb-2">
+                <label htmlFor="email" className="block text-sm font-semibold text-foreground mb-2">
                   Email address
                 </label>
                 <input
@@ -55,7 +55,7 @@ export default function Onboarding({ step, email, flash }: Props) {
                   name="email"
                   value={emailValue}
                   onChange={(e) => setEmailValue(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-black/20 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-black placeholder:text-black/40"
+                  className="w-full px-4 py-3 border-2 border-foreground/20 focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent text-foreground placeholder:text-foreground/40"
                   placeholder="you@example.com"
                   autoFocus
                   required
@@ -65,7 +65,7 @@ export default function Onboarding({ step, email, flash }: Props) {
               <button
                 type="submit"
                 disabled={!emailValue}
-                className="w-full py-3 bg-black text-white font-semibold hover:bg-black/80 disabled:bg-black/30 disabled:cursor-not-allowed transition-colors"
+                className="w-full py-3 bg-foreground text-background font-semibold hover:bg-foreground/80 disabled:bg-foreground/30 disabled:cursor-not-allowed transition-colors"
               >
                 Continue
               </button>
@@ -75,14 +75,14 @@ export default function Onboarding({ step, email, flash }: Props) {
 
         {step === 'password' && (
           <>
-            <h1 className="text-xl font-bold text-black text-center mb-2">Set your password</h1>
-            <p className="text-sm text-black/60 text-center mb-8">
-              Choose a secure password for <span className="font-medium text-black">{email}</span>
+            <h1 className="text-xl font-bold text-foreground text-center mb-2">Set your password</h1>
+            <p className="text-sm text-foreground/60 text-center mb-8">
+              Choose a secure password for <span className="font-medium text-foreground">{email}</span>
             </p>
 
             <form action="/setup/password" method="POST" className="space-y-5">
               <div>
-                <label htmlFor="password" className="block text-sm font-semibold text-black mb-2">
+                <label htmlFor="password" className="block text-sm font-semibold text-foreground mb-2">
                   Password
                 </label>
                 <input
@@ -91,7 +91,7 @@ export default function Onboarding({ step, email, flash }: Props) {
                   name="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-black/20 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-black placeholder:text-black/40"
+                  className="w-full px-4 py-3 border-2 border-foreground/20 focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent text-foreground placeholder:text-foreground/40"
                   placeholder="At least 8 characters"
                   autoFocus
                   required
@@ -100,7 +100,7 @@ export default function Onboarding({ step, email, flash }: Props) {
               </div>
 
               <div>
-                <label htmlFor="confirm_password" className="block text-sm font-semibold text-black mb-2">
+                <label htmlFor="confirm_password" className="block text-sm font-semibold text-foreground mb-2">
                   Confirm password
                 </label>
                 <input
@@ -109,7 +109,7 @@ export default function Onboarding({ step, email, flash }: Props) {
                   name="confirm_password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-black/20 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-black placeholder:text-black/40"
+                  className="w-full px-4 py-3 border-2 border-foreground/20 focus:outline-none focus:ring-2 focus:ring-foreground focus:border-transparent text-foreground placeholder:text-foreground/40"
                   placeholder="Re-enter your password"
                   required
                   minLength={8}
@@ -119,15 +119,15 @@ export default function Onboarding({ step, email, flash }: Props) {
               <button
                 type="submit"
                 disabled={password.length < 8 || password !== confirmPassword}
-                className="w-full py-3 bg-black text-white font-semibold hover:bg-black/80 disabled:bg-black/30 disabled:cursor-not-allowed transition-colors"
+                className="w-full py-3 bg-foreground text-background font-semibold hover:bg-foreground/80 disabled:bg-foreground/30 disabled:cursor-not-allowed transition-colors"
               >
                 Create account
               </button>
               {password.length > 0 && password.length < 8 && (
-                <p className="text-xs text-black/50 text-center mt-2">Password must be at least 8 characters</p>
+                <p className="text-xs text-foreground/50 text-center mt-2">Password must be at least 8 characters</p>
               )}
               {password.length >= 8 && confirmPassword.length > 0 && password !== confirmPassword && (
-                <p className="text-xs text-black/50 text-center mt-2">Passwords don't match</p>
+                <p className="text-xs text-foreground/50 text-center mt-2">Passwords don't match</p>
               )}
             </form>
           </>

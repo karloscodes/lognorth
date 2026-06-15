@@ -39,12 +39,12 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
           className="flex items-center justify-between px-4 py-3 mb-4 border-2 border-[#e11d48]/20 bg-rose-50/50 hover:bg-rose-50 transition-colors"
         >
           <span className="text-sm text-[#e11d48] font-semibold">This error is a tracked issue</span>
-          <span className="text-xs bg-[#e11d48] text-white px-2 py-1 font-bold">View Issue →</span>
+          <span className="text-xs bg-[#e11d48] text-background px-2 py-1 font-bold">View Issue →</span>
         </a>
       )}
 
       {/* Header Card */}
-      <div className="border-2 border-black/10 overflow-hidden mb-8">
+      <div className="border-2 border-foreground/10 overflow-hidden mb-8">
         <div className="flex items-center gap-4 p-6">
           <div className={`p-3 ${config.colors}`}>
             <Icon className="w-6 h-6" />
@@ -60,9 +60,9 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                     {ctx.status}
                   </span>
                 </div>
-                <p className="font-mono text-black mt-1 break-all">{ctx.path}</p>
+                <p className="font-mono text-foreground mt-1 break-all">{ctx.path}</p>
                 {routeLabel(ctx) && (
-                  <p className="font-mono text-xs text-black/60 mt-1">{routeLabel(ctx)}</p>
+                  <p className="font-mono text-xs text-foreground/60 mt-1">{routeLabel(ctx)}</p>
                 )}
               </>
             ) : isJob ? (
@@ -71,62 +71,62 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                   <Briefcase className="w-5 h-5 text-purple-600" />
                   <span className="font-mono text-xl font-bold text-purple-600">{ctx.job}</span>
                 </div>
-                <p className="text-black mt-1">{entry.message}</p>
+                <p className="text-foreground mt-1">{entry.message}</p>
               </>
             ) : (
-              <p className="text-xl font-bold text-black">{entry.message}</p>
+              <p className="text-xl font-bold text-foreground">{entry.message}</p>
             )}
           </div>
           <div className="text-right">
-            <span className="font-mono text-2xl text-black/70">{entry.duration_ms}ms</span>
-            <p className="text-xs text-black/70 mt-1">duration</p>
+            <span className="font-mono text-2xl text-foreground/70">{entry.duration_ms}ms</span>
+            <p className="text-xs text-foreground/70 mt-1">duration</p>
           </div>
         </div>
 
         {/* Quick Stats */}
-        <div className="border-t border-black/10 bg-black/[0.01]">
-          <div className="flex items-center divide-x divide-black/10">
+        <div className="border-t border-foreground/10 bg-foreground/[0.01]">
+          <div className="flex items-center divide-x divide-foreground/10">
             <div className="px-4 py-3">
-              <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
+              <div className="flex items-center gap-2 text-foreground/70 text-xs mb-1">
                 <Clock className="w-3 h-3" />
                 When
               </div>
-              <p className="text-sm text-black/80">
+              <p className="text-sm text-foreground/80">
                 {formatDistanceToNow(new Date(entry.timestamp), { addSuffix: true })}
               </p>
             </div>
             {ctx.environment && (
               <div className="px-4 py-3">
-                <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
+                <div className="flex items-center gap-2 text-foreground/70 text-xs mb-1">
                   <Layers className="w-3 h-3" />
                   Environment
                 </div>
-                <p className="text-sm text-black font-mono font-semibold">{ctx.environment}</p>
+                <p className="text-sm text-foreground font-mono font-semibold">{ctx.environment}</p>
               </div>
             )}
             {entry.trace_id ? (
               <a
                 href={`${logPath}?trace=${entry.trace_id}`}
-                className="flex-1 px-4 py-3 hover:bg-black/[0.02] transition-colors group"
+                className="flex-1 px-4 py-3 hover:bg-foreground/[0.02] transition-colors group"
               >
-                <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
+                <div className="flex items-center gap-2 text-foreground/70 text-xs mb-1">
                   <Hash className="w-3 h-3" />
                   Trace ID
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-mono text-black">{entry.trace_id}</span>
-                  <span className="flex items-center gap-1 text-xs font-semibold text-black/50 group-hover:text-black transition-colors">
+                  <span className="text-sm font-mono text-foreground">{entry.trace_id}</span>
+                  <span className="flex items-center gap-1 text-xs font-semibold text-foreground/50 group-hover:text-foreground transition-colors">
                     View trace <ArrowRight className="w-3 h-3" />
                   </span>
                 </div>
               </a>
             ) : (
               <div className="flex-1 px-4 py-3">
-                <div className="flex items-center gap-2 text-black/70 text-xs mb-1">
+                <div className="flex items-center gap-2 text-foreground/70 text-xs mb-1">
                   <Hash className="w-3 h-3" />
                   Trace ID
                 </div>
-                <p className="text-sm text-black/40 font-mono">No trace</p>
+                <p className="text-sm text-foreground/40 font-mono">No trace</p>
               </div>
             )}
           </div>
@@ -180,10 +180,10 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
 
         return (
           <div className="mb-8">
-            <h3 className="text-sm font-black text-black uppercase tracking-wider mb-3">
+            <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-3">
               {isTrace ? 'Request Context' : 'Nearby Logs'}
             </h3>
-            <div className="border-2 border-black/10 overflow-hidden font-mono text-xs">
+            <div className="border-2 border-foreground/10 overflow-hidden font-mono text-xs">
               {/* Request wrapper header */}
               {requestEntry && requestCtx && requestConfig && (() => {
                 const ReqIcon = requestConfig.icon
@@ -191,15 +191,15 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                 return (
                   <a
                     href={isCurrent ? undefined : `${logPath}/${requestEntry.id}`}
-                    className={`flex items-center gap-2 px-4 py-2.5 bg-black/[0.02] border-b border-black/10 ${isCurrent ? 'font-bold' : 'hover:bg-black/[0.04] transition-colors'}`}
+                    className={`flex items-center gap-2 px-4 py-2.5 bg-foreground/[0.02] border-b border-foreground/10 ${isCurrent ? 'font-bold' : 'hover:bg-foreground/[0.04] transition-colors'}`}
                   >
                     <div className={`p-1 ${requestConfig.colors}`}>
                       <ReqIcon className="w-3 h-3" />
                     </div>
                     {requestCtx.method && <span className={`font-bold ${methodColor(requestCtx.method)}`}>{requestCtx.method}</span>}
-                    <span className="text-black/70">{requestCtx.path}</span>
+                    <span className="text-foreground/70">{requestCtx.path}</span>
                     {requestCtx.status && <span className={`font-bold ${statusColor(requestCtx.status)}`}>{requestCtx.status}</span>}
-                    <span className="text-black/40 ml-auto shrink-0">{requestEntry.duration_ms}ms</span>
+                    <span className="text-foreground/40 ml-auto shrink-0">{requestEntry.duration_ms}ms</span>
                   </a>
                 )
               })()}
@@ -211,7 +211,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                 const EIcon = eConfig.icon
                 const eCtx = isCurrent ? ctx : parseContext(e.context)
                 const isLast = i === childEntries.length - 1
-                const borderClass = !isLast ? 'border-b border-black/5' : ''
+                const borderClass = !isLast ? 'border-b border-foreground/5' : ''
                 const indent = requestEntry ? 'pl-8' : 'pl-4'
 
                 const content = (
@@ -219,18 +219,18 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                     <div className={`p-1 ${eConfig.colors}`}>
                       <EIcon className="w-3 h-3" />
                     </div>
-                    <span className={`truncate ${isCurrent ? 'text-black font-bold' : 'text-black/70'}`}>{eCtx.path || e.message}</span>
-                    {eCtx.error_file && <span className="text-black/40">{eCtx.error_file}{eCtx.error_line ? `:${eCtx.error_line}` : ''}</span>}
+                    <span className={`truncate ${isCurrent ? 'text-foreground font-bold' : 'text-foreground/70'}`}>{eCtx.path || e.message}</span>
+                    {eCtx.error_file && <span className="text-foreground/40">{eCtx.error_file}{eCtx.error_line ? `:${eCtx.error_line}` : ''}</span>}
                     {eCtx.method && <span className={`font-bold ${methodColor(eCtx.method)}`}>{eCtx.method}</span>}
                     {eCtx.status && <span className={`font-bold ${statusColor(eCtx.status)}`}>{eCtx.status}</span>}
-                    {e.duration_ms > 0 && <span className="text-black/40 ml-auto shrink-0">{e.duration_ms}ms</span>}
+                    {e.duration_ms > 0 && <span className="text-foreground/40 ml-auto shrink-0">{e.duration_ms}ms</span>}
                   </>
                 )
 
                 if (isCurrent) {
                   return (
-                    <div key={e.id} className={`relative flex items-center gap-2 ${indent} pr-4 py-2.5 bg-black/[0.04] ${borderClass}`}>
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-black" />
+                    <div key={e.id} className={`relative flex items-center gap-2 ${indent} pr-4 py-2.5 bg-foreground/[0.04] ${borderClass}`}>
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-foreground" />
                       {content}
                     </div>
                   )
@@ -240,7 +240,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
                   <a
                     key={e.id}
                     href={`${logPath}/${e.id}`}
-                    className={`flex items-center gap-2 ${indent} pr-4 py-2.5 hover:bg-black/[0.02] transition-colors ${borderClass}`}
+                    className={`flex items-center gap-2 ${indent} pr-4 py-2.5 hover:bg-foreground/[0.02] transition-colors ${borderClass}`}
                   >
                     {content}
                   </a>
@@ -250,7 +250,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
               {isTrace && entry.trace_id && (
                 <a
                   href={`${logPath}?trace=${entry.trace_id}`}
-                  className="flex items-center justify-between px-4 py-2.5 bg-black/[0.02] border-t border-black/10 font-mono text-xs font-bold text-black/60 hover:text-black transition-colors"
+                  className="flex items-center justify-between px-4 py-2.5 bg-foreground/[0.02] border-t border-foreground/10 font-mono text-xs font-bold text-foreground/60 hover:text-foreground transition-colors"
                 >
                   <span>{relatedEntries.length} entries in this trace</span>
                   <span>View full trace →</span>
@@ -265,7 +265,7 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {ctx.stack_trace && (
         <div className="mb-8">
           <h3 className="text-sm font-black text-[#e11d48] uppercase tracking-wider mb-3">Stack Trace</h3>
-          <pre className="p-4 text-xs font-mono text-black/80 overflow-x-auto whitespace-pre bg-black/[0.03] border border-black/10">
+          <pre className="p-4 text-xs font-mono text-foreground/80 overflow-x-auto whitespace-pre bg-foreground/[0.03] border border-foreground/10">
             {ctx.stack_trace}
           </pre>
         </div>
@@ -274,8 +274,8 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {/* User Agent */}
       {ctx.user_agent && (
         <div className="mb-8">
-          <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-3">User Agent</h3>
-          <p className="text-sm text-black/70 font-mono break-all bg-black/[0.02] p-3">
+          <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-3">User Agent</h3>
+          <p className="text-sm text-foreground/70 font-mono break-all bg-foreground/[0.02] p-3">
             {ctx.user_agent}
           </p>
         </div>
@@ -284,12 +284,12 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {/* Extra Context */}
       {ctx.extra && Object.keys(ctx.extra).length > 0 && (
         <div className="mb-8">
-          <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-3">Context</h3>
-          <div className="border-2 border-black/10 divide-y divide-black/5">
+          <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-3">Context</h3>
+          <div className="border-2 border-foreground/10 divide-y divide-foreground/5">
             {Object.entries(ctx.extra).map(([key, value]) => (
               <div key={key} className="flex gap-4 px-4 py-2.5 text-sm">
-                <span className="text-black/70 w-32 shrink-0">{key}</span>
-                <span className="font-mono text-black/80">{String(value)}</span>
+                <span className="text-foreground/70 w-32 shrink-0">{key}</span>
+                <span className="font-mono text-foreground/80">{String(value)}</span>
               </div>
             ))}
           </div>
@@ -299,12 +299,12 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {/* Headers */}
       {ctx.headers && Object.keys(ctx.headers).length > 0 && (
         <div className="mb-8">
-          <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-3">Headers</h3>
-          <div className="border-2 border-black/10 divide-y divide-black/5">
+          <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-3">Headers</h3>
+          <div className="border-2 border-foreground/10 divide-y divide-foreground/5">
             {Object.entries(ctx.headers).map(([key, value]) => (
               <div key={key} className="flex gap-4 px-4 py-2.5 text-sm">
-                <span className="text-black/70 font-mono w-48 shrink-0">{key}</span>
-                <span className="font-mono text-black/80 break-all">{value}</span>
+                <span className="text-foreground/70 font-mono w-48 shrink-0">{key}</span>
+                <span className="font-mono text-foreground/80 break-all">{value}</span>
               </div>
             ))}
           </div>
@@ -314,8 +314,8 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
       {/* Body */}
       {ctx.body && (
         <div className="mb-8">
-          <h3 className="text-sm font-semibold text-black/70 uppercase tracking-wider mb-3">Body</h3>
-          <pre className="font-mono text-sm bg-black text-white p-4 overflow-x-auto">
+          <h3 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-3">Body</h3>
+          <pre className="font-mono text-sm bg-foreground text-background p-4 overflow-x-auto">
             {ctx.body}
           </pre>
         </div>

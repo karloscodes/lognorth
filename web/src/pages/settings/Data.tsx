@@ -64,8 +64,8 @@ export default function SettingsData({ settings }: Props) {
 
   return (
     <SettingsLayout currentPath="/settings/data">
-      <h2 className="text-2xl font-bold text-black mb-2">Data retention</h2>
-      <p className="text-black/50 text-sm mb-6">
+      <h2 className="text-2xl font-bold text-foreground mb-2">Data retention</h2>
+      <p className="text-foreground/50 text-sm mb-6">
         How long to keep your logs. Older events are automatically deleted.
       </p>
 
@@ -80,18 +80,18 @@ export default function SettingsData({ settings }: Props) {
             }}
             className={`px-4 py-2 text-sm font-semibold transition-all ${
               retentionDays === opt.value
-                ? 'bg-black text-white'
-                : 'border border-black/20 text-black/60 hover:border-black/40 hover:text-black'
+                ? 'bg-foreground text-background'
+                : 'border border-foreground/20 text-foreground/60 hover:border-foreground/40 hover:text-foreground'
             }`}
           >
             {opt.label}
             {opt.default && retentionDays !== opt.value && (
-              <span className="ml-1 text-black/40">•</span>
+              <span className="ml-1 text-foreground/40">•</span>
             )}
           </button>
         ))}
       </div>
-      <p className="text-sm text-black/50 mt-3">
+      <p className="text-sm text-foreground/50 mt-3">
         Shorter retention = smaller database. 90 days is plenty for most.
       </p>
 
@@ -99,12 +99,12 @@ export default function SettingsData({ settings }: Props) {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="bg-black text-white font-semibold px-4 py-2 hover:bg-black/80 disabled:opacity-50 text-sm"
+          className="bg-foreground text-background font-semibold px-4 py-2 hover:bg-foreground/80 disabled:opacity-50 text-sm"
         >
           {saving ? 'Saving...' : 'Save retention'}
         </button>
         {message && (
-          <span className={`text-sm font-medium ${message.type === 'success' ? 'text-black/60' : 'text-red-600'}`}>
+          <span className={`text-sm font-medium ${message.type === 'success' ? 'text-foreground/60' : 'text-red-600'}`}>
             {message.text}
           </span>
         )}
