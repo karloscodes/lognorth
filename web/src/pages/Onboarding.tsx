@@ -21,8 +21,8 @@ export default function Onboarding({ step, email, flash }: Props) {
       <div className="w-full max-w-sm px-6">
         {/* Logo */}
         <div className="text-center mb-8">
-          <span className="text-4xl font-black font-mono tracking-tight" style={{ WebkitTextStroke: '0.5px currentColor' }}><span className="text-accent">[</span>lognorth<span className="text-accent">]</span></span>
-          <p className="text-sm font-medium text-black/60 mt-2">Error tracking you own.</p>
+          <span className="text-4xl font-black font-wordmark tracking-tight"><span className="text-accent">[</span>lognorth<span className="text-accent">]</span></span>
+          <p className="text-sm font-medium text-black/60 mt-2">Logging you own.</p>
         </div>
 
         {/* Progress */}

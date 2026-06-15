@@ -51,8 +51,8 @@ export default function Setup({ apiKeys = [], flash }: Props) {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="w-full max-w-sm px-6">
           <div className="text-center mb-8">
-            <span className="text-4xl font-black font-mono tracking-tight" style={{ WebkitTextStroke: '0.5px currentColor' }}><span className="text-accent">[</span>lognorth<span className="text-accent">]</span></span>
-            <p className="text-sm font-medium text-black/60 mt-2">Error tracking you own.</p>
+            <span className="text-4xl font-black font-wordmark tracking-tight"><span className="text-accent">[</span>lognorth<span className="text-accent">]</span></span>
+            <p className="text-sm font-medium text-black/60 mt-2">Logging you own.</p>
           </div>
 
           <h1 className="text-xl font-bold text-black text-center mb-6">Add your first app</h1>

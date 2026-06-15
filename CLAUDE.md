@@ -101,7 +101,7 @@ Write like you talk. No jargon. No corporate speak.
 | "Affected Endpoints" | "Where it happened" |
 | "entries" | "requests" |
 
-**Tagline:** "Error tracking you own."
+**Tagline:** "Logging you own."
 
 **Empty states should have personality:**
 - "Quiet so far" (no data yet)

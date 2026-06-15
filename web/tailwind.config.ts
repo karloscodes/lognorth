@@ -10,6 +10,7 @@ export default {
 		fontFamily: {
 			sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
 			mono: ['JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'monospace'],
+			wordmark: ['Geist Mono', 'monospace'],
 		},
 		extend: {
 			colors: {
