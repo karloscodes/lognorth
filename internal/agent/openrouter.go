@@ -30,6 +30,8 @@ var OpenRouterModels = []string{
 	"moonshotai/kimi-k2.6",
 	"deepseek/deepseek-v4-pro",
 	"deepseek/deepseek-v4-flash",
+	"google/gemini-3.1-pro-preview",
+	"google/gemini-3.5-flash",
 }
 
 // IsKnownModel reports whether slug is one we offer.
