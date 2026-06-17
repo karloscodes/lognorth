@@ -178,12 +178,20 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
 
       {/* Agent fix */}
       {fix && <FixBanner fix={fix} />}
-      {!fix && githubConnected && (
+      {githubConnected && (!fix || fix.status === 'failed') && (
         <div className="mb-8 flex items-center justify-between border border-foreground/10 px-4 py-3">
-          <span className="text-sm text-foreground/60">No fix yet for this issue.</span>
-          <a href={`/apps/${appId}/fixes`} className="text-sm font-bold text-foreground hover:underline">
-            Fixes →
-          </a>
+          <span className="text-sm text-foreground/60">
+            {fix?.status === 'failed' ? 'Last fix failed.' : 'No fix yet for this issue.'}
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              router.post(`/apps/${appId}/issues/${issue.hash}/fix`, {}, { preserveScroll: true })
+            }
+            className="bg-foreground text-background text-sm font-bold px-4 py-2 hover:bg-foreground/80 transition-colors"
+          >
+            {fix?.status === 'failed' ? 'Retry fix' : 'Fix with agent'}
+          </button>
         </div>
       )}
 

@@ -77,6 +77,9 @@ func NewApp() (*Application, error) {
 	// License revalidation: hits Polar once a day to catch revoked/expired keys.
 	licenseChecker := cartridge.NewJobDispatcher(logger, dbManager, 24*time.Hour, jobs.NewLicenseChecker())
 
+	// Agent fix queue: one job at a time, oldest first.
+	fixRunner := cartridge.NewJobDispatcher(logger, dbManager, 20*time.Second, jobs.NewFixRunner())
+
 	// Configure server
 	serverConfig := cartridge.DefaultServerConfig()
 	// Sec-Fetch-Site is enabled per-route for web routes, disabled for API
@@ -101,7 +104,7 @@ func NewApp() (*Application, error) {
 		DBManager:         dbManager,
 		ServerConfig:      serverConfig,
 		RouteMountFunc:    MountRoutes,
-		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, baselineUpdater, anomalyChecker, digestSender, uptimeSweeper, licenseChecker},
+		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, baselineUpdater, anomalyChecker, digestSender, uptimeSweeper, licenseChecker, fixRunner},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create application: %w", err)
@@ -292,6 +295,7 @@ func MountRoutes(server *cartridge.Server) {
 
 	// Issue detail page
 	server.Get("/apps/:id/issues/:hash", lbhttp.AppIssueDetailPageAction, protectedConfig)
+	server.Post("/apps/:id/issues/:hash/fix", lbhttp.EnqueueFixAction, protectedConfig)
 
 	// Global issue detail (email alerts link here) — redirects to app-scoped page
 	server.Get("/issues/:hash", lbhttp.IssueDetailPageAction, protectedConfig)

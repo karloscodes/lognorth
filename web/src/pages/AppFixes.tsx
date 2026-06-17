@@ -6,7 +6,7 @@ interface FixJob {
   id: number
   issue: string
   issue_hash?: string
-  status: 'queued' | 'running' | 'pr_open' | 'failed'
+  status: 'queued' | 'running' | 'pr_open' | 'merged' | 'failed'
   pr_url?: string
   detail?: string
   updated_at?: string
@@ -33,6 +33,7 @@ const STATUS: Record<Status, { row: string; group: string; dot: string; text: st
   running: { row: 'Running', group: 'In progress', dot: 'bg-[#00D678] animate-pulse', text: 'text-foreground' },
   queued: { row: 'Queued', group: 'Queued', dot: 'bg-foreground/30', text: 'text-foreground/60' },
   pr_open: { row: 'PR open', group: 'Done', dot: 'bg-[#00D678]', text: 'text-foreground' },
+  merged: { row: 'Merged', group: 'Merged', dot: 'bg-[#00D678]', text: 'text-foreground/60' },
   failed: { row: 'Failed', group: 'Failed', dot: 'bg-red-600', text: 'text-red-600' },
 }
 
@@ -98,7 +99,10 @@ export default function AppFixes({
     }
   }
 
-  const sorted = [...jobs].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status))
+  // Merged fixes are done and drop out of the active queue.
+  const sorted = jobs
+    .filter((j) => j.status !== 'merged')
+    .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status))
 
   return (
     <Layout currentPath={`/apps/${appId}/fixes`} appId={appId} appName={appName} applications={applications}>
@@ -156,7 +160,15 @@ export default function AppFixes({
               <div className="flex items-center gap-2 text-sm">
                 <span className="w-2 h-2 rounded-full bg-[#00D678]" />
                 <span className="text-foreground">
-                  Working on <span className="font-mono font-semibold">{repoSaved}</span>
+                  Working on{' '}
+                  <a
+                    href={`https://github.com/${repoSaved}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono font-semibold hover:underline"
+                  >
+                    {repoSaved}
+                  </a>
                 </span>
               </div>
               <button
@@ -169,7 +181,7 @@ export default function AppFixes({
               </button>
             </div>
 
-            {jobs.length === 0 ? (
+            {sorted.length === 0 ? (
               <div className="border border-foreground/10 bg-card p-10 text-center">
                 <p className="text-foreground font-semibold">Nothing queued</p>
                 <p className="text-sm text-foreground/50 mt-1">

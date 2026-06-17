@@ -11,6 +11,7 @@ import (
 	"lognorth/internal/agent"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
+	"lognorth/internal/events"
 	"lognorth/internal/settings"
 )
 
@@ -112,6 +113,43 @@ func ConnectAppRepoAction(ctx *cartridge.Context) error {
 	}
 
 	return ctx.Ctx.JSON(fiber.Map{"success": true, "github_repo": repo})
+}
+
+// EnqueueFixAction handles POST /apps/:id/issues/:hash/fix — queue the agent to
+// fix one issue. No-op if a non-failed job already exists for it.
+func EnqueueFixAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	app, _, err := getAppFromURL(ctx)
+	if err != nil {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "invalid app"})
+	}
+	if !app.HasRepo() {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "Connect a repo on the Fixes tab first."})
+	}
+
+	hash := ctx.Ctx.Params("hash")
+	issue, err := events.GetIssueByHash(db, hash, app.ID)
+	if err != nil || issue == nil {
+		return ctx.Ctx.Status(404).JSON(fiber.Map{"error": "issue not found"})
+	}
+
+	// Don't double-queue: reuse an existing job unless the last one failed.
+	if existing, _ := agent.FindFixJobForIssue(db, app.ID, hash); existing != nil && existing.Status != agent.StatusFailed {
+		return ctx.Ctx.JSON(fiber.Map{"success": true, "status": existing.Status})
+	}
+
+	job := &agent.FixJob{
+		APIKeyID:  app.ID,
+		IssueHash: hash,
+		Issue:     issue.Error,
+		Status:    agent.StatusQueued,
+	}
+	if err := db.Create(job).Error; err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to queue fix"})
+	}
+
+	return ctx.Ctx.JSON(fiber.Map{"success": true, "status": job.Status})
 }
 
 // DisconnectAppRepoAction handles POST /apps/api-keys/:id/github/disconnect.

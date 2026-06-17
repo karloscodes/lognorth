@@ -6,11 +6,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// Fix job statuses.
+// Fix job statuses. queued -> running -> pr_open -> merged, or failed.
 const (
 	StatusQueued  = "queued"
 	StatusRunning = "running"
 	StatusPROpen  = "pr_open"
+	StatusMerged  = "merged"
 	StatusFailed  = "failed"
 )
 
