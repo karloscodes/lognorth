@@ -264,6 +264,7 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/", lbhttp.HomePageAction, protectedConfig)
 
 	// Setup page (apps management)
+	server.Get("/fixes", lbhttp.FixesPageAction, protectedConfig)
 	server.Get("/apps", lbhttp.SetupPageAction, protectedConfig)
 	server.Post("/apps/api-keys", lbhttp.CreateAPIKeyAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/rename", lbhttp.RenameAPIKeyAction, protectedConfig)
@@ -284,6 +285,7 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/apps/:id/log", lbhttp.AppLogPageAction, protectedConfig)
 	server.Get("/apps/:id/log/:eventId", lbhttp.AppLogDetailPageAction, protectedConfig)
 	server.Get("/apps/:id/endpoints", lbhttp.EndpointsPageAction, protectedConfig)
+	server.Get("/apps/:id/fixes", lbhttp.AppFixesPageAction, protectedConfig)
 
 	// Trace view (global - traces can span apps)
 	server.Get("/trace/:traceId", lbhttp.TracePageAction, protectedConfig)
@@ -316,6 +318,17 @@ func MountRoutes(server *cartridge.Server) {
 	server.Post("/settings/agent-key", lbhttp.CreateAgentKeyAction, protectedConfig)
 	server.Post("/settings/agent-key/regenerate", lbhttp.RegenerateAgentKeyAction, protectedConfig)
 	server.Post("/settings/agent-key/revoke", lbhttp.RevokeAgentKeyAction, protectedConfig)
+
+	// Agent server-side credentials (global)
+	server.Post("/settings/github", lbhttp.ConnectGitHubAction, protectedConfig)
+	server.Post("/settings/github/disconnect", lbhttp.DisconnectGitHubAction, protectedConfig)
+	server.Post("/settings/openrouter", lbhttp.ConnectOpenRouterAction, protectedConfig)
+	server.Post("/settings/openrouter/model", lbhttp.SetOpenRouterModelAction, protectedConfig)
+	server.Post("/settings/openrouter/disconnect", lbhttp.DisconnectOpenRouterAction, protectedConfig)
+
+	// Per-app repo selection for the agent
+	server.Post("/apps/api-keys/:id/github", lbhttp.ConnectAppRepoAction, protectedConfig)
+	server.Post("/apps/api-keys/:id/github/disconnect", lbhttp.DisconnectAppRepoAction, protectedConfig)
 }
 
 // onboardingCheckMiddleware redirects to setup if no users exist

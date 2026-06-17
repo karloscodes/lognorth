@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/smtp"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
+	"lognorth/internal/agent"
 	"lognorth/internal/config"
 	"lognorth/internal/license"
 	"lognorth/internal/settings"
@@ -39,10 +41,17 @@ func renderSettingsPage(ctx *cartridge.Context, component string) error {
 	}
 
 	return RenderPage(ctx.Ctx, component, Props{
-		"settings":       s,
-		"hasPassword":    s.HasPassword(),
-		"userEmail":      userEmail,
-		"agentKeyPrefix": s.AgentKeyPrefix,
+		"settings":             s,
+		"hasPassword":          s.HasPassword(),
+		"userEmail":            userEmail,
+		"agentKeyPrefix":       s.AgentKeyPrefix,
+		"openrouterConfigured": s.IsOpenRouterConfigured(),
+		"openrouterLabel":      s.OpenRouterLabel,
+		"openrouterModel":      s.OpenRouterModel,
+		"openrouterModels":     agent.OpenRouterModels,
+		"openrouterDefault":    agent.DefaultOpenRouterModel,
+		"githubConfigured":     s.IsGitHubConfigured(),
+		"githubLogin":          s.GitHubLogin,
 	})
 }
 
@@ -264,6 +273,170 @@ func RegenerateAgentKeyAction(ctx *cartridge.Context) error {
 	return ctx.Ctx.JSON(fiber.Map{"success": true, "key": fullKey, "prefix": s.AgentKeyPrefix})
 }
 
+// ConnectOpenRouterInput is the body for POST /settings/openrouter.
+type ConnectOpenRouterInput struct {
+	Key   string `json:"openrouter_key"`
+	Model string `json:"openrouter_model"`
+}
+
+// ConnectOpenRouterAction handles POST /settings/openrouter. It validates the
+// key against OpenRouter, then encrypts it at rest. Global: one key funds the
+// agent's fixes across every app.
+func ConnectOpenRouterAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	var input ConnectOpenRouterInput
+	if err := ctx.Ctx.BodyParser(&input); err != nil {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "invalid input"})
+	}
+	key := strings.TrimSpace(input.Key)
+	if key == "" {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "Key is required."})
+	}
+
+	label, err := agent.ValidateOpenRouterKey(context.Background(), key)
+	if err != nil {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "OpenRouter rejected the key. Check it and try again."})
+	}
+
+	encrypted, err := agent.Encrypt(key, config.GetConfig().PrivateKey)
+	if err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to encrypt key"})
+	}
+
+	s, err := settings.Get(db)
+	if err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
+	}
+	s.OpenRouterKey = encrypted
+	s.OpenRouterLabel = label
+	if model := strings.TrimSpace(input.Model); agent.IsKnownModel(model) {
+		s.OpenRouterModel = model
+	} else if s.OpenRouterModel == "" {
+		s.OpenRouterModel = agent.DefaultOpenRouterModel
+	}
+	if err := settings.Update(db, s); err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to save settings"})
+	}
+
+	return ctx.Ctx.JSON(fiber.Map{"success": true, "openrouter_label": label, "openrouter_model": s.OpenRouterModel})
+}
+
+// SetOpenRouterModelInput is the body for POST /settings/openrouter/model.
+type SetOpenRouterModelInput struct {
+	Model string `json:"openrouter_model"`
+}
+
+// SetOpenRouterModelAction handles POST /settings/openrouter/model — change the
+// model without re-entering the key.
+func SetOpenRouterModelAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	var input SetOpenRouterModelInput
+	if err := ctx.Ctx.BodyParser(&input); err != nil {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "invalid input"})
+	}
+	model := strings.TrimSpace(input.Model)
+	if !agent.IsKnownModel(model) {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "Unknown model."})
+	}
+
+	s, err := settings.Get(db)
+	if err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
+	}
+	s.OpenRouterModel = model
+	if err := settings.Update(db, s); err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to save settings"})
+	}
+
+	return ctx.Ctx.JSON(fiber.Map{"success": true, "openrouter_model": model})
+}
+
+// ConnectGitHubInput is the body for POST /settings/github.
+type ConnectGitHubInput struct {
+	Token string `json:"github_token"`
+}
+
+// ConnectGitHubAction handles POST /settings/github. It stores the global
+// fine-grained PAT the agent uses to open PRs. Classic tokens are rejected;
+// apps then pin themselves to repos this token can reach. Encrypted at rest.
+func ConnectGitHubAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	var input ConnectGitHubInput
+	if err := ctx.Ctx.BodyParser(&input); err != nil {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "invalid input"})
+	}
+	token := strings.TrimSpace(input.Token)
+	if token == "" {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "Token is required."})
+	}
+	if !agent.IsFineGrained(token) {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{
+			"error": "That looks like a classic token. Classic tokens grant access to your whole account. Create a fine-grained token (github_pat_...) scoped to only the repositories you'll connect.",
+		})
+	}
+
+	info, err := agent.ValidateToken(context.Background(), token)
+	if err != nil {
+		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "GitHub rejected the token. Check it hasn't expired and try again."})
+	}
+
+	encrypted, err := agent.Encrypt(token, config.GetConfig().PrivateKey)
+	if err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to encrypt token"})
+	}
+
+	s, err := settings.Get(db)
+	if err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
+	}
+	s.GitHubToken = encrypted
+	s.GitHubLogin = info.Login
+	s.GitHubTokenStatus = "valid"
+	if err := settings.Update(db, s); err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to save settings"})
+	}
+
+	return ctx.Ctx.JSON(fiber.Map{"success": true, "github_login": info.Login, "repo_count": len(info.Repos)})
+}
+
+// DisconnectGitHubAction handles POST /settings/github/disconnect.
+func DisconnectGitHubAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	s, err := settings.Get(db)
+	if err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
+	}
+	s.GitHubToken = ""
+	s.GitHubLogin = ""
+	s.GitHubTokenStatus = ""
+	if err := settings.Update(db, s); err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to save settings"})
+	}
+
+	return ctx.Ctx.JSON(fiber.Map{"success": true})
+}
+
+// DisconnectOpenRouterAction handles POST /settings/openrouter/disconnect.
+func DisconnectOpenRouterAction(ctx *cartridge.Context) error {
+	db := ctx.DB()
+
+	s, err := settings.Get(db)
+	if err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
+	}
+	s.OpenRouterKey = ""
+	s.OpenRouterLabel = ""
+	if err := settings.Update(db, s); err != nil {
+		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to save settings"})
+	}
+
+	return ctx.Ctx.JSON(fiber.Map{"success": true})
+}
+
 // RevokeAgentKeyAction handles POST /settings/agent-key/revoke
 func RevokeAgentKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
@@ -274,4 +447,3 @@ func RevokeAgentKeyAction(ctx *cartridge.Context) error {
 
 	return ctx.Ctx.JSON(fiber.Map{"success": true})
 }
-

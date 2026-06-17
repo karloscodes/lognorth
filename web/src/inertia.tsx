@@ -16,6 +16,8 @@ import SettingsData from './pages/settings/Data'
 import SettingsDeveloper from './pages/settings/Developer'
 import Endpoints from './pages/Endpoints'
 import IssueDetail from './pages/IssueDetail'
+import Fixes from './pages/Fixes'
+import AppFixes from './pages/AppFixes'
 
 // Map of page components
 const pages: Record<string, React.ComponentType<any>> = {
@@ -32,6 +34,8 @@ const pages: Record<string, React.ComponentType<any>> = {
   SettingsDeveloper,
   Endpoints,
   IssueDetail,
+  Fixes,
+  AppFixes,
 }
 
 // Track if app has been initialized

@@ -48,8 +48,17 @@ type APIKey struct {
 	DownSince        time.Time `json:"down_since,omitempty"`
 	LastPingedAt     time.Time `json:"last_pinged_at,omitempty"`
 
+	// Which repo this app's agent works on. The token is global (one
+	// fine-grained PAT in Settings); the app just pins itself to one repo.
+	GitHubRepo string `gorm:"column:github_repo;size:255" json:"github_repo"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// HasRepo reports whether this app has a target repo set.
+func (k *APIKey) HasRepo() bool {
+	return k.GitHubRepo != ""
 }
 
 // TableName specifies the table name
@@ -93,7 +102,6 @@ func Create(db *gorm.DB, name string) (*APIKey, string, error) {
 	return apiKey, key, nil
 }
 
-
 // Validate checks if an API key is valid and active (any type)
 func Validate(db *gorm.DB, key string) (*APIKey, error) {
 	var apiKey APIKey
@@ -118,7 +126,6 @@ func ValidateAppKey(db *gorm.DB, key string) (*APIKey, error) {
 
 	return &apiKey, nil
 }
-
 
 // List retrieves all app API keys (excludes agent keys)
 func List(db *gorm.DB) ([]APIKey, error) {
@@ -172,6 +179,16 @@ func SetPingDisabled(db *gorm.DB, id uint, disabled bool) error {
 		updates["down_since"] = nil
 	}
 	return db.Model(&APIKey{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// SetRepo pins this app to a target repo (owner/repo).
+func SetRepo(db *gorm.DB, id uint, repo string) error {
+	return db.Model(&APIKey{}).Where("id = ?", id).Update("github_repo", repo).Error
+}
+
+// ClearRepo removes this app's target repo.
+func ClearRepo(db *gorm.DB, id uint) error {
+	return db.Model(&APIKey{}).Where("id = ?", id).Update("github_repo", "").Error
 }
 
 // Rename updates the display name of an app API key. Trims whitespace,

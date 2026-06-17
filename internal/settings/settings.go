@@ -44,7 +44,7 @@ type Settings struct {
 	BaseURL string `gorm:"size:255" json:"base_url"`
 
 	// Agent API key (read-only access for AI coding assistants)
-	AgentKey       string `gorm:"size:100" json:"-"`           // Full key, never exposed
+	AgentKey       string `gorm:"size:100" json:"-"`               // Full key, never exposed
 	AgentKeyPrefix string `gorm:"size:20" json:"agent_key_prefix"` // For display (lgn-agent-xxxxxxxx)
 
 	// Data retention - how many days to keep events (default 90 = 3 months)
@@ -52,8 +52,21 @@ type Settings struct {
 
 	// License key from purchase
 	LicenseKey    string `gorm:"size:255" json:"license_key"`
-	LicenseStatus string `gorm:"size:20" json:"license_status"`  // valid, invalid, expired, or empty
+	LicenseStatus string `gorm:"size:20" json:"license_status"` // valid, invalid, expired, or empty
 	LicenseEmail  string `gorm:"size:255" json:"license_email"`
+
+	// Agent server-side credentials (global). Both are AES-GCM ciphertext.
+	// The GitHub token is one fine-grained PAT scoped to the repos you connect;
+	// each app then pins itself to one of those repos.
+	GitHubToken       string `gorm:"size:512" json:"-"`
+	GitHubLogin       string `gorm:"size:100" json:"github_login"`
+	GitHubTokenStatus string `gorm:"size:20" json:"github_token_status"`
+
+	// OpenRouter key powers the agent's LLM calls (BYOK). One account funds
+	// every app's fixes. OpenRouterModel is the model slug the agent runs.
+	OpenRouterKey   string `gorm:"size:512" json:"-"`
+	OpenRouterLabel string `gorm:"size:255" json:"openrouter_label"`
+	OpenRouterModel string `gorm:"size:100" json:"openrouter_model"`
 
 	// Legacy fields - kept for migration compatibility
 	NotifyNewErrors   bool   `json:"-"`
@@ -343,6 +356,16 @@ func ValidateAgentKey(db *gorm.DB, key string) error {
 // HasAgentKey returns true if an agent key is configured
 func (s *Settings) HasAgentKey() bool {
 	return s.AgentKey != ""
+}
+
+// IsOpenRouterConfigured returns true if an OpenRouter key is stored.
+func (s *Settings) IsOpenRouterConfigured() bool {
+	return s.OpenRouterKey != ""
+}
+
+// IsGitHubConfigured returns true if a validated GitHub token is stored.
+func (s *Settings) IsGitHubConfigured() bool {
+	return s.GitHubToken != "" && s.GitHubTokenStatus == "valid"
 }
 
 // GetRetentionDuration returns the data retention period as time.Duration

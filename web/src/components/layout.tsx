@@ -306,6 +306,16 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
                   >
                     Endpoints
                   </Link>
+                  <Link
+                    href={`/apps/${appId}/fixes`}
+                    className={`py-5 text-sm font-bold text-foreground border-b-2 ${
+                      currentPath?.includes('/fixes')
+                        ? 'border-foreground'
+                        : 'border-transparent'
+                    }`}
+                  >
+                    Fixes
+                  </Link>
                 </nav>
               </>
             ) : (

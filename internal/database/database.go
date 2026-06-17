@@ -7,6 +7,7 @@ import (
 	"github.com/karloscodes/cartridge/sqlite"
 	"gorm.io/gorm"
 
+	"lognorth/internal/agent"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/events"
@@ -64,6 +65,7 @@ func (dm *DBManager) MigrateDatabase() error {
 			&settings.Settings{},
 			&users.User{},
 			&onboarding.OnboardingSession{},
+			&agent.FixJob{},
 		); err != nil {
 			return err
 		}

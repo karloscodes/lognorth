@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
+	"lognorth/internal/agent"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 )
@@ -163,14 +164,18 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		}
 	}
 
+	fix, _ := agent.FindFixJobForIssue(db, app.ID, hash)
+
 	return RenderPage(ctx.Ctx, "IssueDetail", Props{
-		"issue":         issue,
-		"occurrences":   occurrences,
-		"traces":        traces,
-		"alsoHappensAt": alsoHappensAt,
-		"appId":         app.ID,
-		"appName":       app.Name,
-		"applications":  apps,
+		"issue":           issue,
+		"occurrences":     occurrences,
+		"traces":          traces,
+		"alsoHappensAt":   alsoHappensAt,
+		"appId":           app.ID,
+		"appName":         app.Name,
+		"applications":    apps,
+		"fix":             fix,
+		"githubConnected": app.HasRepo(),
 	})
 }
 

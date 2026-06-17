@@ -7,8 +7,12 @@ import (
 	"log/slog"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
+	"gorm.io/gorm"
+
+	"lognorth/internal/agent"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/database"
@@ -335,14 +339,14 @@ func main() {
 
 		// Generate guaranteed recent errors (for issues page)
 		recentErrors := []struct {
-			message   string
-			errorMsg  string
-			path      string
-			method    string
-			isJob     bool
-			jobName   string
-			count     int
-			hoursAgo  int
+			message  string
+			errorMsg string
+			path     string
+			method   string
+			isJob    bool
+			jobName  string
+			count    int
+			hoursAgo int
 		}{
 			{errorMsg: "Database connection timeout", path: "/api/users", method: "GET", count: 5, hoursAgo: 2},
 			{errorMsg: "Payment gateway error: card declined", path: "/api/checkout", method: "POST", count: 3, hoursAgo: 4},
@@ -408,22 +412,40 @@ func main() {
 			}
 		}
 
+		// Point this app at a repo and seed a few agent fixes against its issues
+		repo := "karloscodes/" + slugify(app.name)
+		if err := apikeys.SetRepo(db, apiKey.ID, repo); err != nil {
+			log.Printf("Failed to set repo for %s: %v", app.name, err)
+		}
+		issues, _ := events.ListIssuesWithState(db, apiKey.ID, 10)
+		fixCount := seedFixes(db, apiKey.ID, repo, issues)
+
 		fmt.Printf("  HTTP requests: %d, Jobs: %d\n", httpCount, jobCount)
 		fmt.Printf("  Events: %d (%d errors)\n", totalEvents, errorCount)
+		fmt.Printf("  Repo: %s, Fixes: %d\n", repo, fixCount)
 		fmt.Println()
 	}
 
-	// Configure Mailpit for local email testing
+	// Configure Mailpit for local email testing + seed agent credentials so the
+	// Fixes UI shows a connected state out of the box.
+	ghToken, _ := agent.Encrypt("github_pat_seedtoken", cfg.PrivateKey)
+	orKey, _ := agent.Encrypt("sk-or-seedkey", cfg.PrivateKey)
 	mailpitSettings := &settings.Settings{
-		SMTPHost:              "localhost",
-		SMTPPort:              1025,
-		SMTPFrom:              "alerts@lognorth.local",
-		NotifyEmail:           "dev@localhost",
+		SMTPHost:          "localhost",
+		SMTPPort:          1025,
+		SMTPFrom:          "alerts@lognorth.local",
+		NotifyEmail:       "dev@localhost",
 		NotifyNewErrors:   true,
 		NotifyRegressions: true,
 		NotifySpikes:      true,
 		SpikeThreshold:    10,
-		BaseURL:               "http://localhost:8080",
+		BaseURL:           "http://localhost:8080",
+		GitHubToken:       ghToken,
+		GitHubLogin:       "karloscodes",
+		GitHubTokenStatus: "valid",
+		OpenRouterKey:     orKey,
+		OpenRouterLabel:   "seed key",
+		OpenRouterModel:   agent.DefaultOpenRouterModel,
 	}
 	if err := settings.Update(db, mailpitSettings); err != nil {
 		log.Printf("Failed to configure Mailpit settings: %v", err)
@@ -445,4 +467,48 @@ func findErrorDef(errorMsg string) *errorDef {
 		}
 	}
 	return nil
+}
+
+func slugify(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, " ", "-"))
+}
+
+// seedFixes creates a spread of fix jobs across statuses, linked to real
+// issues so the per-app queue and the issue-detail banner both show data.
+func seedFixes(db *gorm.DB, apiKeyID uint, repo string, issues []events.IssueWithState) int {
+	plan := []struct {
+		status string
+		hasPR  bool
+		detail string
+	}{
+		{agent.StatusPROpen, true, ""},
+		{agent.StatusRunning, false, ""},
+		{agent.StatusQueued, false, ""},
+		{agent.StatusFailed, false, "Tests still failing after 3 attempts"},
+		{agent.StatusQueued, false, ""},
+	}
+
+	n := 0
+	for i, p := range plan {
+		if i >= len(issues) {
+			break
+		}
+		iss := issues[i]
+		pr := ""
+		if p.hasPR {
+			pr = fmt.Sprintf("https://github.com/%s/pull/%d", repo, 100+i)
+		}
+		job := &agent.FixJob{
+			APIKeyID:  apiKeyID,
+			IssueHash: iss.Hash,
+			Issue:     iss.Error,
+			Status:    p.status,
+			PRURL:     pr,
+			Detail:    p.detail,
+		}
+		if err := db.Create(job).Error; err == nil {
+			n++
+		}
+	}
+	return n
 }

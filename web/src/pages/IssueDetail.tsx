@@ -5,6 +5,13 @@ import { Layout } from '@/components/layout'
 import { Mono, Code, parseContext, getConfig, methodColor, statusColor } from '@/lib/shared'
 import type { Application, IssueDetail as IssueDetailType, OccurrencePoint, LogEntry, RelatedLocation } from '@/lib/shared'
 
+interface FixJob {
+  id: number
+  status: 'queued' | 'running' | 'pr_open' | 'failed'
+  pr_url?: string
+  detail?: string
+}
+
 interface Props {
   issue: IssueDetailType
   occurrences: OccurrencePoint[] | null
@@ -13,9 +20,41 @@ interface Props {
   appId: number
   appName: string
   applications?: Application[]
+  fix?: FixJob | null
+  githubConnected?: boolean
 }
 
-export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt, appId, appName, applications }: Props) {
+function FixBanner({ fix }: { fix: FixJob }) {
+  const map: Record<FixJob['status'], { dot: string; label: string }> = {
+    queued: { dot: 'bg-foreground/30', label: 'Fix queued' },
+    running: { dot: 'bg-[#00D678] animate-pulse', label: 'Fix in progress' },
+    pr_open: { dot: 'bg-[#00D678]', label: 'Fix ready' },
+    failed: { dot: 'bg-red-600', label: 'Fix failed' },
+  }
+  const { dot, label } = map[fix.status]
+  return (
+    <div className="mb-8 flex items-center gap-3 border border-foreground/10 px-4 py-3">
+      <span className={`w-2 h-2 rounded-full ${dot}`} />
+      <span className="text-sm font-bold text-foreground">{label}</span>
+      {fix.detail && fix.status === 'failed' && (
+        <span className="text-sm text-foreground/50 truncate">{fix.detail}</span>
+      )}
+      <div className="flex-1" />
+      {fix.pr_url && (
+        <a
+          href={fix.pr_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-bold text-foreground hover:underline"
+        >
+          View PR →
+        </a>
+      )}
+    </div>
+  )
+}
+
+export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt, appId, appName, applications, fix, githubConnected }: Props) {
   const toggleMute = () => {
     const url = issue.muted ? `/issues/${issue.hash}/unmute` : `/issues/${issue.hash}/mute`
     router.post(url, {}, { preserveScroll: true })
@@ -136,6 +175,17 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
           </div>
         </div>
       </div>
+
+      {/* Agent fix */}
+      {fix && <FixBanner fix={fix} />}
+      {!fix && githubConnected && (
+        <div className="mb-8 flex items-center justify-between border border-foreground/10 px-4 py-3">
+          <span className="text-sm text-foreground/60">No fix yet for this issue.</span>
+          <a href={`/apps/${appId}/fixes`} className="text-sm font-bold text-foreground hover:underline">
+            Fixes →
+          </a>
+        </div>
+      )}
 
       {/* Stack Trace */}
       {stackTrace && (
