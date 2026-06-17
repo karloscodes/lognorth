@@ -36,7 +36,9 @@ const STATUS: Record<Status, { row: string; group: string; dot: string; text: st
   failed: { row: 'Failed', group: 'Failed', dot: 'bg-red-600', text: 'text-red-600' },
 }
 
-const ORDER: Status[] = ['running', 'queued', 'pr_open', 'failed']
+// Most actionable first: a PR wants you to review/merge, a failure wants a
+// look, then the passive in-flight states.
+const ORDER: Status[] = ['pr_open', 'failed', 'running', 'queued']
 
 export default function AppFixes({
   appId,
