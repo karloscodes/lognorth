@@ -125,10 +125,31 @@ func main() {
 		}
 	}
 
-	// Check if already seeded
+	// Already seeded: don't regenerate events, but top up the agent data so the
+	// Fixes UI has something to show (older seeds predate it).
 	existingKeys, _ := apikeys.List(db)
 	if len(existingKeys) > 0 {
-		fmt.Println("Database already has API keys. Run 'rm storage/lognorth-development.db' first to fully reseed.")
+		fmt.Println("Database already seeded — topping up agent fixes.")
+		seedAgentGlobals(db, cfg.PrivateKey)
+		for _, k := range existingKeys {
+			if !k.Active {
+				continue
+			}
+			repo := "karloscodes/" + slugify(k.Name)
+			if err := apikeys.SetRepo(db, k.ID, repo); err != nil {
+				log.Printf("Failed to set repo for %s: %v", k.Name, err)
+			}
+			var existing int64
+			db.Model(&agent.FixJob{}).Where("api_key_id = ?", k.ID).Count(&existing)
+			if existing > 0 {
+				fmt.Printf("  %s: already has %d fixes\n", k.Name, existing)
+				continue
+			}
+			issues, _ := events.ListIssuesWithState(db, k.ID, 10)
+			n := seedFixes(db, k.ID, repo, issues)
+			fmt.Printf("  %s: repo %s, %d fixes\n", k.Name, repo, n)
+		}
+		fmt.Println("\nDone. To fully reseed instead, delete storage/lognorth-development.db first.")
 		return
 	}
 
@@ -426,10 +447,7 @@ func main() {
 		fmt.Println()
 	}
 
-	// Configure Mailpit for local email testing + seed agent credentials so the
-	// Fixes UI shows a connected state out of the box.
-	ghToken, _ := agent.Encrypt("github_pat_seedtoken", cfg.PrivateKey)
-	orKey, _ := agent.Encrypt("sk-or-seedkey", cfg.PrivateKey)
+	// Configure Mailpit for local email testing
 	mailpitSettings := &settings.Settings{
 		SMTPHost:          "localhost",
 		SMTPPort:          1025,
@@ -440,12 +458,6 @@ func main() {
 		NotifySpikes:      true,
 		SpikeThreshold:    10,
 		BaseURL:           "http://localhost:8080",
-		GitHubToken:       ghToken,
-		GitHubLogin:       "karloscodes",
-		GitHubTokenStatus: "valid",
-		OpenRouterKey:     orKey,
-		OpenRouterLabel:   "seed key",
-		OpenRouterModel:   agent.DefaultOpenRouterModel,
 	}
 	if err := settings.Update(db, mailpitSettings); err != nil {
 		log.Printf("Failed to configure Mailpit settings: %v", err)
@@ -454,6 +466,9 @@ func main() {
 		fmt.Println("  Run: docker compose -f docker-compose.dev.yml up -d")
 		fmt.Println("  View: http://localhost:8025")
 	}
+
+	// Seed agent credentials so the Fixes UI shows a connected state.
+	seedAgentGlobals(db, cfg.PrivateKey)
 
 	fmt.Println()
 	fmt.Println("Done. Run 'make dev' to start LogNorth.")
@@ -471,6 +486,32 @@ func findErrorDef(errorMsg string) *errorDef {
 
 func slugify(s string) string {
 	return strings.ToLower(strings.ReplaceAll(s, " ", "-"))
+}
+
+// seedAgentGlobals stores fake-but-valid-looking agent credentials so the Fixes
+// UI shows a connected state. Only fills fields that are empty.
+func seedAgentGlobals(db *gorm.DB, privateKey string) {
+	s, err := settings.Get(db)
+	if err != nil {
+		return
+	}
+	if s.GitHubToken == "" {
+		if tok, err := agent.Encrypt("github_pat_seedtoken", privateKey); err == nil {
+			s.GitHubToken = tok
+			s.GitHubLogin = "karloscodes"
+			s.GitHubTokenStatus = "valid"
+		}
+	}
+	if s.OpenRouterKey == "" {
+		if key, err := agent.Encrypt("sk-or-seedkey", privateKey); err == nil {
+			s.OpenRouterKey = key
+			s.OpenRouterLabel = "seed key"
+			s.OpenRouterModel = agent.DefaultOpenRouterModel
+		}
+	}
+	if err := settings.Update(db, s); err != nil {
+		log.Printf("Failed to seed agent credentials: %v", err)
+	}
 }
 
 // seedFixes creates a spread of fix jobs across statuses, linked to real
