@@ -1,0 +1,8 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "openrouter/anthropic/claude-sonnet-4",
+  "permission": {
+    "edit": "allow",
+    "bash": "allow"
+  }
+}
