@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { Link } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
-import { JobStatus } from './Fixes'
 
 interface FixJob {
   id: number
   issue: string
+  issue_hash?: string
   status: 'queued' | 'running' | 'pr_open' | 'failed'
   pr_url?: string
+  detail?: string
   updated_at?: string
 }
 
@@ -26,12 +27,16 @@ interface Props {
   jobs?: FixJob[]
 }
 
-const GROUPS: { key: FixJob['status']; label: string }[] = [
-  { key: 'running', label: 'In progress' },
-  { key: 'queued', label: 'Queued' },
-  { key: 'pr_open', label: 'Done' },
-  { key: 'failed', label: 'Failed' },
-]
+type Status = FixJob['status']
+
+const STATUS: Record<Status, { row: string; group: string; dot: string; text: string }> = {
+  running: { row: 'Running', group: 'In progress', dot: 'bg-[#00D678] animate-pulse', text: 'text-foreground' },
+  queued: { row: 'Queued', group: 'Queued', dot: 'bg-foreground/30', text: 'text-foreground/60' },
+  pr_open: { row: 'PR open', group: 'Done', dot: 'bg-[#00D678]', text: 'text-foreground' },
+  failed: { row: 'Failed', group: 'Failed', dot: 'bg-red-600', text: 'text-red-600' },
+}
+
+const ORDER: Status[] = ['running', 'queued', 'pr_open', 'failed']
 
 export default function AppFixes({
   appId,
@@ -91,9 +96,11 @@ export default function AppFixes({
     }
   }
 
+  const sorted = [...jobs].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status))
+
   return (
     <Layout currentPath={`/apps/${appId}/fixes`} appId={appId} appName={appName} applications={applications}>
-      <div className="max-w-3xl mx-auto">
+      <div>
         <header className="mb-8">
           <p className="text-xs font-bold uppercase tracking-wide text-foreground/40 mb-2">Fixes</p>
           <h1 className="text-2xl font-bold text-foreground">
@@ -140,13 +147,11 @@ export default function AppFixes({
             >
               {busy ? 'Checking…' : 'Connect repository'}
             </button>
-            <p className="text-sm text-foreground/50 mt-3">
-              Must be one of the repos your GitHub token can reach.
-            </p>
+            <p className="text-sm text-foreground/50 mt-3">Must be one of the repos your GitHub token can reach.</p>
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between border border-foreground/10 bg-card px-4 py-3 mb-8">
+            <div className="flex items-center justify-between border border-foreground/10 bg-card px-4 py-3 mb-6">
               <div className="flex items-center gap-2 text-sm">
                 <span className="w-2 h-2 rounded-full bg-[#00D678]" />
                 <span className="text-foreground">
@@ -171,42 +176,75 @@ export default function AppFixes({
                 </p>
               </div>
             ) : (
-              <div className="space-y-8">
-                {GROUPS.map(({ key, label }) => {
-                  const group = jobs.filter((j) => j.status === key)
-                  if (group.length === 0) return null
-                  return (
-                    <section key={key}>
-                      <div className="flex items-baseline justify-between mb-3">
-                        <p className="text-xs font-bold uppercase tracking-wide text-foreground/40">{label}</p>
-                        <span className="text-sm text-foreground/40 font-mono tabular-nums">{group.length}</span>
+              <>
+                <div className="grid grid-cols-4 border border-foreground/10 divide-x divide-foreground/10 mb-6">
+                  {ORDER.map((k) => {
+                    const n = jobs.filter((j) => j.status === k).length
+                    return (
+                      <div key={k} className="px-4 py-3">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS[k].dot}`} />
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-foreground/40">
+                            {STATUS[k].group}
+                          </span>
+                        </div>
+                        <span className="text-2xl font-black font-mono tabular-nums text-foreground">{n}</span>
                       </div>
-                      <div className="border border-foreground/10 bg-card divide-y divide-foreground/10">
-                        {group.map((job) => (
-                          <div key={job.id} className="flex items-center gap-3 px-4 py-3">
-                            <JobStatus status={job.status} />
-                            <span className="flex-1 text-sm text-foreground truncate">{job.issue}</span>
-                            {job.pr_url && (
-                              <a
-                                href={job.pr_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm font-semibold text-foreground/70 underline hover:text-foreground shrink-0"
-                              >
-                                PR →
-                              </a>
-                            )}
-                          </div>
-                        ))}
+                    )
+                  })}
+                </div>
+
+                <div className="border border-foreground/10 bg-card divide-y divide-foreground/10">
+                  {sorted.map((job) => {
+                    const s = STATUS[job.status]
+                    const title = (
+                      <span className="text-sm text-foreground truncate">{job.issue}</span>
+                    )
+                    return (
+                      <div key={job.id} className="flex items-center gap-4 px-4 py-3">
+                        <span className="flex items-center gap-2 shrink-0 w-28">
+                          <span className={`w-2 h-2 rounded-full ${s.dot}`} />
+                          <span className={`text-sm ${s.text}`}>{s.row}</span>
+                        </span>
+                        {job.issue_hash ? (
+                          <Link
+                            href={`/apps/${appId}/issues/${job.issue_hash}`}
+                            className="flex-1 min-w-0 hover:underline"
+                          >
+                            {title}
+                          </Link>
+                        ) : (
+                          <span className="flex-1 min-w-0">{title}</span>
+                        )}
+                        {job.pr_url && (
+                          <a
+                            href={job.pr_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-semibold text-foreground/70 underline hover:text-foreground shrink-0"
+                          >
+                            PR →
+                          </a>
+                        )}
+                        <span className="text-sm text-foreground/40 font-mono tabular-nums shrink-0 w-16 text-right">
+                          {formatWhen(job.updated_at)}
+                        </span>
                       </div>
-                    </section>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+              </>
             )}
           </>
         )}
       </div>
     </Layout>
   )
+}
+
+function formatWhen(iso?: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }

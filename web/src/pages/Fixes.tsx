@@ -24,7 +24,7 @@ const GROUPS: { key: FixJob['status']; label: string }[] = [
 export default function Fixes({ jobs = [], connected = false }: Props) {
   return (
     <Layout currentPath="/fixes">
-      <div className="max-w-4xl mx-auto">
+      <div>
         <header className="mb-8">
           <p className="text-xs font-bold uppercase tracking-wide text-foreground/40 mb-2">Agent</p>
           <h1 className="text-2xl font-bold text-foreground">
