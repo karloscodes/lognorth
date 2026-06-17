@@ -103,13 +103,12 @@ export default function AppFixes({
       <div>
         <header className="mb-8">
           <p className="text-xs font-bold uppercase tracking-wide text-foreground/40 mb-2">Fixes</p>
-          <h1 className="text-2xl font-bold text-foreground">
-            {appName}
-            <span className="text-accent">.</span>
-          </h1>
-          <p className="text-foreground/50 text-sm mt-2">
-            Point this app at a repo and lognorth opens pull requests that fix its issues.
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">{appName}</h1>
+          {!connected && (
+            <p className="text-foreground/50 text-sm mt-2">
+              Point this app at a repo and lognorth opens pull requests that fix its issues.
+            </p>
+          )}
         </header>
 
         {error && (
@@ -162,7 +161,7 @@ export default function AppFixes({
                 type="button"
                 onClick={disconnect}
                 disabled={busy}
-                className="text-sm font-semibold text-red-600 hover:underline disabled:opacity-50"
+                className="text-sm font-semibold text-foreground/50 hover:text-foreground disabled:opacity-50"
               >
                 {busy ? 'Working…' : 'Disconnect'}
               </button>
@@ -176,26 +175,8 @@ export default function AppFixes({
                 </p>
               </div>
             ) : (
-              <>
-                <div className="grid grid-cols-4 border border-foreground/10 divide-x divide-foreground/10 mb-6">
-                  {ORDER.map((k) => {
-                    const n = jobs.filter((j) => j.status === k).length
-                    return (
-                      <div key={k} className="px-4 py-3">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS[k].dot}`} />
-                          <span className="text-[11px] font-bold uppercase tracking-wide text-foreground/40">
-                            {STATUS[k].group}
-                          </span>
-                        </div>
-                        <span className="text-2xl font-black font-mono tabular-nums text-foreground">{n}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                <div className="border border-foreground/10 bg-card divide-y divide-foreground/10">
-                  {sorted.map((job) => {
+              <div className="border border-foreground/10 bg-card divide-y divide-foreground/10">
+                {sorted.map((job) => {
                     const s = STATUS[job.status]
                     const title = (
                       <span className="text-sm text-foreground truncate">{job.issue}</span>
@@ -232,8 +213,7 @@ export default function AppFixes({
                       </div>
                     )
                   })}
-                </div>
-              </>
+              </div>
             )}
           </>
         )}
