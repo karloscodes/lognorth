@@ -17,11 +17,19 @@ var openRouterAPIBase = "https://openrouter.ai/api/v1"
 const DefaultOpenRouterModel = "anthropic/claude-sonnet-4.6"
 
 // OpenRouterModels is the curated set offered in Settings. Coding-capable
-// models, Anthropic first. Edit here to add more.
+// models, Anthropic first. Slugs match OpenRouter's catalog. Edit to add more.
 var OpenRouterModels = []string{
 	"anthropic/claude-sonnet-4.6",
 	"anthropic/claude-opus-4.8",
 	"anthropic/claude-haiku-4.5",
+	"openai/gpt-5.5",
+	"openai/gpt-5.3-codex",
+	"qwen/qwen3.7-max",
+	"qwen/qwen3.7-plus",
+	"moonshotai/kimi-k2.7-code",
+	"moonshotai/kimi-k2.6",
+	"deepseek/deepseek-v4-pro",
+	"deepseek/deepseek-v4-flash",
 }
 
 // IsKnownModel reports whether slug is one we offer.
