@@ -62,6 +62,30 @@ func TestValidateTokenRejectsBadStatus(t *testing.T) {
 	}
 }
 
+func TestPRState(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/karloscodes/lognorth/pulls/7":
+			w.Write([]byte(`{"merged":true,"state":"closed"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+	old := githubAPIBase
+	githubAPIBase = srv.URL
+	defer func() { githubAPIBase = old }()
+
+	merged, state, err := PRState(context.Background(), "github_pat_test", "karloscodes/lognorth", 7)
+
+	if err != nil {
+		t.Fatalf("PRState: %v", err)
+	}
+	if !merged || state != "closed" {
+		t.Errorf("merged=%v state=%q, want merged=true state=closed", merged, state)
+	}
+}
+
 // An over-scoped token (more than the one repo) must not pass ScopedTo.
 func TestOverScopedTokenRejected(t *testing.T) {
 	info := TokenInfo{

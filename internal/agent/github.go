@@ -54,6 +54,23 @@ func ValidateToken(ctx context.Context, token string) (TokenInfo, error) {
 	return info, nil
 }
 
+// PRState reports a pull request's merge state. Used by the poller to move
+// pr_open jobs to merged (or failed, if closed without merging).
+func PRState(ctx context.Context, token, repo string, number int) (merged bool, state string, err error) {
+	body, err := doGitHub(ctx, token, fmt.Sprintf("/repos/%s/pulls/%d", repo, number))
+	if err != nil {
+		return false, "", err
+	}
+	var pr struct {
+		Merged bool   `json:"merged"`
+		State  string `json:"state"`
+	}
+	if err := json.Unmarshal(body, &pr); err != nil {
+		return false, "", err
+	}
+	return pr.Merged, pr.State, nil
+}
+
 // CheckRepoAccess reports whether the token can reach owner/repo. Used to pin
 // an app to a repo the global token is actually scoped to.
 func CheckRepoAccess(ctx context.Context, token, repo string) (bool, error) {

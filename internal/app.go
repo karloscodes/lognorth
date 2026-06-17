@@ -80,6 +80,9 @@ func NewApp() (*Application, error) {
 	// Agent fix queue: one job at a time, oldest first.
 	fixRunner := cartridge.NewJobDispatcher(logger, dbManager, 20*time.Second, jobs.NewFixRunner())
 
+	// Agent PR poller: moves merged PRs out of the queue, closing the loop.
+	prPoller := cartridge.NewJobDispatcher(logger, dbManager, 1*time.Minute, jobs.NewPRPoller())
+
 	// Configure server
 	serverConfig := cartridge.DefaultServerConfig()
 	// Sec-Fetch-Site is enabled per-route for web routes, disabled for API
@@ -104,7 +107,7 @@ func NewApp() (*Application, error) {
 		DBManager:         dbManager,
 		ServerConfig:      serverConfig,
 		RouteMountFunc:    MountRoutes,
-		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, baselineUpdater, anomalyChecker, digestSender, uptimeSweeper, licenseChecker, fixRunner},
+		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, baselineUpdater, anomalyChecker, digestSender, uptimeSweeper, licenseChecker, fixRunner, prPoller},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create application: %w", err)

@@ -1,8 +1,11 @@
 package jobs
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/karloscodes/cartridge"
@@ -28,9 +31,13 @@ type FixRunner struct {
 	run func(fixCreds) (string, error)
 }
 
-// NewFixRunner returns a runner backed by the stub container command. Swap
-// run for the real opencode-in-Docker command when the image exists.
+// NewFixRunner runs fixes through the opencode container named by
+// LOGNORTH_AGENT_IMAGE. With no image set (dev), it falls back to the stub so
+// the queue is still exercisable.
 func NewFixRunner() *FixRunner {
+	if image := os.Getenv("LOGNORTH_AGENT_IMAGE"); image != "" {
+		return &FixRunner{run: dockerRunner(image)}
+	}
 	return &FixRunner{run: stubRun}
 }
 
@@ -123,12 +130,64 @@ func failJob(db *gorm.DB, id uint, detail string) {
 		Updates(map[string]any{"status": agent.StatusFailed, "detail": detail})
 }
 
-// stubRun stands in for the real opencode-in-Docker runner so the queue is
-// exercisable before the image exists. The real version will:
-//
-//	docker run --rm --env-file <creds> <image> <repo> <issue>
-//
-// and read the PR URL from the container's last stdout line.
+// dockerRunner runs opencode in a one-shot container. The container clones the
+// repo, fixes the issue, pushes a branch, opens a PR, and prints the PR URL as
+// its last stdout line. Secrets go in a 0600 env-file (never argv, which shows
+// in `docker ps`); the issue text — which may be multi-line — goes via -e args
+// (safe over argv, unlike env-file's line format).
+func dockerRunner(image string) func(fixCreds) (string, error) {
+	return func(c fixCreds) (string, error) {
+		envFile, err := os.CreateTemp("", "lnfix-*.env")
+		if err != nil {
+			return "", fmt.Errorf("env file: %w", err)
+		}
+		defer os.Remove(envFile.Name())
+		_ = envFile.Chmod(0600)
+		fmt.Fprintf(envFile, "GH_TOKEN=%s\nOPENROUTER_API_KEY=%s\n", c.Token, c.Key)
+		envFile.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), maxRun)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "docker", "run", "--rm",
+			"--env-file", envFile.Name(),
+			"-e", "OPENROUTER_MODEL="+c.Model,
+			"-e", "REPO="+c.Repo,
+			"-e", "ISSUE="+c.Issue,
+			"-e", "ISSUE_HASH="+c.IssueHash,
+			image,
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return "", fmt.Errorf("timed out")
+			}
+			return "", fmt.Errorf("agent failed: %s", tail(out))
+		}
+
+		pr := lastLine(out)
+		if !strings.HasPrefix(pr, "http") {
+			return "", fmt.Errorf("no PR url in output: %s", tail(out))
+		}
+		return pr, nil
+	}
+}
+
+// stubRun stands in for the container in dev (no image configured). It pretends
+// a PR was opened so the queue advances.
 func stubRun(c fixCreds) (string, error) {
 	return fmt.Sprintf("https://github.com/%s/pull/0", c.Repo), nil
+}
+
+func lastLine(b []byte) string {
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
+}
+
+func tail(b []byte) string {
+	s := strings.TrimSpace(string(b))
+	if len(s) > 500 {
+		s = s[len(s)-500:]
+	}
+	return s
 }

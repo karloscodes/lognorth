@@ -7,7 +7,7 @@ import type { Application, IssueDetail as IssueDetailType, OccurrencePoint, LogE
 
 interface FixJob {
   id: number
-  status: 'queued' | 'running' | 'pr_open' | 'failed'
+  status: 'queued' | 'running' | 'pr_open' | 'merged' | 'failed'
   pr_url?: string
   detail?: string
 }
@@ -29,6 +29,7 @@ function FixBanner({ fix }: { fix: FixJob }) {
     queued: { dot: 'bg-foreground/30', label: 'Fix queued' },
     running: { dot: 'bg-[#00D678] animate-pulse', label: 'Fix in progress' },
     pr_open: { dot: 'bg-[#00D678]', label: 'Fix ready' },
+    merged: { dot: 'bg-[#00D678]', label: 'Fix merged' },
     failed: { dot: 'bg-red-600', label: 'Fix failed' },
   }
   const { dot, label } = map[fix.status]
