@@ -17,8 +17,8 @@ import (
 func AgentAppsAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	if err := validateAgentAuth(ctx); err != nil {
-		return err
+	if !agentAuthorized(ctx) {
+		return nil
 	}
 
 	keys, err := apikeys.List(db)
@@ -47,8 +47,8 @@ func AgentAppsAction(ctx *cartridge.Context) error {
 func AgentEventsAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	if err := validateAgentAuth(ctx); err != nil {
-		return err
+	if !agentAuthorized(ctx) {
+		return nil
 	}
 
 	filters := parseFilters(ctx.Ctx)
@@ -76,8 +76,8 @@ func AgentEventsAction(ctx *cartridge.Context) error {
 func AgentEventDetailAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	if err := validateAgentAuth(ctx); err != nil {
-		return err
+	if !agentAuthorized(ctx) {
+		return nil
 	}
 
 	id, err := strconv.ParseUint(ctx.Ctx.Params("id"), 10, 64)
@@ -113,8 +113,8 @@ func AgentEventDetailAction(ctx *cartridge.Context) error {
 func AgentIssuesAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	if err := validateAgentAuth(ctx); err != nil {
-		return err
+	if !agentAuthorized(ctx) {
+		return nil
 	}
 
 	// Support app_id filter
@@ -135,22 +135,29 @@ func AgentIssuesAction(ctx *cartridge.Context) error {
 	})
 }
 
-// validateAgentAuth checks for valid agent API key in Authorization header
-func validateAgentAuth(ctx *cartridge.Context) error {
+// agentAuthorized checks the agent API key in the Authorization header. It
+// writes the 401 itself and reports false, so the caller must stop.
+//
+// It returns a bool rather than an error on purpose: fiber's Status().JSON()
+// returns nil when the write succeeds, so an `err != nil` check here would
+// never fire and the handler would serve the data under a 401.
+func agentAuthorized(ctx *cartridge.Context) bool {
 	authHeader := ctx.Ctx.Get("Authorization")
 	key := strings.TrimPrefix(authHeader, "Bearer ")
 
 	if key == "" {
-		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "API key required",
 		})
+		return false
 	}
 
 	if err := settings.ValidateAgentKey(ctx.DB(), key); err != nil {
-		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid agent key",
 		})
+		return false
 	}
 
-	return nil
+	return true
 }
