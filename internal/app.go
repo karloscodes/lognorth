@@ -212,6 +212,9 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/api/v1/agent/events/:id", lbhttp.AgentEventDetailAction, agentConfig)
 	server.Get("/api/v1/agent/issues", lbhttp.AgentIssuesAction, agentConfig)
 
+	// MCP endpoint (same agent key, read-only tools for coding agents)
+	server.Post("/mcp", lbhttp.MCPAction, agentConfig)
+
 	// Protected page config (with session auth + onboarding check)
 	// In demo mode, skip auth entirely — everyone sees the app
 	var protectedMiddleware []fiber.Handler
