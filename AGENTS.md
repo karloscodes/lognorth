@@ -29,10 +29,12 @@ internal/
 │   ├── issues.go
 │   ├── ingest.go
 │   ├── live.go          # SSE live events
+│   ├── mcp.go           # MCP transport (POST /mcp)
 │   └── render.go        # Inertia rendering helper
 │
 ├── events/              # Context: Events domain (ingestion, listing, issues)
 ├── apikeys/             # Context: API keys domain
+├── mcp/                 # Context: MCP protocol and read-only agent tools
 ├── config/              # App configuration
 └── app.go               # Application setup and routes
 ```
@@ -113,6 +115,7 @@ make test
 - **`internal/app.go`**: Application setup and route registration
 - **`internal/events/`**: Events context (ingestion, listing, issues, stats)
 - **`internal/apikeys/`**: API keys context
+- **`internal/mcp/`**: MCP protocol and the read-only tools agents call
 - **`web/`**: React SPA (shadcn/ui, Tailwind, Inertia.js)
 - **`cmd/lognorth/`**: Main binary
 - **`cmd/seed/`**: Sample data generator
