@@ -75,8 +75,9 @@ curl -X POST http://localhost:8080/api/v1/events \
 ## MCP
 
 The server answers the Model Context Protocol at `POST /mcp`, so a coding agent
-can read production logs while it debugs. Same agent key as the agent read API,
-same process, no extra binary.
+can read production logs while it debugs. It is the only read path for an agent:
+there is no REST agent API. Authenticated with the agent key from
+Settings > Developer.
 
 ```bash
 claude mcp add --transport http lognorth http://localhost:8080/mcp \

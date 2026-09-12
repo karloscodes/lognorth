@@ -202,17 +202,12 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/api/v1/issues", lbhttp.IssuesAPIAction, apiReadConfig)
 	server.Get("/api/v1/api-keys", lbhttp.ListAPIKeysAction, apiReadConfig)
 
-	// Agent API (authenticated read access for AI coding assistants)
+	// MCP endpoint: the only way an agent reads the log. Authenticated with
+	// the agent key, rate limited, read-only tools.
 	agentConfig := &cartridge.RouteConfig{
 		EnableSecFetchSite: cartridge.Bool(false),
 		CustomMiddleware:   []fiber.Handler{agentRateLimiter},
 	}
-	server.Get("/api/v1/agent/apps", lbhttp.AgentAppsAction, agentConfig)
-	server.Get("/api/v1/agent/events", lbhttp.AgentEventsAction, agentConfig)
-	server.Get("/api/v1/agent/events/:id", lbhttp.AgentEventDetailAction, agentConfig)
-	server.Get("/api/v1/agent/issues", lbhttp.AgentIssuesAction, agentConfig)
-
-	// MCP endpoint (same agent key, read-only tools for coding agents)
 	server.Post("/mcp", lbhttp.MCPAction, agentConfig)
 
 	// Protected page config (with session auth + onboarding check)

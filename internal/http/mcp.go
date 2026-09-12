@@ -2,11 +2,13 @@ package http
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/mcp"
+	"lognorth/internal/settings"
 )
 
 // MCPAction handles POST /mcp
@@ -35,4 +37,31 @@ func MCPAction(ctx *cartridge.Context) error {
 	}
 
 	return ctx.Ctx.JSON(res)
+}
+
+// agentAuthorized checks the agent API key in the Authorization header. It
+// writes the 401 itself and reports false, so the caller must stop.
+//
+// It returns a bool rather than an error on purpose: fiber's Status().JSON()
+// returns nil when the write succeeds, so an `err != nil` check here would
+// never fire and the handler would serve the data under a 401.
+func agentAuthorized(ctx *cartridge.Context) bool {
+	authHeader := ctx.Ctx.Get("Authorization")
+	key := strings.TrimPrefix(authHeader, "Bearer ")
+
+	if key == "" {
+		ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "API key required",
+		})
+		return false
+	}
+
+	if err := settings.ValidateAgentKey(ctx.DB(), key); err != nil {
+		ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Invalid agent key",
+		})
+		return false
+	}
+
+	return true
 }

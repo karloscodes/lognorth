@@ -86,7 +86,6 @@ func setupMCPTestApp(t *testing.T) *mcpTestApp {
 	}
 	app.Post("/mcp", handle(lbhttp.MCPAction))
 	app.Post("/api/v1/events", handle(lbhttp.IngestAction))
-	app.Get("/api/v1/agent/apps", handle(lbhttp.AgentAppsAction))
 
 	return &mcpTestApp{app: app, db: manager, agentKey: agentKey, appKey: appKey, apiKeyID: key.ID}
 }
@@ -229,25 +228,6 @@ func TestMCPRejectsEveryKeyButTheAgentKey(t *testing.T) {
 			t.Errorf("body = %s, want no protocol result under a 401", body)
 		}
 	})
-}
-
-func TestAgentAPIServesNoDataUnderA401(t *testing.T) {
-	ta := setupMCPTestApp(t)
-
-	req := httptest.NewRequest("GET", "/api/v1/agent/apps", nil)
-	res, err := ta.app.Test(req)
-
-	if err != nil {
-		t.Fatalf("Request failed: %v", err)
-	}
-	defer res.Body.Close()
-	body, _ := io.ReadAll(res.Body)
-	if res.StatusCode != 401 {
-		t.Errorf("status = %d, want 401", res.StatusCode)
-	}
-	if bytes.Contains(body, []byte("checkout-prod")) {
-		t.Errorf("body = %s, want no app names without a key", body)
-	}
 }
 
 func TestMCPHandshake(t *testing.T) {
