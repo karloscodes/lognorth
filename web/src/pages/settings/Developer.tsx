@@ -7,6 +7,7 @@ interface Props {
 
 export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }: Props) {
   const [copiedKey, setCopiedKey] = useState(false)
+  const [copiedSetup, setCopiedSetup] = useState(false)
   const [newAgentKey, setNewAgentKey] = useState<string | null>(null)
   const [currentPrefix, setCurrentPrefix] = useState(initialPrefix)
   const [agentKeyError, setAgentKeyError] = useState<string | null>(null)
@@ -15,6 +16,15 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
     navigator.clipboard.writeText(key)
     setCopiedKey(true)
     setTimeout(() => setCopiedKey(false), 2000)
+  }
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://your-instance.com'
+  const connectCommand = `/lognorth:connect ${origin} ${newAgentKey ?? 'lgn-agent-...'}`
+
+  const copySetup = () => {
+    navigator.clipboard.writeText(connectCommand)
+    setCopiedSetup(true)
+    setTimeout(() => setCopiedSetup(false), 2000)
   }
 
   const createAgentKey = async () => {
@@ -71,9 +81,9 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
 
   return (
     <SettingsLayout currentPath="/settings/developer">
-      <h2 className="text-2xl font-bold text-foreground mb-2">Agent API</h2>
+      <h2 className="text-2xl font-bold text-foreground mb-2">AI agents</h2>
       <p className="text-foreground/50 text-sm mb-6">
-        Let AI coding assistants query your logs. Read-only access to all apps.
+        Let Claude Code, Cursor, or any MCP client read your logs. Read-only, every app.
       </p>
 
       {newAgentKey && (
@@ -139,19 +149,38 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
 
       <div className="mt-6 p-4 bg-foreground/[0.02] border border-foreground/10">
         <p className="text-sm font-semibold text-foreground mb-2">Setup</p>
-        <p className="text-sm text-foreground/60 mb-3">Add to your shell profile:</p>
+        <p className="text-sm text-foreground/60 mb-3">
+          {currentPrefix
+            ? 'Paste these into Claude Code. The last line needs the key, which is only shown once, so regenerate it if you no longer have it.'
+            : 'Create an agent key above, then paste these into Claude Code.'}
+        </p>
         <code className="block text-sm font-mono text-foreground/80 whitespace-pre-wrap">
-          {`export LOGNORTH_URL="${typeof window !== 'undefined' ? window.location.origin : 'https://your-instance.com'}"
-export LOGNORTH_API_KEY="lgn-agent-..."`}
+          {`/plugin marketplace add karloscodes/lognorth-releases
+/plugin install lognorth`}
         </code>
+        <div className="mt-2 flex items-start gap-2">
+          <code className="flex-1 block text-sm font-mono text-foreground/80 break-all">
+            {connectCommand}
+          </code>
+          <button
+            type="button"
+            onClick={copySetup}
+            className="shrink-0 px-3 py-1 border border-foreground/20 text-xs font-semibold text-foreground/70 hover:border-foreground/40 hover:text-foreground transition-colors"
+          >
+            {copiedSetup ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
         <p className="text-sm text-foreground/50 mt-3">
+          Restart Claude Code and it has four read-only tools over your log. Other clients take the same
+          endpoint:{' '}
+          <code className="font-mono">{origin}/mcp</code>.{' '}
           <a
-            href="https://lognorth.com/docs/integrations/ai-agents/"
+            href="https://lognorth.com/docs/integrations/mcp/"
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:text-foreground"
           >
-            Documentation →
+            Docs →
           </a>
         </p>
       </div>
