@@ -58,7 +58,7 @@ internal/
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/events \
-  -H "X-API-Key: your-key" \
+  -H "Authorization: Bearer your-app-key" \
   -H "Content-Type: application/json" \
   -d '{
     "message": "POST /api/users → 500",
@@ -71,3 +71,17 @@ curl -X POST http://localhost:8080/api/v1/events \
     }
   }'
 ```
+
+## MCP
+
+The server answers the Model Context Protocol at `POST /mcp`, so a coding agent
+can read production logs while it debugs. Same agent key as the agent read API,
+same process, no extra binary.
+
+```bash
+claude mcp add --transport http lognorth http://localhost:8080/mcp \
+  --header "Authorization: Bearer lgn-agent-..."
+```
+
+Tools: `list_apps`, `search_logs`, `get_event`, `list_issues`. All read-only.
+The protocol lives in `internal/mcp`; the handler is `internal/http/mcp.go`.
