@@ -87,33 +87,33 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
 
   return (
     <SettingsLayout currentPath="/settings/developer">
-      <h2 className="text-2xl font-bold text-foreground mb-2">AI agents</h2>
-      <p className="text-foreground/50 text-sm mb-6">
+      <h2 className="text-[22px] font-bold tracking-tight text-foreground mb-2">AI agents</h2>
+      <p className="text-subtle text-sm mb-6">
         Let Claude Code, Cursor, or any MCP client read your logs. Read-only, every app.
       </p>
 
       {newAgentKey && (
         <div className="mb-6 p-4 bg-accent/10 border border-accent/30">
-          <p className="text-sm font-semibold text-foreground mb-2">Your new agent key:</p>
+          <p className="text-sm font-bold text-foreground mb-2">Your new agent key:</p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 px-3 py-2 bg-card border border-foreground/10 font-mono text-sm break-all">
+            <code className="flex-1 px-3 py-2 bg-card border border-line font-mono text-sm break-all">
               {newAgentKey}
             </code>
             <button
               onClick={() => copyKey(newAgentKey)}
-              className="px-3 py-2 bg-foreground text-background text-sm font-semibold hover:bg-foreground/80"
+              className="px-3 py-2 bg-foreground text-background text-sm font-bold hover:bg-text"
             >
               {copiedKey ? 'Copied!' : 'Copy'}
             </button>
           </div>
-          <p className="text-sm text-foreground/50 mt-2">
+          <p className="text-sm text-subtle mt-2">
             Save this key now. You won't be able to see it again.
           </p>
         </div>
       )}
 
       {agentKeyError && (
-        <div className="mb-6 p-3 bg-[#e11d48]/10 text-[#e11d48] text-sm font-medium border border-[#e11d48]">
+        <div className="mb-6 p-3 bg-error/10 text-error text-sm font-medium border border-error">
           {agentKeyError}
         </div>
       )}
@@ -122,22 +122,22 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
         <div className="space-y-4">
           <div className="flex items-center gap-4">
             <div>
-              <p className="text-sm font-semibold text-foreground">Active key</p>
-              <code className="text-sm font-mono text-foreground/60">{currentPrefix}...</code>
+              <p className="text-sm font-bold text-foreground">Active key</p>
+              <code className="text-sm font-mono text-subtle">{currentPrefix}...</code>
             </div>
           </div>
           <div className="flex gap-3">
             <button
               type="button"
               onClick={regenerateAgentKey}
-              className="px-4 py-2 border border-foreground/20 text-sm font-semibold text-foreground/70 hover:border-foreground/40 hover:text-foreground transition-colors"
+              className="px-4 py-2 border border-border text-sm font-bold text-text hover:border-foreground hover:text-foreground transition-colors"
             >
               Regenerate
             </button>
             <button
               type="button"
               onClick={revokeAgentKey}
-              className="px-4 py-2 border border-red-500/30 text-sm font-semibold text-red-600 hover:border-red-500 hover:bg-[#e11d48]/10 transition-colors"
+              className="px-4 py-2 border border-red-500/30 text-sm font-bold text-error hover:border-red-500 hover:bg-error/10 transition-colors"
             >
               Revoke
             </button>
@@ -147,15 +147,15 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
         <button
           type="button"
           onClick={createAgentKey}
-          className="px-4 py-2 bg-foreground text-background text-sm font-semibold hover:bg-foreground/80 transition-colors"
+          className="px-4 py-2 bg-foreground text-background text-sm font-bold hover:bg-text transition-colors"
         >
           Create agent key
         </button>
       )}
 
-      <div className="mt-6 p-4 bg-foreground/[0.02] border border-foreground/10">
-        <p className="text-sm font-semibold text-foreground mb-2">Setup</p>
-        <p className="text-sm text-foreground/60 mb-3">
+      <div className="mt-6 p-4 bg-raise/40 border border-line">
+        <p className="text-sm font-bold text-foreground mb-2">Setup</p>
+        <p className="text-sm text-subtle mb-3">
           {currentPrefix
             ? 'Three commands in Claude Code, one at a time. The last one carries your key, which is only shown once, so regenerate it if you no longer have it.'
             : 'Create an agent key above. Then run these three commands in Claude Code, one at a time.'}
@@ -163,25 +163,25 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
         <div className="space-y-2">
           {setupSteps.map((command, i) => (
             <div key={i} className="flex items-start gap-2">
-              <span className="font-mono text-sm text-foreground/40 pt-1 tabular-nums">{i + 1}</span>
-              <code className="flex-1 px-3 py-1 bg-card border border-foreground/10 text-sm font-mono text-foreground/80 break-all">
+              <span className="font-mono text-sm text-dim pt-1 tabular-nums">{i + 1}</span>
+              <code className="flex-1 px-3 py-1 bg-card border border-line text-sm font-mono text-text break-all">
                 {command}
               </code>
               <button
                 type="button"
                 onClick={() => copyStep(i, command)}
-                className="shrink-0 px-3 py-1 border border-foreground/20 text-xs font-semibold text-foreground/70 hover:border-foreground/40 hover:text-foreground transition-colors"
+                className="shrink-0 px-3 py-1 border border-border text-xs font-bold text-text hover:border-foreground hover:text-foreground transition-colors"
               >
                 {copiedStep === i ? 'Copied!' : 'Copy'}
               </button>
             </div>
           ))}
         </div>
-        <p className="text-sm text-foreground/50 mt-3">
+        <p className="text-sm text-subtle mt-3">
           Run them one at a time. If Claude Code asks you to "Enter marketplace source", type only{' '}
           <code className="font-mono">karloscodes/lognorth-releases</code> there.
         </p>
-        <p className="text-sm text-foreground/50 mt-2">
+        <p className="text-sm text-subtle mt-2">
           Restart Claude Code and it has four read-only tools over your log. Other clients take the same
           endpoint:{' '}
           <code className="font-mono">{origin}/mcp</code>.{' '}

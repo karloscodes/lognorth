@@ -63,47 +63,47 @@ export default function SettingsData({ settings }: Props) {
 
   return (
     <SettingsLayout currentPath="/settings/data">
-      <h2 className="text-2xl font-bold text-foreground mb-2">Data retention</h2>
-      <p className="text-foreground/50 text-sm mb-6">
+      <h2 className="text-[22px] font-bold tracking-tight text-foreground mb-2">Data retention</h2>
+      <p className="text-subtle text-sm mb-6">
         How long to keep your logs. Older events are automatically deleted.
       </p>
 
-      <div className="flex flex-wrap gap-2">
-        {PRESETS.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => {
-              setRetentionDays(opt.value)
-              setMessage(null)
-            }}
-            className={`px-4 py-2 text-sm font-semibold transition-all ${
-              retentionDays === opt.value
-                ? 'bg-foreground text-background'
-                : 'border border-foreground/20 text-foreground/60 hover:border-foreground/40 hover:text-foreground'
-            }`}
-          >
-            {opt.label}
-            {opt.default && retentionDays !== opt.value && (
-              <span className="ml-1 text-foreground/40">•</span>
-            )}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-1 border border-border px-2 py-1.5 text-[13px] w-fit">
+        {PRESETS.map((opt) => {
+          const on = retentionDays === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              aria-pressed={on}
+              onClick={() => {
+                setRetentionDays(opt.value)
+                setMessage(null)
+              }}
+              className={`px-1.5 py-0.5 ${on ? 'font-bold text-foreground' : 'text-subtle hover:text-foreground'}`}
+            >
+              {on && <span className="text-accent">[</span>}
+              {opt.label.toLowerCase()}
+              {on && <span className="text-accent">]</span>}
+              {opt.default && !on && <span className="ml-1 text-dim">*</span>}
+            </button>
+          )
+        })}
       </div>
-      <p className="text-sm text-foreground/50 mt-3">
-        Shorter retention = smaller database. 90 days is plenty for most.
+      <p className="text-sm text-subtle mt-3">
+        Shorter retention = smaller database. 90 days (*) is plenty for most.
       </p>
 
       <div className="mt-6 flex items-center gap-3 flex-wrap">
         <button
           onClick={handleSave}
           disabled={saving}
-          className="bg-foreground text-background font-semibold px-4 py-2 hover:bg-foreground/80 disabled:opacity-50 text-sm"
+          className="bg-foreground text-background font-bold px-4 py-2 hover:bg-text disabled:opacity-50 text-sm"
         >
           {saving ? 'Saving...' : 'Save retention'}
         </button>
         {message && (
-          <span className={`text-sm font-medium ${message.type === 'success' ? 'text-foreground/60' : 'text-red-600'}`}>
+          <span className={`text-sm font-medium ${message.type === 'success' ? 'text-subtle' : 'text-error'}`}>
             {message.text}
           </span>
         )}

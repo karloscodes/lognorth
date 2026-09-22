@@ -111,12 +111,12 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
 
   return (
     <SettingsLayout currentPath="/settings/alerts">
-      <h2 className="text-2xl font-bold text-foreground mb-2">Alerts</h2>
-      <p className="text-foreground/50 text-sm mb-8">How you get told when something breaks.</p>
+      <h2 className="text-[22px] font-bold tracking-tight text-foreground mb-2">Alerts</h2>
+      <p className="text-subtle text-sm mb-8">How you get told when something breaks.</p>
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-semibold text-foreground mb-3">Channel</label>
+          <label className="block text-sm font-bold text-foreground mb-3">Channel</label>
           <div className="space-y-2">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -125,11 +125,11 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
                 value="ntfy"
                 checked={form.notify_channel === 'ntfy'}
                 onChange={(e) => change('notify_channel', e.target.value)}
-                className="w-4 h-4 border-2 border-foreground/20"
+                className="w-4 h-4 border border-border"
               />
               <div>
-                <span className="block font-semibold text-foreground">ntfy.sh</span>
-                <span className="block text-sm text-foreground/50">Free push notifications to your phone or desktop</span>
+                <span className="block font-bold text-foreground">ntfy.sh</span>
+                <span className="block text-sm text-subtle">Free push notifications to your phone or desktop</span>
               </div>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
@@ -139,11 +139,11 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
                 value="email"
                 checked={form.notify_channel === 'email'}
                 onChange={(e) => change('notify_channel', e.target.value)}
-                className="w-4 h-4 border-2 border-foreground/20"
+                className="w-4 h-4 border border-border"
               />
               <div>
-                <span className="block font-semibold text-foreground">Email (SMTP)</span>
-                <span className="block text-sm text-foreground/50">Use your own mail server</span>
+                <span className="block font-bold text-foreground">Email (SMTP)</span>
+                <span className="block text-sm text-subtle">Use your own mail server</span>
               </div>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
@@ -153,11 +153,11 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
                 value="telegram"
                 checked={form.notify_channel === 'telegram'}
                 onChange={(e) => change('notify_channel', e.target.value)}
-                className="w-4 h-4 border-2 border-foreground/20"
+                className="w-4 h-4 border border-border"
               />
               <div>
-                <span className="block font-semibold text-foreground">Telegram</span>
-                <span className="block text-sm text-foreground/50">Send alerts via Telegram bot</span>
+                <span className="block font-bold text-foreground">Telegram</span>
+                <span className="block text-sm text-subtle">Send alerts via Telegram bot</span>
               </div>
             </label>
           </div>
@@ -166,15 +166,15 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
         {form.notify_channel === 'ntfy' && (
           <div className="space-y-4 pt-2">
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">ntfy topic URL</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">ntfy topic URL</label>
               <input
                 type="url"
                 value={form.ntfy_url}
                 onChange={(e) => change('ntfy_url', e.target.value)}
                 placeholder="https://ntfy.sh/your-secret-topic"
-                className="w-full px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
-              <p className="text-sm text-foreground/50 mt-2">
+              <p className="text-sm text-subtle mt-2">
                 Get the free{' '}
                 <a href="https://ntfy.sh" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
                   ntfy app
@@ -183,15 +183,15 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
               </p>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Base URL</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Base URL</label>
               <input
                 type="url"
                 value={form.base_url}
                 onChange={(e) => change('base_url', e.target.value)}
                 placeholder="https://lognorth.example.com"
-                className="w-full px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
-              <span className="text-sm text-foreground/50">For links in notifications</span>
+              <span className="text-sm text-subtle">For links in notifications</span>
             </div>
           </div>
         )}
@@ -199,78 +199,78 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
         {form.notify_channel === 'email' && (
           <div className="space-y-5 pt-2">
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Send to</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Send to</label>
               <input
                 type="email"
                 value={form.notify_email}
                 onChange={(e) => change('notify_email', e.target.value)}
                 placeholder="you@example.com"
-                className="w-full px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Base URL</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Base URL</label>
               <input
                 type="url"
                 value={form.base_url}
                 onChange={(e) => change('base_url', e.target.value)}
                 placeholder="https://lognorth.example.com"
-                className="w-full px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
-              <span className="text-sm text-foreground/50">For links in email notifications</span>
+              <span className="text-sm text-subtle">For links in email notifications</span>
             </div>
-            <hr className="border-foreground/10" />
-            <p className="text-sm font-semibold text-foreground">SMTP Server</p>
+            <hr className="border-line" />
+            <p className="text-sm font-bold text-foreground">SMTP Server</p>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Host</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Host</label>
               <input
                 type="text"
                 value={form.smtp_host}
                 onChange={(e) => change('smtp_host', e.target.value)}
                 placeholder="smtp.example.com"
-                className="w-full px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Port</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Port</label>
               <input
                 type="number"
                 value={form.smtp_port}
                 onChange={(e) => change('smtp_port', parseInt(e.target.value) || 587)}
                 placeholder="587"
-                className="w-24 px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-24 px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
-              <span className="text-sm text-foreground/80 ml-2">587 (TLS) or 465 (SSL)</span>
+              <span className="text-sm text-text ml-2">587 (TLS) or 465 (SSL)</span>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Username</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Username</label>
               <input
                 type="text"
                 value={form.smtp_username}
                 onChange={(e) => change('smtp_username', e.target.value)}
                 placeholder="your-username"
-                className="w-full px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Password</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Password</label>
               <input
                 type="password"
                 value={form.smtp_password}
                 onChange={(e) => change('smtp_password', e.target.value)}
                 placeholder={hasPassword ? '••••••••' : 'Enter password'}
-                className="w-full px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
-              {hasPassword && <span className="text-sm text-foreground/50">Leave blank to keep current</span>}
+              {hasPassword && <span className="text-sm text-subtle">Leave blank to keep current</span>}
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">From address</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">From address</label>
               <input
                 type="email"
                 value={form.smtp_from}
                 onChange={(e) => change('smtp_from', e.target.value)}
                 placeholder="alerts@example.com"
-                className="w-full px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
             </div>
           </div>
@@ -279,15 +279,15 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
         {form.notify_channel === 'telegram' && (
           <div className="space-y-4 pt-2">
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Bot Token</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Bot Token</label>
               <input
                 type="text"
                 value={form.telegram_bot_token}
                 onChange={(e) => change('telegram_bot_token', e.target.value)}
                 placeholder={telegramTokenSaved ? '••••••••  (saved, leave blank to keep)' : '123456789:ABCdefGHI...'}
-                className="w-full px-3 py-2 border border-foreground/20 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm font-mono focus:outline-none focus:border-foreground placeholder:text-dim"
               />
-              <p className="text-sm text-foreground/50 mt-2">
+              <p className="text-sm text-subtle mt-2">
                 Create a bot with{' '}
                 <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
                   @BotFather
@@ -296,15 +296,15 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
               </p>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Chat ID</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Chat ID</label>
               <input
                 type="text"
                 value={form.telegram_chat_id}
                 onChange={(e) => change('telegram_chat_id', e.target.value)}
                 placeholder="-1001234567890"
-                className="w-full px-3 py-2 border border-foreground/20 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm font-mono focus:outline-none focus:border-foreground placeholder:text-dim"
               />
-              <p className="text-sm text-foreground/50 mt-2">
+              <p className="text-sm text-subtle mt-2">
                 Your user ID or group chat ID. Use{' '}
                 <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
                   @userinfobot
@@ -313,26 +313,26 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
               </p>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Base URL</label>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Base URL</label>
               <input
                 type="url"
                 value={form.base_url}
                 onChange={(e) => change('base_url', e.target.value)}
                 placeholder="https://lognorth.example.com"
-                className="w-full px-3 py-2 border border-foreground/20 text-sm focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
+                className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
               />
-              <span className="text-sm text-foreground/50">For links in notifications</span>
+              <span className="text-sm text-subtle">For links in notifications</span>
             </div>
           </div>
         )}
       </div>
 
       {form.notify_channel && (
-        <div className="mt-10 pt-6 border-t border-foreground/10">
+        <div className="mt-10 pt-6 border-t border-line">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-bold text-foreground">Quiet hours</h3>
-              <p className="text-foreground/50 text-sm">No alerts during these hours. Times are UTC, the server's clock.</p>
+              <p className="text-subtle text-sm">No alerts during these hours. Times are UTC, the server's clock.</p>
             </div>
             <Switch
               checked={form.quiet_hours_enabled}
@@ -340,9 +340,9 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
             />
           </div>
           {form.quiet_hours_enabled && (
-            <div className="flex items-center justify-center gap-8 py-8 bg-foreground/[0.02] border border-foreground/10">
+            <div className="flex items-center justify-center gap-8 py-8 bg-raise/40 border border-line">
               <HourPicker value={form.quiet_start} onChange={(v) => change('quiet_start', v)} />
-              <span className="text-3xl text-foreground/30 mt-6">→</span>
+              <span className="text-3xl text-dim mt-6">→</span>
               <HourPicker value={form.quiet_end} onChange={(v) => change('quiet_end', v)} />
             </div>
           )}
@@ -353,7 +353,7 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
         <button
           onClick={handleSave}
           disabled={saving}
-          className="bg-foreground text-background font-semibold px-4 py-2 hover:bg-foreground/80 disabled:opacity-50 text-sm"
+          className="bg-foreground text-background font-bold px-4 py-2 hover:bg-text disabled:opacity-50 text-sm"
         >
           {saving ? 'Saving...' : 'Save alerts'}
         </button>
@@ -361,13 +361,13 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
           <button
             onClick={handleTest}
             disabled={testing || !canTest}
-            className="px-4 py-2 border border-foreground/20 text-sm font-semibold text-foreground/70 hover:border-foreground/40 hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 border border-border text-sm font-bold text-text hover:border-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {testing ? 'Testing...' : 'Test notification'}
           </button>
         )}
         {message && (
-          <span className={`text-sm font-medium ${message.type === 'success' ? 'text-foreground/60' : 'text-red-600'}`}>
+          <span className={`text-sm font-medium ${message.type === 'success' ? 'text-subtle' : 'text-error'}`}>
             {message.text}
           </span>
         )}
@@ -384,22 +384,22 @@ function HourPicker({ value, onChange }: { value: number; onChange: (v: number) 
       <button
         type="button"
         onClick={increment}
-        className="p-2 text-foreground/40 hover:text-foreground transition-colors"
+        className="p-2 text-dim hover:text-foreground transition-colors"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
         </svg>
       </button>
       <div className="flex items-baseline">
-        <span className="text-5xl font-mono font-black tabular-nums text-foreground">
+        <span className="text-5xl font-mono font-bold tabular-nums text-foreground">
           {value.toString().padStart(2, '0')}
         </span>
-        <span className="text-2xl font-mono font-bold text-foreground/30 ml-1">:00</span>
+        <span className="text-2xl font-mono font-bold text-dim ml-1">:00</span>
       </div>
       <button
         type="button"
         onClick={decrement}
-        className="p-2 text-foreground/40 hover:text-foreground transition-colors"
+        className="p-2 text-dim hover:text-foreground transition-colors"
       >
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
