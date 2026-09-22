@@ -53,6 +53,37 @@ func FindByID(db *gorm.DB, id uint) (*User, error) {
 }
 
 // CreateUser creates a new user with the supplied credentials
+// ErrSetupDone means the first user already exists.
+var ErrSetupDone = errors.New("setup is already done")
+
+// CreateFirstUser creates the owner during setup. The "no users yet" check
+// and the insert run in one write transaction, so two setup sessions cannot
+// both create a user.
+func CreateFirstUser(db *gorm.DB, email, password string) error {
+	if email == "" {
+		return errors.New("email cannot be empty")
+	}
+	if password == "" {
+		return errors.New("password cannot be empty")
+	}
+
+	hashedPassword, err := crypto.GeneratePasswordHash(password)
+	if err != nil {
+		return err
+	}
+
+	return sqlite.PerformWrite(slog.Default(), db, func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&User{}).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrSetupDone
+		}
+		return tx.Create(&User{Email: email, EncryptedPassword: string(hashedPassword)}).Error
+	})
+}
+
 func CreateUser(db *gorm.DB, email, password string) error {
 	// Check existence first
 	if _, err := FindByEmail(db, email); err == nil {

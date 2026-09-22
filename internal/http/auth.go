@@ -1,6 +1,9 @@
 package http
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -142,6 +145,10 @@ func OnboardingPageAction(ctx *cartridge.Context) error {
 func OnboardingUserAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
+	if setupDone(ctx) {
+		return ctx.Redirect("/login", fiber.StatusFound)
+	}
+
 	email := ctx.FormValue("email")
 	if email == "" {
 		flash.SetFlash(ctx.Ctx, "error", "Email is required")
@@ -173,6 +180,10 @@ func OnboardingUserAction(ctx *cartridge.Context) error {
 // OnboardingPasswordAction handles POST /setup/password
 func OnboardingPasswordAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
+
+	if setupDone(ctx) {
+		return ctx.Redirect("/login", fiber.StatusFound)
+	}
 
 	password := ctx.FormValue("password")
 	confirmPassword := ctx.FormValue("confirm_password")
@@ -207,8 +218,12 @@ func OnboardingPasswordAction(ctx *cartridge.Context) error {
 		return ctx.Redirect("/setup", fiber.StatusFound)
 	}
 
-	// Create the user
-	err = users.CreateUser(db, session.Data.Email, password)
+	// Create the owner. CreateFirstUser refuses once any user exists, so a
+	// second setup session cannot add another admin.
+	err = users.CreateFirstUser(db, session.Data.Email, password)
+	if errors.Is(err, users.ErrSetupDone) {
+		return ctx.Redirect("/login", fiber.StatusFound)
+	}
 	if err != nil {
 		ctx.Logger.Error("Failed to create user", slog.Any("error", err))
 		flash.SetFlash(ctx.Ctx, "error", "Failed to create account")
@@ -238,17 +253,18 @@ func OnboardingPasswordAction(ctx *cartridge.Context) error {
 	return ctx.Redirect("/", fiber.StatusFound)
 }
 
-// generateSessionID creates a random session ID
-func generateSessionID() string {
-	return time.Now().Format("20060102150405") + "-" + randomString(16)
+// setupDone reports whether the first user exists. After that, the setup
+// routes refuse every request, whatever onboarding cookie it carries.
+func setupDone(ctx *cartridge.Context) bool {
+	required, err := onboarding.IsOnboardingRequired(ctx.DB())
+	return err != nil || !required
 }
 
-func randomString(n int) string {
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
-		time.Sleep(1 * time.Nanosecond)
+// generateSessionID returns 32 random bytes, hex encoded.
+func generateSessionID() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
 	}
-	return string(b)
+	return hex.EncodeToString(b)
 }
