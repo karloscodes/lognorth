@@ -17,7 +17,7 @@ RUN cd web && npm ci --legacy-peer-deps --production=false
 # Copy web source and build frontend first (needed for go:embed)
 COPY web/src ./web/src
 COPY web/public ./web/public
-COPY web/index.html web/vite.config.ts web/tsconfig*.json web/postcss.config.js web/tailwind.config.ts ./web/
+COPY web/vite.config.ts web/tsconfig*.json web/postcss.config.js web/tailwind.config.ts ./web/
 RUN cd web && npm run build
 
 # Copy Go source files (including embed.go at root)
