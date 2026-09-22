@@ -23,6 +23,7 @@ internal/
 │   ├── event.go         # Event model (processed events)
 │   └── issues.go        # Issues aggregation
 ├── apikeys/             # Context: API keys
+├── mcp/                 # Context: MCP protocol + read-only agent tools
 ├── jobs/                # Context: Background jobs (Cartridge JobDispatcher)
 │   ├── event_processor.go
 │   └── cleanup.go
@@ -41,6 +42,14 @@ SDK → POST /api/v1/events → IngestedEvent table (fast write)
                                     ↓
                           Aggregates (issues, stats)
 ```
+
+### Agent Access
+
+Agents read the log through MCP only. `POST /mcp` speaks JSON-RPC over HTTP,
+authenticated with the agent key from Settings > Developer, and exposes four
+read-only tools: `list_apps`, `search_logs`, `get_event`, `list_issues`. There
+is no REST read API. The protocol lives in `internal/mcp`; the handler is
+`internal/http/mcp.go`.
 
 ### Event Model
 

@@ -69,7 +69,7 @@ go test -v -run TestCompleteSystemFlow ./tests/
 ```bash
 cd examples/express-basic
 npm install
-LOGNORTH_API_KEY=lb_your_key_here npm test
+LOGNORTH_API_KEY=lgn-your-key-here npm test
 ```
 
 **What gets verified:**
@@ -103,7 +103,7 @@ This is a minimal Express app showing:
 ```bash
 cd examples/express-basic
 npm install
-LOGNORTH_API_KEY=lb_your_key npm start
+LOGNORTH_API_KEY=lgn-your-key npm start
 ```
 
 ## Publishing as Standalone Repo
@@ -165,7 +165,7 @@ make dev
 # Terminal 3: Run SDK compatibility test
 cd examples/express-basic
 npm install
-LOGNORTH_API_KEY=lb_$(uuidgen | tr -d '-' | cut -c1-40) npm test
+LOGNORTH_API_KEY=lgn-$(uuidgen | tr -d '-' | cut -c1-40) npm test
 ```
 
 Note: Get real API key from LogNorth dashboard for Terminal 3.

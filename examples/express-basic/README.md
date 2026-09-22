@@ -32,7 +32,7 @@ npm install
 
 ```bash
 export LOGNORTH_URL=http://localhost:8080
-export LOGNORTH_API_KEY=lb_your_key_here
+export LOGNORTH_API_KEY=lgn-your-key-here
 ```
 
 ## Running
@@ -54,7 +54,7 @@ Visit the routes:
 **Run the compatibility test:**
 
 ```bash
-LOGNORTH_API_KEY=lb_your_key_here npm test
+LOGNORTH_API_KEY=lgn-your-key-here npm test
 ```
 
 This test verifies:

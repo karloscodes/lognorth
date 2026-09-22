@@ -50,6 +50,7 @@ internal/
 ├── http/       # HTTP handlers
 ├── events/     # Events & issues
 ├── apikeys/    # API key management
+├── mcp/        # MCP protocol + read-only agent tools
 ├── settings/   # App configuration
 └── jobs/       # Background processing
 ```
