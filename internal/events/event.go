@@ -322,11 +322,11 @@ type Stats struct {
 
 // EndpointStats holds per-endpoint health metrics
 type EndpointStats struct {
-	Path      string  `json:"path"`
-	Total     int64   `json:"total"`
-	Errors    int64   `json:"errors"`
-	ErrorRate float64 `json:"error_rate"`
-	AvgDuration int   `json:"avg_duration"`
+	Path        string  `json:"path"`
+	Total       int64   `json:"total"`
+	Errors      int64   `json:"errors"`
+	ErrorRate   float64 `json:"error_rate"`
+	AvgDuration int     `json:"avg_duration"`
 }
 
 // GetEndpointStats returns health metrics grouped by endpoint

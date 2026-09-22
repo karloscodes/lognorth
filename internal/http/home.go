@@ -53,7 +53,7 @@ func HomePageAction(ctx *cartridge.Context) error {
 	}
 
 	return RenderPage(ctx.Ctx, "Home", Props{
-		"applications":  apps,
-		"recentIssues":  recentIssues,
+		"applications": apps,
+		"recentIssues": recentIssues,
 	})
 }

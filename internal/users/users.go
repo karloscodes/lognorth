@@ -14,13 +14,13 @@ import (
 
 // User represents an admin user
 type User struct {
-	ID                uint   `gorm:"primaryKey"`
-	Email             string `gorm:"uniqueIndex"`
-	EncryptedPassword string
+	ID                  uint   `gorm:"primaryKey"`
+	Email               string `gorm:"uniqueIndex"`
+	EncryptedPassword   string
 	ResetPasswordToken  sql.NullString
 	ResetPasswordSentAt sql.NullTime
-	CreatedAt         time.Time `gorm:"autoCreateTime"`
-	UpdatedAt         time.Time `gorm:"autoUpdateTime"`
+	CreatedAt           time.Time `gorm:"autoCreateTime"`
+	UpdatedAt           time.Time `gorm:"autoUpdateTime"`
 }
 
 // ErrUserExists is returned when attempting to create a user that already exists

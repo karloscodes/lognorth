@@ -406,29 +406,29 @@ type errorDef struct {
 
 // Error mapping for endpoints
 var endpointErrors = map[string][]int{
-	"sign_in":             {8, 9},        // JWT, CSRF
-	"sign_up":             {1, 12},       // duplicate email, validation
-	"show_project":        {0},           // not found
-	"update_project":      {0, 13},       // not found, validation
-	"delete_project":      {0},           // not found
-	"checkout":            {5, 6, 7},     // Stripe errors
-	"create_subscription": {5, 6, 7},     // Stripe errors
-	"stripe_webhook":      {7, 10},       // Stripe API, timeout
-	"dashboard":           {2, 3, 4},     // DB pool, Redis
-	"search":              {2, 4},        // DB pool, Redis timeout
-	"invite_member":       {10, 11},      // SendGrid errors
+	"sign_in":             {8, 9},    // JWT, CSRF
+	"sign_up":             {1, 12},   // duplicate email, validation
+	"show_project":        {0},       // not found
+	"update_project":      {0, 13},   // not found, validation
+	"delete_project":      {0},       // not found
+	"checkout":            {5, 6, 7}, // Stripe errors
+	"create_subscription": {5, 6, 7}, // Stripe errors
+	"stripe_webhook":      {7, 10},   // Stripe API, timeout
+	"dashboard":           {2, 3, 4}, // DB pool, Redis
+	"search":              {2, 4},    // DB pool, Redis timeout
+	"invite_member":       {10, 11},  // SendGrid errors
 }
 
 // Error mapping for jobs
 var jobErrors = map[string][]int{
-	"SendWelcomeEmail":        {10, 11, 15}, // SendGrid, deserialization
-	"ProcessPayment":          {5, 6, 7},    // Stripe errors
-	"SendInvitation":          {10, 11},     // SendGrid errors
-	"GenerateDailyDigest":     {2, 14},      // DB pool, Sidekiq shutdown
-	"SyncSubscription":        {6, 7},       // Stripe errors
-	"CleanupExpiredSessions":  {2},          // DB pool
-	"ProcessWebhook":          {6, 7},       // Stripe errors
-	"GenerateInvoice":         {6, 10},      // Stripe, timeout
+	"SendWelcomeEmail":       {10, 11, 15}, // SendGrid, deserialization
+	"ProcessPayment":         {5, 6, 7},    // Stripe errors
+	"SendInvitation":         {10, 11},     // SendGrid errors
+	"GenerateDailyDigest":    {2, 14},      // DB pool, Sidekiq shutdown
+	"SyncSubscription":       {6, 7},       // Stripe errors
+	"CleanupExpiredSessions": {2},          // DB pool
+	"ProcessWebhook":         {6, 7},       // Stripe errors
+	"GenerateInvoice":        {6, 10},      // Stripe, timeout
 }
 
 func main() {

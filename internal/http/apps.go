@@ -75,17 +75,17 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 		"entries":      entries,
 		"histogram":    histogram,
 		"filters": fiber.Map{
-			"is_error":   filters.IsError,
-			"search":     filters.Search,
-			"error":      filters.ErrorHash,
-			"trace":      filters.TraceID,
+			"is_error": filters.IsError,
+			"search":   filters.Search,
+			"error":    filters.ErrorHash,
+			"trace":    filters.TraceID,
 			"start_time": func() string {
 				if ctx.Ctx.Query("start_time") == "all" {
 					return "all"
 				}
 				return formatTimeOrEmpty(filters.StartTime)
 			}(),
-			"end_time":   formatTimeOrEmpty(filters.EndTime),
+			"end_time": formatTimeOrEmpty(filters.EndTime),
 		},
 		"pagination": fiber.Map{
 			"limit":  filters.Limit,

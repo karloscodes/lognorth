@@ -45,10 +45,10 @@ type ValidateRequest struct {
 }
 
 type ValidateResponse struct {
-	ID       string   `json:"id"`
-	Customer Customer `json:"customer"`
-	Key      string   `json:"key"`
-	Status   string   `json:"status"` // granted, revoked, disabled
+	ID        string     `json:"id"`
+	Customer  Customer   `json:"customer"`
+	Key       string     `json:"key"`
+	Status    string     `json:"status"` // granted, revoked, disabled
 	ExpiresAt *time.Time `json:"expires_at"`
 	CreatedAt time.Time  `json:"created_at"`
 }

@@ -249,4 +249,3 @@ func TestRename(t *testing.T) {
 		}
 	})
 }
-

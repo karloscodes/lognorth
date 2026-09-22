@@ -188,4 +188,3 @@ func DeleteAPIKeyAction(ctx *cartridge.Context) error {
 	flash.SetFlash(ctx.Ctx, "success", "App deleted")
 	return ctx.Redirect("/apps", fiber.StatusFound)
 }
-

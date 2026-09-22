@@ -185,4 +185,3 @@ func IngestAction(ctx *cartridge.Context) error {
 
 	return ctx.Ctx.Status(fiber.StatusCreated).JSON(response)
 }
-

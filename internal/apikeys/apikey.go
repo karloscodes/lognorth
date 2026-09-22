@@ -89,7 +89,6 @@ func Create(db *gorm.DB, name string) (*APIKey, string, error) {
 	return apiKey, key, nil
 }
 
-
 // ValidateAppKey checks if an API key is valid, active, and is an app key (for ingestion)
 func ValidateAppKey(db *gorm.DB, key string) (*APIKey, error) {
 	var apiKey APIKey
@@ -104,7 +103,6 @@ func ValidateAppKey(db *gorm.DB, key string) (*APIKey, error) {
 
 	return &apiKey, nil
 }
-
 
 // List retrieves all app API keys (excludes agent keys)
 func List(db *gorm.DB) ([]APIKey, error) {
