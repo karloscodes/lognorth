@@ -39,10 +39,11 @@ func renderSettingsPage(ctx *cartridge.Context, component string) error {
 	}
 
 	return RenderPage(ctx.Ctx, component, Props{
-		"settings":       s,
-		"hasPassword":    s.HasPassword(),
-		"userEmail":      userEmail,
-		"agentKeyPrefix": s.AgentKeyPrefix,
+		"settings":         s,
+		"hasPassword":      s.HasPassword(),
+		"hasTelegramToken": s.HasTelegramToken(),
+		"userEmail":        userEmail,
+		"agentKeyPrefix":   s.AgentKeyPrefix,
 	})
 }
 
@@ -130,8 +131,11 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 	s.BaseURL = input.BaseURL
 
 	// Update Telegram
-	s.TelegramBotToken = input.TelegramBotToken
 	s.TelegramChatID = input.TelegramChatID
+	// Blank keeps the saved token: the browser never receives it.
+	if input.TelegramBotToken != "" {
+		s.TelegramBotToken = input.TelegramBotToken
+	}
 
 	// Update quiet hours
 	s.QuietHoursEnabled = input.QuietHoursEnabled
@@ -274,4 +278,3 @@ func RevokeAgentKeyAction(ctx *cartridge.Context) error {
 
 	return ctx.Ctx.JSON(fiber.Map{"success": true})
 }
-

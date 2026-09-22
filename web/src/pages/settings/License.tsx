@@ -13,7 +13,6 @@ interface SettingsData {
   smtp_username: string
   smtp_from: string
   notify_email: string
-  telegram_bot_token: string
   telegram_chat_id: string
   quiet_hours_enabled: boolean
   quiet_start: number

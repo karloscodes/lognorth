@@ -2,8 +2,12 @@
 package settings
 
 import (
+	"bytes"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/smtp"
@@ -32,7 +36,7 @@ type Settings struct {
 	NotifyEmail  string `gorm:"size:255" json:"notify_email"`
 
 	// Telegram settings
-	TelegramBotToken string `gorm:"size:100" json:"telegram_bot_token"`
+	TelegramBotToken string `gorm:"size:100" json:"-"` // Never expose in JSON
 	TelegramChatID   string `gorm:"size:50" json:"telegram_chat_id"`
 
 	// Quiet hours - no alerts during this window
@@ -44,7 +48,7 @@ type Settings struct {
 	BaseURL string `gorm:"size:255" json:"base_url"`
 
 	// Agent API key (read-only access for AI coding assistants)
-	AgentKey       string `gorm:"size:100" json:"-"`           // Full key, never exposed
+	AgentKey       string `gorm:"size:100" json:"-"`               // Full key, never exposed
 	AgentKeyPrefix string `gorm:"size:20" json:"agent_key_prefix"` // For display (lgn-agent-xxxxxxxx)
 
 	// Data retention - how many days to keep events (default 90 = 3 months)
@@ -52,7 +56,7 @@ type Settings struct {
 
 	// License key from purchase
 	LicenseKey    string `gorm:"size:255" json:"license_key"`
-	LicenseStatus string `gorm:"size:20" json:"license_status"`  // valid, invalid, expired, or empty
+	LicenseStatus string `gorm:"size:20" json:"license_status"` // valid, invalid, expired, or empty
 	LicenseEmail  string `gorm:"size:255" json:"license_email"`
 
 	// Legacy fields - kept for migration compatibility
@@ -113,6 +117,11 @@ func (s *Settings) IsEmailConfigured() bool {
 // IsNtfyConfigured returns true if ntfy URL is set
 func (s *Settings) IsNtfyConfigured() bool {
 	return s.NtfyURL != ""
+}
+
+// HasTelegramToken reports whether a bot token is saved, without exposing it.
+func (s *Settings) HasTelegramToken() bool {
+	return s.TelegramBotToken != ""
 }
 
 // IsTelegramConfigured returns true if Telegram bot is configured
@@ -221,22 +230,27 @@ func (s *Settings) sendViaTelegram(title, message string) error {
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", s.TelegramBotToken)
 
-	// Format message with title
-	text := fmt.Sprintf("*%s*\n\n%s", title, message)
-
-	body := fmt.Sprintf(`{"chat_id":"%s","text":%q,"parse_mode":"Markdown"}`,
-		s.TelegramChatID, text)
-
-	req, err := http.NewRequest("POST", url, strings.NewReader(body))
+	// Plain text: Markdown mode rejects messages with an unbalanced _ or `,
+	// which paths and error messages often contain.
+	body, err := json.Marshal(map[string]string{
+		"chat_id": s.TelegramChatID,
+		"text":    title + "\n\n" + message,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to encode message: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return errors.New("failed to create telegram request")
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("telegram request failed: %w", err)
+		// Unwrap drops the request URL, which holds the bot token.
+		return fmt.Errorf("telegram request failed: %w", errors.Unwrap(err))
 	}
 	defer resp.Body.Close()
 
@@ -333,7 +347,7 @@ func ValidateAgentKey(db *gorm.DB, key string) error {
 		return fmt.Errorf("no agent key configured")
 	}
 
-	if s.AgentKey != key {
+	if subtle.ConstantTimeCompare([]byte(s.AgentKey), []byte(key)) != 1 {
 		return fmt.Errorf("invalid agent key")
 	}
 

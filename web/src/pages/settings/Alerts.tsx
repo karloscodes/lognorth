@@ -10,7 +10,6 @@ interface SettingsData {
   smtp_username: string
   smtp_from: string
   notify_email: string
-  telegram_bot_token: string
   telegram_chat_id: string
   quiet_hours_enabled: boolean
   quiet_start: number
@@ -25,10 +24,13 @@ interface SettingsData {
 interface Props {
   settings?: SettingsData
   hasPassword?: boolean
+  hasTelegramToken?: boolean
   userEmail?: string
 }
 
-export default function SettingsAlerts({ settings, hasPassword = false, userEmail = '' }: Props) {
+export default function SettingsAlerts({ settings, hasPassword = false, hasTelegramToken = false, userEmail = '' }: Props) {
+  // The server never sends the bot token back, only whether one is saved.
+  const [telegramTokenSaved, setTelegramTokenSaved] = useState(hasTelegramToken)
   const [form, setForm] = useState({
     notify_channel: settings?.notify_channel || '',
     ntfy_url: settings?.ntfy_url || '',
@@ -38,7 +40,7 @@ export default function SettingsAlerts({ settings, hasPassword = false, userEmai
     smtp_password: '',
     smtp_from: settings?.smtp_from || '',
     notify_email: settings?.notify_email || userEmail,
-    telegram_bot_token: settings?.telegram_bot_token || '',
+    telegram_bot_token: '',
     telegram_chat_id: settings?.telegram_chat_id || '',
     quiet_hours_enabled: settings?.quiet_hours_enabled || false,
     quiet_start: settings?.quiet_start ?? 23,
@@ -69,7 +71,8 @@ export default function SettingsAlerts({ settings, hasPassword = false, userEmai
       })
       const data = await res.json()
       if (data.success) {
-        setForm((prev) => ({ ...prev, smtp_password: '' }))
+        if (form.telegram_bot_token) setTelegramTokenSaved(true)
+        setForm((prev) => ({ ...prev, smtp_password: '', telegram_bot_token: '' }))
         setMessage({ type: 'success', text: 'Alerts saved' })
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save' })
@@ -103,7 +106,7 @@ export default function SettingsAlerts({ settings, hasPassword = false, userEmai
   const isEmailConfigured =
     form.notify_channel === 'email' && form.smtp_host && form.smtp_port && form.smtp_from && form.notify_email
   const isTelegramConfigured =
-    form.notify_channel === 'telegram' && form.telegram_bot_token && form.telegram_chat_id
+    form.notify_channel === 'telegram' && (form.telegram_bot_token || telegramTokenSaved) && form.telegram_chat_id
   const canTest = isNtfyConfigured || isEmailConfigured || isTelegramConfigured
 
   return (
@@ -281,7 +284,7 @@ export default function SettingsAlerts({ settings, hasPassword = false, userEmai
                 type="text"
                 value={form.telegram_bot_token}
                 onChange={(e) => change('telegram_bot_token', e.target.value)}
-                placeholder="123456789:ABCdefGHI..."
+                placeholder={telegramTokenSaved ? '••••••••  (saved, leave blank to keep)' : '123456789:ABCdefGHI...'}
                 className="w-full px-3 py-2 border border-foreground/20 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-foreground focus:border-transparent placeholder:text-foreground/40"
               />
               <p className="text-sm text-foreground/50 mt-2">
