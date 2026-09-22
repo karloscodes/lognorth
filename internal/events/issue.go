@@ -84,7 +84,11 @@ type IssueWithState struct {
 	Muted      bool     `json:"muted"`  // User muted this issue
 	IsNew      bool     `json:"is_new"` // First seen < 24h ago
 	Trend      string   `json:"trend"`  // "up", "down", "stable"
+	Daily      []int64  `json:"daily"`  // Errors per UTC day, last 14 days, oldest first
 }
+
+// sparklineDays is how many days of daily counts each issue row carries.
+const sparklineDays = 14
 
 // issueRow is one issue as the aggregation query returns it.
 type issueRow struct {
@@ -152,6 +156,7 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 		hashes[i] = row.IssueHash
 	}
 	seenMap := loadSeen(db, hashes)
+	daily := dailyCounts(db, apiKeyID, hashes, now, sparklineDays)
 
 	issues := make([]IssueWithState, 0, len(rows))
 	for _, row := range rows {
@@ -174,7 +179,11 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 			Active:     lastSeen.After(now.Add(-7 * 24 * time.Hour)),
 			IsNew:      firstSeen.After(now.Add(-24 * time.Hour)),
 			Trend:      trend(row.Recent, row.Previous),
+			Daily:      daily[row.IssueHash],
 			Unseen:     true,
+		}
+		if issue.Daily == nil {
+			issue.Daily = make([]int64, sparklineDays)
 		}
 		if seen, ok := seenMap[row.IssueHash]; ok {
 			issue.Unseen = lastSeen.After(seen.SeenAt)
@@ -193,6 +202,47 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 	})
 
 	return issues, nil
+}
+
+// dailyCounts returns each issue's error count per UTC day for the last `days`
+// days, oldest first. One grouped query covers the whole list, so no N+1.
+func dailyCounts(db *gorm.DB, apiKeyID uint, hashes []string, now time.Time, days int) map[string][]int64 {
+	counts := make(map[string][]int64, len(hashes))
+	if len(hashes) == 0 {
+		return counts
+	}
+	start := now.UTC().Truncate(24*time.Hour).AddDate(0, 0, -(days - 1))
+
+	var rows []struct {
+		IssueHash string
+		Day       string
+		Count     int64
+	}
+	query := db.Table("events").
+		Select("issue_hash, date(timestamp) as day, COUNT(*) as count").
+		Where("is_error = 1 AND issue_hash IN ? AND timestamp >= ?", hashes, start)
+	if apiKeyID > 0 {
+		query = query.Where("api_key_id = ?", apiKeyID)
+	}
+	if err := query.Group("issue_hash, day").Scan(&rows).Error; err != nil {
+		return counts
+	}
+
+	for _, r := range rows {
+		day, err := time.Parse("2006-01-02", r.Day)
+		if err != nil {
+			continue
+		}
+		i := int(day.Sub(start).Hours() / 24)
+		if i < 0 || i >= days {
+			continue
+		}
+		if counts[r.IssueHash] == nil {
+			counts[r.IssueHash] = make([]int64, days)
+		}
+		counts[r.IssueHash][i] = r.Count
+	}
+	return counts
 }
 
 // loadSeen returns the seen state of the given issue hashes.
@@ -319,6 +369,29 @@ func GetRelatedLocations(db *gorm.DB, hash1, currentIssueHash, currentFile strin
 		})
 	}
 	return locations, nil
+}
+
+// PathCount is how many times an issue happened on one endpoint.
+type PathCount struct {
+	Path  string `json:"path"`
+	Count int64  `json:"count"`
+}
+
+// GetIssuePaths returns where an issue happened: its errors grouped by request
+// path, most first. Events without a path (jobs, plain logs) are left out.
+func GetIssuePaths(db *gorm.DB, hash string, apiKeyID uint, limit int) ([]PathCount, error) {
+	query := `
+		SELECT json_extract(context, '$.path') as path, COUNT(*) as count
+		FROM events
+		WHERE issue_hash = ? AND api_key_id = ? AND is_error = 1
+			AND json_extract(context, '$.path') IS NOT NULL AND json_extract(context, '$.path') != ''
+		GROUP BY path
+		ORDER BY count DESC, path
+		LIMIT ?
+	`
+	paths := []PathCount{}
+	err := db.Raw(query, hash, apiKeyID, limit).Scan(&paths).Error
+	return paths, err
 }
 
 // IssueDetail contains full issue info with log entries

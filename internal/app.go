@@ -66,7 +66,8 @@ func NewApp() (*Application, error) {
 	eventProcessor := cartridge.NewJobDispatcher(logger, dbManager, 5*time.Second, jobs.NewEventProcessor())
 	cleanupProcessor := cartridge.NewJobDispatcher(logger, dbManager, 10*time.Minute, jobs.NewCleanupProcessor())
 
-	// SPC alerting: detection and baseline learning run in one job
+	// SPC alerting: detection runs in one job. Baselines come from stored
+	// history on every check; nothing is learned or saved.
 	anomalyChecker := cartridge.NewJobDispatcher(logger, dbManager, 5*time.Minute, jobs.NewAnomalyChecker())
 	digestSender := cartridge.NewJobDispatcher(logger, dbManager, 1*time.Minute, jobs.NewDigestSender())
 

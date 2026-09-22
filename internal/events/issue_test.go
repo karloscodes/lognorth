@@ -355,3 +355,108 @@ func TestMarkIssueSeen_ClearsUnseenInListing(t *testing.T) {
 		t.Errorf("issue still unseen after MarkIssueSeen with GroupHash %q", hash)
 	}
 }
+
+func TestDailyCounts(t *testing.T) {
+	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+
+	at := func(t *testing.T, db *gorm.DB, when time.Time) string {
+		t.Helper()
+		event := makeErrorEvent(t, db, 1, "TypeError", "boom", "app.ts", 1)
+		if err := db.Model(event).Update("timestamp", when).Error; err != nil {
+			t.Fatalf("set timestamp: %v", err)
+		}
+		return event.IssueHash
+	}
+
+	t.Run("counts each day in the window, oldest first", func(t *testing.T) {
+		db := setupIssueTestDB(t)
+		hash := at(t, db, now.Add(-2*time.Hour))
+		at(t, db, now.Add(-3*time.Hour))
+		at(t, db, now.AddDate(0, 0, -3))
+
+		daily := dailyCounts(db, 1, []string{hash}, now, 14)[hash]
+
+		if len(daily) != 14 {
+			t.Fatalf("expected 14 days, got %d", len(daily))
+		}
+		if daily[13] != 2 {
+			t.Errorf("today: expected 2, got %d", daily[13])
+		}
+		if daily[10] != 1 {
+			t.Errorf("3 days ago: expected 1, got %d", daily[10])
+		}
+	})
+
+	t.Run("ignores errors older than the window", func(t *testing.T) {
+		db := setupIssueTestDB(t)
+		hash := at(t, db, now.AddDate(0, 0, -20))
+
+		daily := dailyCounts(db, 1, []string{hash}, now, 14)
+
+		if daily[hash] != nil {
+			t.Errorf("expected no counts, got %v", daily[hash])
+		}
+	})
+
+	t.Run("the issue list carries the counts", func(t *testing.T) {
+		db := setupIssueTestDB(t)
+		makeErrorEvent(t, db, 1, "TypeError", "boom", "app.ts", 1)
+
+		issues, err := ListIssuesWithState(db, 1, 50)
+
+		if err != nil {
+			t.Fatalf("ListIssuesWithState: %v", err)
+		}
+		var sum int64
+		for _, n := range issues[0].Daily {
+			sum += n
+		}
+		if len(issues[0].Daily) != 14 || sum != 1 {
+			t.Errorf("expected 14 days summing to 1, got %v", issues[0].Daily)
+		}
+	})
+}
+
+func TestGetIssuePaths(t *testing.T) {
+	onPath := func(t *testing.T, db *gorm.DB, path string) string {
+		t.Helper()
+		ctx := EventContext{ErrorClass: "TypeError", Error: "boom", ErrorFile: "app.ts", ErrorLine: 1, Path: path}
+		event := &Event{APIKeyID: 1, Timestamp: time.Now(), IsError: true, Message: "boom",
+			ErrorClass: "TypeError", ErrorMessage: "boom", ErrorFile: "app.ts", ErrorLine: 1}
+		if err := event.SetContext(&ctx); err != nil {
+			t.Fatalf("SetContext: %v", err)
+		}
+		PopulateErrorFields(event, &ctx)
+		if err := Create(db, event); err != nil {
+			t.Fatalf("Create event: %v", err)
+		}
+		return event.IssueHash
+	}
+
+	t.Run("counts errors per path, most first", func(t *testing.T) {
+		db := setupIssueTestDB(t)
+		hash := onPath(t, db, "/checkout")
+		onPath(t, db, "/checkout")
+		onPath(t, db, "/cart")
+
+		paths, err := GetIssuePaths(db, hash, 1, 20)
+
+		if err != nil {
+			t.Fatalf("GetIssuePaths: %v", err)
+		}
+		if len(paths) != 2 || paths[0].Path != "/checkout" || paths[0].Count != 2 || paths[1].Count != 1 {
+			t.Errorf("expected /checkout 2 then /cart 1, got %+v", paths)
+		}
+	})
+
+	t.Run("leaves out errors without a path", func(t *testing.T) {
+		db := setupIssueTestDB(t)
+		hash := onPath(t, db, "")
+
+		paths, _ := GetIssuePaths(db, hash, 1, 20)
+
+		if len(paths) != 0 {
+			t.Errorf("expected no paths, got %+v", paths)
+		}
+	})
+}

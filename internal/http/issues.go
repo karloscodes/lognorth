@@ -88,6 +88,12 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		alsoHappensAt, _ = events.GetRelatedLocations(db, first.ErrorHash1, hash, first.ErrorFile, app.ID)
 	}
 
+	// Where it happened: the issue's errors per endpoint.
+	paths, err := events.GetIssuePaths(db, hash, app.ID, 20)
+	if err != nil {
+		paths = []events.PathCount{}
+	}
+
 	events.MarkIssueSeen(db, hash)
 
 	// Load trace siblings for the top 20 entries
@@ -123,6 +129,7 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		"occurrences":   occurrences,
 		"traces":        traces,
 		"alsoHappensAt": alsoHappensAt,
+		"paths":         paths,
 		"appId":         app.ID,
 		"appName":       app.Name,
 		"applications":  apps,

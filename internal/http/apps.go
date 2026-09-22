@@ -195,11 +195,19 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch endpoints"})
 	}
 
+	// Endpoints alerting now, compared with their own history. The page marks
+	// these instead of coloring rows by a fixed error rate.
+	alerts, err := events.ListAlerts(db, app.ID)
+	if err != nil {
+		alerts = []events.Alert{}
+	}
+
 	return RenderPage(ctx.Ctx, "Endpoints", Props{
 		"appId":        app.ID,
 		"appName":      app.Name,
 		"applications": apps,
 		"endpoints":    endpoints,
+		"alerts":       alerts,
 	})
 }
 
