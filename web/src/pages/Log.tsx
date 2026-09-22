@@ -5,7 +5,7 @@ import { Layout } from '@/components/layout'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { getConfig, statusColor, methodColor, parseContext, PageHeader, Mono } from '@/lib/shared'
+import { getConfig, statusColor, parseContext, PageHeader, Mono } from '@/lib/shared'
 import type { Application, LogEntry } from '@/lib/shared'
 
 // Format as "Feb 25 20:15:07.152"

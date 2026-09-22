@@ -2,7 +2,7 @@ import React from 'react'
 import { formatDistanceToNow, format, eachDayOfInterval, subDays, differenceInDays } from 'date-fns'
 import { router } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
-import { Mono, Code, parseContext, getConfig, methodColor, statusColor } from '@/lib/shared'
+import { Mono, Code, parseContext, getConfig, statusColor } from '@/lib/shared'
 import type { Application, IssueDetail as IssueDetailType, OccurrencePoint, LogEntry, RelatedLocation } from '@/lib/shared'
 
 interface Props {
@@ -215,7 +215,7 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
               <div className={`p-1 ${requestConfig.colors}`}>
                 <ReqIcon className="w-3 h-3" />
               </div>
-              {requestCtx.method && <span className={`font-bold ${methodColor(requestCtx.method)}`}>{requestCtx.method}</span>}
+              {requestCtx.method && <span className={`font-bold text-foreground/50`}>{requestCtx.method}</span>}
               <span className="text-foreground/70">{requestCtx.path}</span>
               {requestCtx.status && <span className={`font-bold ${statusColor(requestCtx.status)}`}>{requestCtx.status}</span>}
               <span className="text-foreground/40 ml-auto shrink-0">{requestEntry.duration_ms}ms</span>
@@ -240,7 +240,7 @@ function InContextSection({ errorEntry, traceEntries, logPath }: { errorEntry: L
               </div>
               <span className={`truncate ${isCurrent ? 'text-foreground font-bold' : 'text-foreground/70'}`}>{eCtx.path || e.message}</span>
               {eCtx.error_file && <span className="text-foreground/40">{eCtx.error_file}{eCtx.error_line ? `:${eCtx.error_line}` : ''}</span>}
-              {eCtx.method && <span className={`font-bold ${methodColor(eCtx.method)}`}>{eCtx.method}</span>}
+              {eCtx.method && <span className={`font-bold text-foreground/50`}>{eCtx.method}</span>}
               {eCtx.status && <span className={`font-bold ${statusColor(eCtx.status)}`}>{eCtx.status}</span>}
               {e.duration_ms > 0 && <span className="text-foreground/40 ml-auto shrink-0">{e.duration_ms}ms</span>}
             </>
@@ -299,7 +299,7 @@ function TimelineEntry({ entry, appId, isFirst }: { entry: LogEntry; appId: numb
           ) : (
             <>
               {ctx.method && (
-                <span className={`font-mono text-sm font-black ${methodColor(ctx.method)}`}>{ctx.method}</span>
+                <span className={`font-mono text-sm font-black text-foreground/50`}>{ctx.method}</span>
               )}
               {ctx.status && (
                 <span className={`font-mono text-sm font-black ${statusColor(ctx.status)}`}>{ctx.status}</span>

@@ -58,14 +58,6 @@ export function EmptyState({
 }
 
 // List container with border and divide
-export function ListContainer({ children }: { children: ReactNode }) {
-  return (
-    <div className="bg-card border border-foreground/10 divide-y divide-foreground/10 overflow-hidden">
-      {children}
-    </div>
-  )
-}
-
 // === Types ===
 
 export interface Application {
@@ -187,11 +179,6 @@ export const statusColor = (status?: number) => {
   if (status >= 400) return 'text-foreground'
   return 'text-foreground/50'
 }
-
-// === HTTP Method Colors ===
-
-// Methods have no color decoration - status codes carry the semantic weight
-export const methodColor = (_method?: string) => 'text-foreground/50'
 
 // === Helper to parse context ===
 

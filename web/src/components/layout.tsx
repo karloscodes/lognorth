@@ -98,39 +98,8 @@ function LogoutButton() {
   )
 }
 
-interface NotificationItem {
-  id: string
-  title: string
-  body: string
-  expires: string
-}
-
-function getDismissedIds(): string[] {
-  return JSON.parse(localStorage.getItem('lognorth_dismissed_notifications') || '[]')
-}
-
-function getNotificationsByState(notifications: NotificationItem[]): { unread: NotificationItem[]; read: NotificationItem[] } {
-  const now = new Date().toISOString().slice(0, 10)
-  const dismissed = getDismissedIds()
-  const valid = notifications.filter(n => n.expires >= now)
-  return {
-    unread: valid.filter(n => !dismissed.includes(n.id)),
-    read: valid.filter(n => dismissed.includes(n.id)),
-  }
-}
-
-function dismissNotification(id: string) {
-  const dismissed: string[] = JSON.parse(localStorage.getItem('lognorth_dismissed_notifications') || '[]')
-  if (!dismissed.includes(id)) {
-    localStorage.setItem('lognorth_dismissed_notifications', JSON.stringify([...dismissed, id]))
-  }
-}
-
-function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notifications: NotificationItem[] }) {
+function FeedbackWidget() {
   const [open, setOpen] = useState(false)
-  const [state, setState] = useState(() => getNotificationsByState(notifications))
-  const [expandedRead, setExpandedRead] = useState<string | null>(null)
-  const hasNotifications = state.unread.length > 0
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -142,56 +111,21 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  const handleDismiss = (id: string) => {
-    dismissNotification(id)
-    setState(prev => {
-      const dismissed = prev.unread.find(n => n.id === id)
-      return {
-        unread: prev.unread.filter(n => n.id !== id),
-        read: dismissed ? [dismissed, ...prev.read] : prev.read,
-      }
-    })
-  }
-
   return (
     <div ref={ref} className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-3">
       <div className="group">
         {open && (
-          <div className="bg-card border border-foreground/10 shadow-lg rounded-xl p-4 w-80 text-sm mb-3 max-h-96 overflow-y-auto">
-            {state.unread.map((n, i) => (
-              <div key={n.id} className={i > 0 ? 'mt-3 pt-3 border-t border-foreground/10' : ''}>
-                <div className="flex items-start justify-between gap-2">
-                  <p className="font-semibold text-sm text-foreground mb-1">{n.title}</p>
-                  <button onClick={() => handleDismiss(n.id)} className="text-foreground/30 hover:text-foreground text-xs shrink-0">✕</button>
-                </div>
-                <p className="text-foreground/70 text-xs leading-relaxed whitespace-pre-wrap break-all">{n.body}</p>
-              </div>
-            ))}
-            {state.read.map((n, i) => (
-              <div
-                key={n.id}
-                className={`${state.unread.length > 0 || i > 0 ? 'mt-3 pt-3 border-t border-foreground/10' : ''} cursor-pointer`}
-                onClick={() => setExpandedRead(expandedRead === n.id ? null : n.id)}
-              >
-                <p className="text-sm text-foreground/40 hover:text-foreground/60 transition-colors">{n.title}</p>
-                {expandedRead === n.id && (
-                  <p className="text-foreground/40 text-xs leading-relaxed whitespace-pre-wrap break-all mt-1">{n.body}</p>
-                )}
-              </div>
-            ))}
-            {(state.unread.length > 0 || state.read.length > 0) && <div className="mt-3 pt-3 border-t border-foreground/10" />}
+          <div className="bg-card border border-foreground/10 shadow-lg p-4 w-80 text-sm mb-3">
             <p className="text-foreground/70 text-sm leading-relaxed mb-3">
               Something broken or an idea?
             </p>
             <div className="flex flex-col gap-2">
-              {!isDemo && (
-                <a
-                  href="mailto:karloscodes@suppyhq.com?subject=LogNorth feedback"
-                  className="font-semibold text-sm hover:underline"
-                >
-                  email me →
-                </a>
-              )}
+              <a
+                href="mailto:karloscodes@suppyhq.com?subject=LogNorth feedback"
+                className="font-semibold text-sm hover:underline"
+              >
+                email me →
+              </a>
               <a
                 href="https://github.com/karloscodes/karloscodes/issues/new/choose"
                 target="_blank"
@@ -204,21 +138,16 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
           </div>
         )}
         <div className="flex justify-end">
-          <div className="relative">
-            <div
-              onClick={() => setOpen(!open)}
-              className="rounded-full overflow-hidden w-14 h-14 ring-2 ring-white shadow-lg hover:scale-105 transition-transform cursor-pointer"
-            >
-              <img
-                src={avatarUrl}
-                alt="Carlos"
-                className="w-full h-full object-cover"
-                style={{ objectPosition: 'center 1%' }}
-              />
-            </div>
-            {hasNotifications && (
-              <span className="absolute top-0 right-0 w-4 h-4 bg-[#00D678]/100 rounded-full border-2 border-border animate-pulse" />
-            )}
+          <div
+            onClick={() => setOpen(!open)}
+            className="rounded-full overflow-hidden w-14 h-14 ring-2 ring-white shadow-lg hover:scale-105 transition-transform cursor-pointer"
+          >
+            <img
+              src={avatarUrl}
+              alt="Carlos"
+              className="w-full h-full object-cover"
+              style={{ objectPosition: 'center 1%' }}
+            />
           </div>
         </div>
       </div>
@@ -227,17 +156,10 @@ function FeedbackWidget({ isDemo, notifications = [] }: { isDemo: boolean; notif
 }
 
 export function Layout({ children, currentPath, appId, appName, applications }: LayoutProps) {
-  const { props } = usePage<{ isDemo?: boolean; notifications?: NotificationItem[]; licenseValid?: boolean }>()
+  const { props } = usePage<{ isDemo?: boolean; licenseValid?: boolean }>()
   const isDemo = props.isDemo ?? false
-  const notifications = props.notifications ?? []
   const licenseValid = props.licenseValid ?? true
   const isAppScoped = appId && appName && applications
-
-  const isActive = (path: string) => {
-    if (!currentPath) return false
-    if (path === '/') return currentPath === '/'
-    return currentPath.startsWith(path)
-  }
 
   // Get current app stats for nav indicator
   const currentApp = applications?.find(a => a.id === appId)
@@ -356,7 +278,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
         {children}
       </main>
 
-      {!isDemo && <FeedbackWidget isDemo={isDemo} notifications={notifications} />}
+      {!isDemo && <FeedbackWidget />}
     </div>
   )
 }

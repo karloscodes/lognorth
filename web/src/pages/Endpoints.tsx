@@ -159,13 +159,8 @@ function EndpointRow({ endpoint, appId }: { endpoint: EndpointStats; appId: numb
 }
 
 export default function Endpoints({ endpoints: endpointsProp, appId, appName, applications }: Props) {
-  // Sort by error rate (most broken first), then by error count
-  const endpoints = (endpointsProp || []).sort((a, b) => {
-    const rateA = a.total > 0 ? a.errors / a.total : 0
-    const rateB = b.total > 0 ? b.errors / b.total : 0
-    if (rateB !== rateA) return rateB - rateA
-    return b.errors - a.errors
-  })
+  // The server sends them most broken first.
+  const endpoints = endpointsProp || []
   const totalErrors = endpoints.reduce((sum, e) => sum + e.errors, 0)
   const totalRequests = endpoints.reduce((sum, e) => sum + e.total, 0)
   const overallErrorRate = totalRequests > 0 ? ((totalErrors / totalRequests) * 100).toFixed(1) : '0'
