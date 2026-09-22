@@ -93,7 +93,8 @@ func initialize(params json.RawMessage) map[string]any {
 }
 
 // Tools describes what an agent may do. The descriptions are written for the
-// agent reading them, so they say when to reach for each one.
+// agent reading them, so they say when to reach for each one. The order is the
+// order of an investigation.
 var Tools = []map[string]any{
 	{
 		"name":        "list_apps",
@@ -101,16 +102,52 @@ var Tools = []map[string]any{
 		"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
 	},
 	{
+		"name": "list_alerts",
+		"description": "What LogNorth is alerting on right now: endpoints whose error rate is above their normal level, " +
+			"endpoints whose traffic dropped, and apps that stopped answering their uptime ping. " +
+			"Each alert says when it started and what normal is. Start here when something is on fire.",
+		"inputSchema": map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"app_id": map[string]any{"type": "integer", "description": "Restrict to one app, from list_apps."}},
+		},
+	},
+	{
+		"name": "endpoint_timeline",
+		"description": "Requests, errors, and error rate for one endpoint over time, with its normal error rate and volume for this time of day. " +
+			"Use it to see when a problem started, then compare that time with deploys and commits. " +
+			"Steps are 5 minutes up to 24h back, 1 hour beyond that. History goes back 29 days.",
+		"inputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"path":   map[string]any{"type": "string", "description": "Endpoint path, e.g. /api/checkout."},
+				"app_id": map[string]any{"type": "integer", "description": "The app, from list_apps. Optional when only one app has this path."},
+				"since":  map[string]any{"type": "string", "description": "How far back: 30m, 6h, 7d. Default 6h."},
+			},
+			"required": []string{"path"},
+		},
+	},
+	{
+		"name": "list_issues",
+		"description": "List grouped errors with occurrence counts, trend, and when each was first and last seen. " +
+			"Start here when asked what is broken in production. Pass an issue's hash to search_logs to get its events.",
+		"inputSchema": map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"app_id": map[string]any{"type": "integer", "description": "Restrict to one app, from list_apps."}},
+		},
+	},
+	{
 		"name": "search_logs",
 		"description": "Search production request logs. Use this to find out what actually happened " +
 			"before an error: the failing requests, their status codes, durations, and context. " +
-			"Narrow with errors_only and since before raising the limit.",
+			"Narrow with errors_only, issue, and since before raising the limit.",
 		"inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"search":      map[string]any{"type": "string", "description": "Text to match in the message and context, e.g. a path or an error string."},
 				"errors_only": map[string]any{"type": "boolean", "description": "Only requests that failed. Default false."},
-				"since":       map[string]any{"type": "string", "description": "How far back to look: 15m, 2h, 7d. Default 1h."},
+				"issue":       map[string]any{"type": "string", "description": "An issue hash from list_issues: only the events of that issue."},
+				"since":       map[string]any{"type": "string", "description": "Start of the window: 15m, 2h, 7d ago, or an RFC 3339 time. Default 1h."},
+				"until":       map[string]any{"type": "string", "description": "End of the window, in the same forms as since. Default now."},
 				"app_id":      map[string]any{"type": "integer", "description": "Restrict to one app, from list_apps."},
 				"limit":       map[string]any{"type": "integer", "description": "Max events, 1 to 200. Default 20."},
 			},
@@ -119,20 +156,11 @@ var Tools = []map[string]any{
 	{
 		"name": "get_event",
 		"description": "Fetch one log event by id, with its full context and every other event sharing its trace. " +
-			"Use it after search_logs to see the whole request that failed.",
+			"Use it after search_logs to see the whole request that failed. error_file and error_line point at the code.",
 		"inputSchema": map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"id": map[string]any{"type": "integer", "description": "Event id from search_logs."}},
 			"required":   []string{"id"},
-		},
-	},
-	{
-		"name": "list_issues",
-		"description": "List grouped errors with occurrence counts and when each was last seen. " +
-			"Start here when asked what is broken in production.",
-		"inputSchema": map[string]any{
-			"type":       "object",
-			"properties": map[string]any{"app_id": map[string]any{"type": "integer", "description": "Restrict to one app, from list_apps."}},
 		},
 	},
 }
@@ -165,6 +193,10 @@ func runTool(db *gorm.DB, name string, args map[string]any) (any, error) {
 	switch name {
 	case "list_apps":
 		return listApps(db)
+	case "list_alerts":
+		return listAlerts(db, args)
+	case "endpoint_timeline":
+		return endpointTimeline(db, args)
 	case "search_logs":
 		return searchLogs(db, args)
 	case "get_event":
@@ -191,14 +223,20 @@ func listApps(db *gorm.DB) (any, error) {
 }
 
 func searchLogs(db *gorm.DB, args map[string]any) (any, error) {
-	since, err := parseSince(argString(args, "since"))
+	start, err := parseTime(argString(args, "since"), time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	end, err := parseTime(argString(args, "until"), 0)
 	if err != nil {
 		return nil, err
 	}
 
 	filters := events.ListFilters{
 		Search:    argString(args, "search"),
-		StartTime: time.Now().Add(-since),
+		ErrorHash: argString(args, "issue"),
+		StartTime: start,
+		EndTime:   end,
 		Limit:     clampLimit(argInt(args, "limit")),
 		APIKeyID:  uint(argInt(args, "app_id")),
 	}
@@ -212,6 +250,104 @@ func searchLogs(db *gorm.DB, args map[string]any) (any, error) {
 	}
 
 	return map[string]any{"events": found, "total": total}, nil
+}
+
+func listAlerts(db *gorm.DB, args map[string]any) (any, error) {
+	appID := uint(argInt(args, "app_id"))
+
+	alerts, err := events.ListAlerts(db, appID)
+	if err != nil {
+		return nil, fmt.Errorf("could not read the alerts: %w", err)
+	}
+
+	// Uptime lives on the app: the ping to its URL failed.
+	keys, err := apikeys.List(db)
+	if err != nil {
+		return nil, fmt.Errorf("could not read the apps: %w", err)
+	}
+	down := []map[string]any{}
+	for _, k := range keys {
+		if k.IsDown && (appID == 0 || k.ID == appID) {
+			down = append(down, map[string]any{
+				"app_id":   k.ID,
+				"app":      k.Name,
+				"url":      k.PingURL,
+				"since":    k.DownSince,
+				"severity": "critical",
+				"summary":  k.PingURL + " is not answering its uptime ping.",
+			})
+		}
+	}
+
+	return map[string]any{"alerts": alerts, "down": down}, nil
+}
+
+func endpointTimeline(db *gorm.DB, args map[string]any) (any, error) {
+	path := argString(args, "path")
+	if path == "" {
+		return nil, fmt.Errorf("path is required, e.g. /api/checkout")
+	}
+	appID, err := resolveApp(db, uint(argInt(args, "app_id")), path)
+	if err != nil {
+		return nil, err
+	}
+
+	since := argString(args, "since")
+	if since == "" {
+		since = "6h"
+	}
+	from, err := parseTime(since, 0)
+	if err != nil {
+		return nil, err
+	}
+	if oldest := time.Now().Add(-events.StatsRetention); from.Before(oldest) {
+		from = oldest
+	}
+	step := 5 * time.Minute
+	if time.Since(from) > 24*time.Hour {
+		step = time.Hour
+	}
+
+	points, err := events.GetTimeline(db, appID, path, from.UTC(), time.Now().UTC(), step)
+	if err != nil {
+		return nil, fmt.Errorf("could not read the timeline: %w", err)
+	}
+	at := events.LastCompleteBucketTime()
+	errorRate, _ := events.GetErrorRateBaseline(db, appID, path, at)
+	volume, _ := events.GetVolumeBaseline(db, appID, path, at)
+
+	return map[string]any{
+		"app_id":       appID,
+		"path":         path,
+		"step_minutes": int(step.Minutes()),
+		"normal": map[string]any{
+			"error_rate":       errorRate.Rate,
+			"requests_per_5m":  volume.Median,
+			"history_is_ready": errorRate.Ready(),
+		},
+		"points": points,
+	}, nil
+}
+
+// resolveApp returns the app to read. The app_id may be left out when only
+// one app has traffic on the path.
+func resolveApp(db *gorm.DB, appID uint, path string) (uint, error) {
+	if appID > 0 {
+		return appID, nil
+	}
+
+	ids, err := events.AppsWithPath(db, path)
+	if err != nil {
+		return 0, fmt.Errorf("could not read the endpoints: %w", err)
+	}
+	switch len(ids) {
+	case 0:
+		return 0, fmt.Errorf("no traffic on %s in the last 29 days", path)
+	case 1:
+		return ids[0], nil
+	default:
+		return 0, fmt.Errorf("%d apps have traffic on %s: pass app_id, from list_apps", len(ids), path)
+	}
 }
 
 func getEvent(db *gorm.DB, args map[string]any) (any, error) {
@@ -258,24 +394,40 @@ func clampLimit(limit int) int {
 	}
 }
 
-// parseSince accepts Go durations plus a day suffix, because an agent asked
-// for last week's errors writes "7d", not "168h".
-func parseSince(s string) (time.Duration, error) {
+// parseTime reads a point in time: a duration ago (Go durations plus a day
+// suffix, because an agent asked for last week's errors writes "7d", not
+// "168h"), or an RFC 3339 time. Empty means `fallback` ago; a zero fallback
+// means no bound.
+func parseTime(s string, fallback time.Duration) (time.Time, error) {
 	if s == "" {
-		return time.Hour, nil
+		if fallback == 0 {
+			return time.Time{}, nil
+		}
+		return time.Now().Add(-fallback), nil
 	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+
+	d, err := parseDuration(s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("could not read %q: try 15m, 2h, 7d, or an RFC 3339 time", s)
+	}
+	return time.Now().Add(-d), nil
+}
+
+func parseDuration(s string) (time.Duration, error) {
 	if days, ok := strings.CutSuffix(s, "d"); ok {
 		n, err := strconv.Atoi(days)
 		if err != nil || n <= 0 {
-			return 0, fmt.Errorf("could not read since=%q: try 15m, 2h, or 7d", s)
+			return 0, fmt.Errorf("bad day count")
 		}
 		return time.Duration(n) * 24 * time.Hour, nil
 	}
 	d, err := time.ParseDuration(s)
 	if err != nil || d <= 0 {
-		return 0, fmt.Errorf("could not read since=%q: try 15m, 2h, or 7d", s)
+		return 0, fmt.Errorf("bad duration")
 	}
-
 	return d, nil
 }
 

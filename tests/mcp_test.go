@@ -62,6 +62,8 @@ func setupMCPTestApp(t *testing.T) *mcpTestApp {
 		"ingested": func() error { return events.AutoMigrateIngested(db) },
 		"issues":   func() error { return events.AutoMigrateIssues(db) },
 		"stats":    func() error { return events.AutoMigrateStats(db) },
+		"spc":      func() error { return events.AutoMigrateSPC(db) },
+		"spikes":   func() error { return db.AutoMigrate(&events.SpikeState{}) },
 	} {
 		if err := migrate(); err != nil {
 			t.Fatalf("Failed to migrate %s: %v", name, err)
@@ -277,7 +279,7 @@ func TestMCPToolsList(t *testing.T) {
 		} `json:"result"`
 	}
 	json.Unmarshal([]byte(body), &res)
-	want := []string{"list_apps", "search_logs", "get_event", "list_issues"}
+	want := []string{"list_apps", "list_alerts", "endpoint_timeline", "list_issues", "search_logs", "get_event"}
 	if len(res.Result.Tools) != len(want) {
 		t.Fatalf("listed %d tools, want %d", len(res.Result.Tools), len(want))
 	}

@@ -39,6 +39,15 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	if err := events.AutoMigrateIssues(db); err != nil {
 		t.Fatalf("Failed to migrate issues: %v", err)
 	}
+	if err := events.AutoMigrateStats(db); err != nil {
+		t.Fatalf("Failed to migrate stats: %v", err)
+	}
+	if err := events.AutoMigrateSPC(db); err != nil {
+		t.Fatalf("Failed to migrate SPC tables: %v", err)
+	}
+	if err := db.AutoMigrate(&events.SpikeState{}); err != nil {
+		t.Fatalf("Failed to migrate spike states: %v", err)
+	}
 
 	return db
 }
@@ -171,7 +180,7 @@ func TestToolsList(t *testing.T) {
 	if !ok {
 		t.Fatalf("tools = %T, want a list", result["tools"])
 	}
-	want := []string{"list_apps", "search_logs", "get_event", "list_issues"}
+	want := []string{"list_apps", "list_alerts", "endpoint_timeline", "list_issues", "search_logs", "get_event"}
 	if len(listed) != len(want) {
 		t.Fatalf("listed %d tools, want %d", len(listed), len(want))
 	}
@@ -272,6 +281,58 @@ func TestSearchLogs(t *testing.T) {
 		}
 	})
 
+	t.Run("issue keeps only the events of that issue", func(t *testing.T) {
+		db := setupTestDB(t)
+		seedApp(t, db, "checkout-prod")
+
+		result := call(t, db, "tools/call", `{"name":"search_logs","arguments":{"issue":"pay-declined"}}`)
+
+		text := toolText(t, result)
+		if !strings.Contains(text, "POST /pay") {
+			t.Errorf("text = %q, want the event of the issue", text)
+		}
+		if strings.Contains(text, "/health") {
+			t.Errorf("text = %q, want other events left out", text)
+		}
+	})
+
+	t.Run("until ends the window", func(t *testing.T) {
+		db := setupTestDB(t)
+		key, _, _ := apikeys.Create(db, "checkout-prod")
+		events.Create(db, &events.Event{
+			APIKeyID:  key.ID,
+			Message:   "GET /old 200",
+			Timestamp: time.Now().Add(-3 * time.Hour),
+		})
+
+		before := call(t, db, "tools/call", `{"name":"search_logs","arguments":{"since":"1d","until":"4h"}}`)
+		after := call(t, db, "tools/call", `{"name":"search_logs","arguments":{"since":"1d","until":"2h"}}`)
+
+		if text := toolText(t, before); strings.Contains(text, "/old") {
+			t.Errorf("text = %q, want the event after until left out", text)
+		}
+		if text := toolText(t, after); !strings.Contains(text, "/old") {
+			t.Errorf("text = %q, want the event inside the window", text)
+		}
+	})
+
+	t.Run("since takes an RFC 3339 time", func(t *testing.T) {
+		db := setupTestDB(t)
+		key, _, _ := apikeys.Create(db, "checkout-prod")
+		events.Create(db, &events.Event{
+			APIKeyID:  key.ID,
+			Message:   "GET /old 200",
+			Timestamp: time.Now().Add(-3 * time.Hour),
+		})
+		since := time.Now().Add(-4 * time.Hour).UTC().Format(time.RFC3339)
+
+		result := call(t, db, "tools/call", `{"name":"search_logs","arguments":{"since":"`+since+`"}}`)
+
+		if text := toolText(t, result); !strings.Contains(text, "/old") {
+			t.Errorf("text = %q, want the event after the given time", text)
+		}
+	})
+
 	t.Run("rejects a since it cannot read", func(t *testing.T) {
 		db := setupTestDB(t)
 
@@ -348,6 +409,115 @@ func TestListIssues(t *testing.T) {
 	if text := toolText(t, result); !strings.Contains(text, "issues") {
 		t.Errorf("text = %q, want an issues list", text)
 	}
+}
+
+func TestListAlerts(t *testing.T) {
+	t.Run("returns the endpoints alerting now", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		db.Create(&events.SpikeState{APIKeyID: appID, Path: "/pay", Severity: "critical", SpikeStartAt: time.Now(), ErrorCount: 42})
+		db.Create(&events.SpikeState{APIKeyID: appID, Path: "/health"})
+
+		result := call(t, db, "tools/call", `{"name":"list_alerts","arguments":{}}`)
+
+		var payload struct {
+			Alerts []events.Alert `json:"alerts"`
+		}
+		json.Unmarshal([]byte(toolText(t, result)), &payload)
+		if len(payload.Alerts) != 1 {
+			t.Fatalf("alerts = %+v, want only the alerting endpoint", payload.Alerts)
+		}
+		alert := payload.Alerts[0]
+		if alert.Path != "/pay" || alert.Kind != "error_rate" || alert.Severity != "critical" {
+			t.Errorf("alert = %+v, want a critical error rate alert on /pay", alert)
+		}
+		if !strings.Contains(alert.Summary, "42 errors") {
+			t.Errorf("summary = %q, want the error count", alert.Summary)
+		}
+	})
+
+	t.Run("returns apps that stopped answering their ping", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		db.Model(&apikeys.APIKey{}).Where("id = ?", appID).
+			Updates(map[string]any{"ping_url": "https://shop.example.com/up", "is_down": true, "down_since": time.Now()})
+
+		result := call(t, db, "tools/call", `{"name":"list_alerts","arguments":{}}`)
+
+		if text := toolText(t, result); !strings.Contains(text, "https://shop.example.com/up") {
+			t.Errorf("text = %q, want the app that is down", text)
+		}
+	})
+}
+
+func TestEndpointTimeline(t *testing.T) {
+	record := func(db *gorm.DB, appID uint, path string, at time.Time, total, errors int64) {
+		db.Create(&events.EndpointStat{APIKeyID: appID, Path: path, Bucket: at, Total: total, Errors: errors})
+	}
+
+	t.Run("returns the traffic in 5-minute steps", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		at := events.LastCompleteBucketTime()
+		record(db, appID, "/pay", at, 100, 5)
+
+		result := call(t, db, "tools/call", `{"name":"endpoint_timeline","arguments":{"path":"/pay","since":"1h"}}`)
+
+		var payload struct {
+			StepMinutes int                    `json:"step_minutes"`
+			Points      []events.TimelinePoint `json:"points"`
+		}
+		json.Unmarshal([]byte(toolText(t, result)), &payload)
+		if payload.StepMinutes != 5 {
+			t.Errorf("step = %d, want 5 minutes", payload.StepMinutes)
+		}
+		var found bool
+		for _, p := range payload.Points {
+			if p.At.Equal(at) {
+				found = p.Requests == 100 && p.Errors == 5 && p.ErrorRate == 5
+			}
+		}
+		if !found {
+			t.Errorf("points = %+v, want 100 requests and 5 errors at %s", payload.Points, at)
+		}
+		if len(payload.Points) < 12 {
+			t.Errorf("got %d points, want the empty steps too", len(payload.Points))
+		}
+	})
+
+	t.Run("uses 1-hour steps beyond a day", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		record(db, appID, "/pay", events.LastCompleteBucketTime(), 100, 5)
+
+		result := call(t, db, "tools/call", `{"name":"endpoint_timeline","arguments":{"path":"/pay","since":"3d"}}`)
+
+		if text := toolText(t, result); !strings.Contains(text, `"step_minutes":60`) {
+			t.Errorf("text = %q, want hourly steps", text)
+		}
+	})
+
+	t.Run("asks for app_id when two apps share the path", func(t *testing.T) {
+		db := setupTestDB(t)
+		record(db, seedApp(t, db, "checkout-prod"), "/pay", events.LastCompleteBucketTime(), 100, 5)
+		record(db, seedApp(t, db, "checkout-staging"), "/pay", events.LastCompleteBucketTime(), 10, 0)
+
+		result := call(t, db, "tools/call", `{"name":"endpoint_timeline","arguments":{"path":"/pay"}}`)
+
+		if text := toolErrorText(t, result); !strings.Contains(text, "app_id") {
+			t.Errorf("text = %q, want a request for app_id", text)
+		}
+	})
+
+	t.Run("requires a path", func(t *testing.T) {
+		db := setupTestDB(t)
+
+		result := call(t, db, "tools/call", `{"name":"endpoint_timeline","arguments":{}}`)
+
+		if text := toolErrorText(t, result); !strings.Contains(text, "path") {
+			t.Errorf("text = %q, want the missing path named", text)
+		}
+	})
 }
 
 func TestUnknownToolAndMethod(t *testing.T) {

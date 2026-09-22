@@ -85,5 +85,6 @@ claude mcp add --transport http lognorth http://localhost:8080/mcp \
   --header "Authorization: Bearer lgn-agent-..."
 ```
 
-Tools: `list_apps`, `search_logs`, `get_event`, `list_issues`. All read-only.
+Tools: `list_apps`, `list_alerts`, `endpoint_timeline`, `list_issues`,
+`search_logs`, `get_event`. All read-only.
 The protocol lives in `internal/mcp`; the handler is `internal/http/mcp.go`.
