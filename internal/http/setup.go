@@ -8,6 +8,7 @@ import (
 	"github.com/karloscodes/cartridge/flash"
 
 	"lognorth/internal/apikeys"
+	"lognorth/internal/config"
 	"lognorth/internal/events"
 )
 
@@ -34,13 +35,21 @@ func SetupPageAction(ctx *cartridge.Context) error {
 		keys = []apikeys.APIKey{}
 	}
 
+	// The public demo shows the page but not the keys: anyone could copy one
+	// and post events into the demo.
+	isDemo := config.GetConfig().IsDemo()
+
 	// Enrich with stats
 	apps := make([]AppForSetup, 0, len(keys))
 	for _, k := range keys {
+		key := k.Key
+		if isDemo {
+			key = ""
+		}
 		app := AppForSetup{
 			ID:           k.ID,
 			Name:         k.Name,
-			Key:          k.Key,
+			Key:          key,
 			KeyPrefix:    k.KeyPrefix,
 			Active:       k.Active,
 			PingURL:      k.PingURL,

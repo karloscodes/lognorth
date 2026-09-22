@@ -318,3 +318,20 @@ func TestLoginLastsNinetyDays(t *testing.T) {
 	}
 	t.Fatal("login set no session cookie")
 }
+
+func TestDemoHidesAPIKeys(t *testing.T) {
+	t.Setenv("LOGNORTH_DEMO", "true")
+	sa := setupSecurityApp(t)
+	users.CreateUser(sa.db, "demo@lognorth.com", "demo")
+	_, fullKey, _ := apikeys.Create(sa.db, "shop")
+
+	res := sa.do("GET", "/apps", nil, nil)
+
+	body, _ := io.ReadAll(res.Body)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /apps = %d, want the page", res.StatusCode)
+	}
+	if strings.Contains(string(body), fullKey) {
+		t.Error("the demo Apps page shows a working ingest key")
+	}
+}
