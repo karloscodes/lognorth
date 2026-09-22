@@ -13,7 +13,10 @@ import (
 	"lognorth/internal/settings"
 )
 
-// DigestSender sends daily digest emails.
+// digestHour is the earliest hour, server time (UTC), the digest goes out.
+const digestHour = 9
+
+// DigestSender sends the daily digest of warnings.
 type DigestSender struct {
 	lastSentDate string
 }
@@ -31,21 +34,11 @@ func (j *DigestSender) ProcessBatch(ctx *cartridge.JobContext) error {
 		return nil
 	}
 
-	// Get timezone
-	loc, err := time.LoadLocation(s.DigestTimezone)
-	if err != nil {
-		loc = time.UTC
-	}
-
-	now := time.Now().In(loc)
+	// Once a day, at the first hour from digestHour that is outside quiet
+	// hours (CanNotify above already returned while they are on).
+	now := time.Now()
 	today := now.Format("2006-01-02")
-
-	// Only send once per day at the configured hour
-	if j.lastSentDate == today {
-		return nil
-	}
-
-	if now.Hour() != s.DigestHour {
+	if j.lastSentDate == today || now.Hour() < digestHour {
 		return nil
 	}
 
@@ -60,7 +53,7 @@ func (j *DigestSender) ProcessBatch(ctx *cartridge.JobContext) error {
 	subject := fmt.Sprintf("Daily digest, %s", now.Format("Jan 2"))
 	body := j.buildDigestBody(db, items, s)
 
-	if err := s.SendEmail(subject, body); err != nil {
+	if err := s.SendNotification(subject, body); err != nil {
 		ctx.Logger.Error("Failed to send digest", "error", err)
 		return err
 	}

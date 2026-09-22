@@ -44,6 +44,7 @@ type APIKey struct {
 	PingURL          string    `gorm:"size:500" json:"ping_url"`
 	PingDisabled     bool      `gorm:"default:false" json:"ping_disabled"`
 	IsDown           bool      `gorm:"default:false" json:"is_down"`
+	DownNotified     bool      `gorm:"default:false" json:"-"` // The down alert went out
 	ConsecutiveFails int       `gorm:"default:0" json:"consecutive_fails"`
 	DownSince        time.Time `json:"down_since,omitempty"`
 	LastPingedAt     time.Time `json:"last_pinged_at,omitempty"`

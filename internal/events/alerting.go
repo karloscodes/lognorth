@@ -140,7 +140,7 @@ func (e *AlertEngine) sendAlert(typ alertType, appName string, event *Event, dur
 	case alertNewError:
 		subject = fmt.Sprintf("%s — new: %s", appName, short)
 	case alertRegression:
-		if dur := formatDuration(duration); dur != "" {
+		if dur := FormatDuration(duration); dur != "" {
 			subject = fmt.Sprintf("%s — back after %s: %s", appName, dur, short)
 		} else {
 			subject = fmt.Sprintf("%s — back: %s", appName, short)
@@ -204,10 +204,10 @@ func formatLocation(errorFile string, errorLine int) string {
 // HELPERS
 // =============================================================================
 
-// formatDuration renders a duration as a compact "15m" / "2h" / "3d" string.
+// FormatDuration renders a duration as a compact "15m" / "2h" / "3d" string.
 // Returns "" for non-positive or absurd values (e.g. int64 overflow from a
 // zero-valued timestamp, which lands at ~292 years).
-func formatDuration(d time.Duration) string {
+func FormatDuration(d time.Duration) string {
 	if d <= 0 || d > 365*24*time.Hour {
 		return ""
 	}
