@@ -96,42 +96,6 @@ func TestCreate(t *testing.T) {
 	}
 }
 
-func TestValidate(t *testing.T) {
-	db := setupTestDB(t)
-
-	t.Run("valid key", func(t *testing.T) {
-		_, fullKey, _ := Create(db, "Test")
-
-		validated, err := Validate(db, fullKey)
-
-		if err != nil {
-			t.Fatalf("Validate failed: %v", err)
-		}
-		if validated.Name != "Test" {
-			t.Errorf("expected name 'Test', got %s", validated.Name)
-		}
-	})
-
-	t.Run("invalid key", func(t *testing.T) {
-		_, err := Validate(db, "lb_invalid_key_that_does_not_exist")
-
-		if err == nil {
-			t.Error("expected error for invalid key")
-		}
-	})
-
-	t.Run("revoked key", func(t *testing.T) {
-		apiKey, fullKey, _ := Create(db, "Revoked")
-		Revoke(db, apiKey.ID)
-
-		_, err := Validate(db, fullKey)
-
-		if err == nil {
-			t.Error("expected error for revoked key")
-		}
-	})
-}
-
 func TestRevoke(t *testing.T) {
 	db := setupTestDB(t)
 	apiKey, _, _ := Create(db, "ToRevoke")

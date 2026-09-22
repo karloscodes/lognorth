@@ -90,22 +90,6 @@ func Create(db *gorm.DB, name string) (*APIKey, string, error) {
 }
 
 
-// Validate checks if an API key is valid and active (any type)
-func Validate(db *gorm.DB, key string) (*APIKey, error) {
-	var apiKey APIKey
-	if err := db.Where("key = ? AND active = ?", key, true).First(&apiKey).Error; err != nil {
-		return nil, err
-	}
-
-	// Update last used timestamp
-	// At most one write per minute per key: ingest is the hot path.
-	if time.Since(apiKey.LastUsed) > time.Minute {
-		db.Model(&apiKey).Update("last_used", time.Now())
-	}
-
-	return &apiKey, nil
-}
-
 // ValidateAppKey checks if an API key is valid, active, and is an app key (for ingestion)
 func ValidateAppKey(db *gorm.DB, key string) (*APIKey, error) {
 	var apiKey APIKey

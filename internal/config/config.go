@@ -20,13 +20,12 @@ const (
 
 // Config holds all configuration parameters for the application
 type Config struct {
-	AppName        string
-	AppPort        string
-	Environment    string
-	PrivateKey     string
-	StoragePath    string
-	Domain         string
-	ManagerVersion string
+	AppName     string
+	AppPort     string
+	Environment string
+	PrivateKey  string
+	StoragePath string
+	Domain      string
 }
 
 var (
@@ -42,13 +41,12 @@ func GetConfig() *Config {
 		privateKey := getPrivateKey(env, storagePath)
 
 		cfg = &Config{
-			AppName:        getEnv("LOGNORTH_APP_NAME", "lognorth"),
-			AppPort:        getEnv("LOGNORTH_PORT", "8080"),
-			Environment:    env,
-			PrivateKey:     privateKey,
-			StoragePath:    storagePath,
-			Domain:         os.Getenv("LOGNORTH_DOMAIN"),
-			ManagerVersion: os.Getenv("MATCHA_MANAGER_VERSION"),
+			AppName:     getEnv("LOGNORTH_APP_NAME", "lognorth"),
+			AppPort:     getEnv("LOGNORTH_PORT", "8080"),
+			Environment: env,
+			PrivateKey:  privateKey,
+			StoragePath: storagePath,
+			Domain:      os.Getenv("LOGNORTH_DOMAIN"),
 		}
 	})
 	return cfg
@@ -202,7 +200,6 @@ func (c *Config) GetLogMaxAgeDays() int {
 	return 30
 }
 
-
 // GetBaseURL returns the base URL for links in notifications
 func (c *Config) GetBaseURL() string {
 	if c.Domain != "" {
@@ -217,11 +214,6 @@ func (c *Config) GetBaseURL() string {
 // IsDemo returns true if the application is running in demo mode
 func (c *Config) IsDemo() bool {
 	return os.Getenv("LOGNORTH_DEMO") == "true"
-}
-
-// CLINeedsUpdate returns true when the CLI binary version is unknown
-func (c *Config) CLINeedsUpdate() bool {
-	return c.ManagerVersion == "" || c.ManagerVersion == "dev"
 }
 
 // Reset clears the cached configuration; intended for tests

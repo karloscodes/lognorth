@@ -41,10 +41,6 @@ func RenderPage(c *fiber.Ctx, component string, props inertia.Props) error {
 		props["isDemo"] = true
 	}
 
-	if notifications := systemNotifications(cfg); len(notifications) > 0 {
-		props["notifications"] = notifications
-	}
-
 	// Surface license status to the layout so it can warn when events
 	// are arriving but not being processed.
 	if _, exists := props["licenseValid"]; !exists {
@@ -52,28 +48,4 @@ func RenderPage(c *fiber.Ctx, component string, props inertia.Props) error {
 	}
 
 	return inertia.RenderPage(c, component, props)
-}
-
-// Notification represents a system message shown in the feedback widget.
-type Notification struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Body    string `json:"body"`
-	Expires string `json:"expires"` // ISO 8601 date, e.g. "2026-04-22"
-}
-
-// systemNotifications returns active notifications for the current state.
-func systemNotifications(cfg *config.Config) []Notification {
-	var notifications []Notification
-
-	if cfg.CLINeedsUpdate() {
-		notifications = append(notifications, Notification{
-			ID:      "cli-selfupdate-fix-2026-03",
-			Title:   "CLI update available",
-			Body:    "If you are using the LogNorth manager, run this command on your server to patch a self-updating issue:\n\ncurl -fsSL https://github.com/karloscodes/lognorth-releases/releases/latest/download/lognorth-linux-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') -o /tmp/lognorth && chmod +x /tmp/lognorth && sudo mv /tmp/lognorth /usr/local/bin/lognorth",
-			Expires: "2026-04-22",
-		})
-	}
-
-	return notifications
 }

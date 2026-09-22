@@ -110,28 +110,6 @@ func CreateUser(db *gorm.DB, email, password string) error {
 	})
 }
 
-// ChangePassword updates a user's password
-func ChangePassword(db *gorm.DB, email, password string) error {
-	if password == "" {
-		return errors.New("password cannot be empty")
-	}
-
-	user, err := FindByEmail(db, email)
-	if err != nil {
-		return err
-	}
-
-	hashedPassword, err := crypto.GeneratePasswordHash(password)
-	if err != nil {
-		return err
-	}
-
-	logger := slog.Default()
-	return sqlite.PerformWrite(logger, db, func(tx *gorm.DB) error {
-		return tx.Model(user).Update("encrypted_password", string(hashedPassword)).Error
-	})
-}
-
 // Count returns the number of users
 func Count(db *gorm.DB) (int64, error) {
 	var count int64

@@ -59,13 +59,6 @@ type Settings struct {
 	LicenseStatus string `gorm:"size:20" json:"license_status"` // valid, invalid, expired, or empty
 	LicenseEmail  string `gorm:"size:255" json:"license_email"`
 
-	// Legacy fields - kept for migration compatibility
-	NotifyNewErrors   bool   `json:"-"`
-	NotifyRegressions bool   `json:"-"`
-	NotifySpikes      bool   `json:"-"`
-	SpikeThreshold    int    `json:"-"`
-	DigestHour        int    `json:"-"`
-	DigestTimezone    string `gorm:"size:50" json:"-"`
 }
 
 // TableName specifies the table name
@@ -256,11 +249,6 @@ func (s *Settings) sendViaTelegram(title, message string) error {
 	return nil
 }
 
-// SendEmail is a compatibility wrapper for SendNotification
-func (s *Settings) SendEmail(subject, body string) error {
-	return s.SendNotification(subject, body)
-}
-
 // GenerateAgentKey creates a new agent API key
 func GenerateAgentKey() (string, error) {
 	bytes := make([]byte, 32)
@@ -347,11 +335,6 @@ func ValidateAgentKey(db *gorm.DB, key string) error {
 	}
 
 	return nil
-}
-
-// HasAgentKey returns true if an agent key is configured
-func (s *Settings) HasAgentKey() bool {
-	return s.AgentKey != ""
 }
 
 // GetRetentionDuration returns the data retention period as time.Duration

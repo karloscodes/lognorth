@@ -61,31 +61,8 @@ func (r *IngestRequest) Validate() error {
 // DeriveIsError determines if this is an error event
 // Based on error_type, context.error_class, context.error, or context.status >= 500
 func (r *IngestRequest) DeriveIsError() bool {
-	// Check for error_type (top-level, legacy)
-	if r.ErrorType != "" {
-		return true
-	}
-	if r.Context == nil {
-		return false
-	}
-	// Check for error_class in context (new SDKs)
-	if ec, ok := r.Context["error_class"]; ok && ec != nil && ec != "" {
-		return true
-	}
-	// Check for error field
-	if err, ok := r.Context["error"]; ok && err != nil && err != "" {
-		return true
-	}
-	// Check for status >= 500
-	if status, ok := r.Context["status"]; ok {
-		switch v := status.(type) {
-		case float64:
-			return v >= 500
-		case int:
-			return v >= 500
-		}
-	}
-	return false
+	// error_type is the legacy top-level field; everything else lives in context.
+	return r.ErrorType != "" || events.IsErrorContext(r.Context)
 }
 
 // IngestAction handles POST /api/v1/events

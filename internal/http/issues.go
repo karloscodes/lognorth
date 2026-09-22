@@ -8,7 +8,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
-	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 )
 
@@ -26,30 +25,6 @@ func parseTimestamp(s string) time.Time {
 		}
 	}
 	return time.Time{}
-}
-
-// IssuesPageAction handles GET /issues
-func IssuesPageAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-
-	// Get applications list
-	keys, _ := apikeys.List(db)
-	apps := make([]Application, 0, len(keys))
-	for _, k := range keys {
-		if k.Active {
-			apps = append(apps, Application{ID: k.ID, Name: k.Name})
-		}
-	}
-
-	issues, err := events.ListIssuesWithState(db, 0, 100) // 0 = all apps
-	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch issues"})
-	}
-
-	return RenderPage(ctx.Ctx, "Issues", Props{
-		"applications": apps,
-		"issues":       issues,
-	})
 }
 
 // IssueDetailPageAction handles GET /issues/:hash - redirects to app-scoped issue page

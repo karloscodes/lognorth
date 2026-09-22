@@ -2,8 +2,6 @@ package http
 
 import (
 	"context"
-	"fmt"
-	"net/smtp"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
@@ -209,37 +207,6 @@ func TestNotificationAction(ctx *cartridge.Context) error {
 	}
 
 	return ctx.Ctx.JSON(fiber.Map{"success": true, "message": "Test notification sent"})
-}
-
-// TestSMTPAction handles POST /settings/test-smtp (legacy, redirects to TestNotificationAction)
-func TestSMTPAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-
-	s, err := settings.Get(db)
-	if err != nil {
-		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
-	}
-
-	if !s.IsEmailConfigured() {
-		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "SMTP not configured"})
-	}
-
-	addr := fmt.Sprintf("%s:%d", s.SMTPHost, s.SMTPPort)
-
-	var auth smtp.Auth
-	if s.SMTPUsername != "" && s.SMTPPassword != "" {
-		auth = smtp.PlainAuth("", s.SMTPUsername, s.SMTPPassword, s.SMTPHost)
-	}
-
-	to := []string{s.SMTPFrom}
-	msg := []byte("Subject: LogNorth Test Email\r\n\r\nThis is a test email from LogNorth. If you received this, SMTP is configured correctly.")
-
-	err = smtp.SendMail(addr, auth, s.SMTPFrom, to, msg)
-	if err != nil {
-		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	return ctx.Ctx.JSON(fiber.Map{"success": true, "message": "Test email sent to " + s.SMTPFrom})
 }
 
 // CreateAgentKeyAction handles POST /settings/agent-key

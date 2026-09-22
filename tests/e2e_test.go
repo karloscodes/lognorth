@@ -66,7 +66,7 @@ func TestAPIKeyValidation(t *testing.T) {
 
 	_, fullKey, _ := apikeys.Create(db, "Production")
 
-	validated, err := apikeys.Validate(db, fullKey)
+	validated, err := apikeys.ValidateAppKey(db, fullKey)
 
 	if err != nil {
 		t.Fatalf("Failed to validate API key: %v", err)
@@ -139,7 +139,7 @@ func TestIngestionAPI(t *testing.T) {
 		}
 		apiKey := authHeader[7:] // Remove "Bearer "
 
-		_, err := apikeys.Validate(db, apiKey)
+		_, err := apikeys.ValidateAppKey(db, apiKey)
 		if err != nil {
 			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
 		}
@@ -244,7 +244,7 @@ func TestIngestionBatch(t *testing.T) {
 		authHeader := c.Get("Authorization")
 		apiKey := authHeader[7:]
 
-		_, err := apikeys.Validate(db, apiKey)
+		_, err := apikeys.ValidateAppKey(db, apiKey)
 		if err != nil {
 			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
 		}
@@ -400,7 +400,7 @@ func TestCompleteSystemFlow(t *testing.T) {
 		}
 		apiKey := authHeader[7:]
 
-		validatedKey, err := apikeys.Validate(db, apiKey)
+		validatedKey, err := apikeys.ValidateAppKey(db, apiKey)
 		if err != nil {
 			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
 		}

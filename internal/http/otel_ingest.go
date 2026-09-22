@@ -110,29 +110,8 @@ func convertProtoLogRecord(lr *logspb.LogRecord, resourceAttrs map[string]any, a
 	mapErrorAttribute(context, "exception.type", "error_class")
 	mapErrorAttribute(context, "error.type", "error_class")
 
-	// Error detection
-	isError := lr.GetSeverityNumber() >= logspb.SeverityNumber_SEVERITY_NUMBER_ERROR
-
-	if !isError {
-		if e, ok := context["error"]; ok && e != nil && e != "" {
-			isError = true
-		}
-	}
-	if !isError {
-		if ec, ok := context["error_class"]; ok && ec != nil && ec != "" {
-			isError = true
-		}
-	}
-	if !isError {
-		if status, ok := context["status"]; ok {
-			switch v := status.(type) {
-			case float64:
-				isError = v >= 500
-			case int64:
-				isError = v >= 500
-			}
-		}
-	}
+	// Error detection: an ERROR severity or above, or the shared context rule
+	isError := lr.GetSeverityNumber() >= logspb.SeverityNumber_SEVERITY_NUMBER_ERROR || events.IsErrorContext(context)
 
 	contextJSON, err := json.Marshal(context)
 	if err != nil {

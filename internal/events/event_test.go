@@ -11,62 +11,28 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	return newTestDB(t)
 }
 
-func TestDeriveIsError(t *testing.T) {
-	t.Run("error field present", func(t *testing.T) {
-		ctx := &EventContext{Error: "something broke"}
-
-		if !DeriveIsError(ctx) {
-			t.Error("should be error when error field is set")
-		}
-	})
-
-	t.Run("status 500", func(t *testing.T) {
-		ctx := &EventContext{Status: 500}
-
-		if !DeriveIsError(ctx) {
-			t.Error("should be error when status >= 500")
-		}
-	})
-
-	t.Run("status 503", func(t *testing.T) {
-		ctx := &EventContext{Status: 503}
-
-		if !DeriveIsError(ctx) {
-			t.Error("should be error when status is 503")
-		}
-	})
-
-	t.Run("status 404 is not error", func(t *testing.T) {
-		ctx := &EventContext{Status: 404}
-
-		if DeriveIsError(ctx) {
-			t.Error("404 should not be considered an error")
-		}
-	})
-
-	t.Run("status 200 is not error", func(t *testing.T) {
-		ctx := &EventContext{Status: 200}
-
-		if DeriveIsError(ctx) {
-			t.Error("200 should not be considered an error")
-		}
-	})
-
-	t.Run("empty context is not error", func(t *testing.T) {
-		ctx := &EventContext{}
-
-		if DeriveIsError(ctx) {
-			t.Error("empty context should not be considered an error")
-		}
-	})
-
-	t.Run("error takes precedence over status", func(t *testing.T) {
-		ctx := &EventContext{Error: "error", Status: 200}
-
-		if !DeriveIsError(ctx) {
-			t.Error("should be error when error field is set, regardless of status")
-		}
-	})
+func TestIsErrorContext(t *testing.T) {
+	cases := []struct {
+		name string
+		ctx  map[string]any
+		want bool
+	}{
+		{"error field present", map[string]any{"error": "something broke"}, true},
+		{"error class present", map[string]any{"error_class": "TimeoutError"}, true},
+		{"status 500", map[string]any{"status": float64(500)}, true},
+		{"status 503 as int", map[string]any{"status": 503}, true},
+		{"status 404 is not an error", map[string]any{"status": float64(404)}, false},
+		{"empty error is not an error", map[string]any{"error": ""}, false},
+		{"empty context is not an error", map[string]any{}, false},
+		{"nil context is not an error", nil, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := IsErrorContext(c.ctx); got != c.want {
+				t.Errorf("IsErrorContext(%v) = %v, want %v", c.ctx, got, c.want)
+			}
+		})
+	}
 }
 
 func TestEventContext_GetSet(t *testing.T) {

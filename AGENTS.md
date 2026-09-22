@@ -117,7 +117,7 @@ make test
 - **`internal/mcp/`**: MCP protocol and the read-only tools agents call
 - **`web/`**: React SPA (shadcn/ui, Tailwind, Inertia.js)
 - **`cmd/lognorth/`**: Main binary
-- **`cmd/seed/`**: Sample data generator
+- **`cmd/seed-demo/`**: Sample data generator (`make seed`, and the demo server)
 
 ---
 

@@ -112,9 +112,9 @@ test-all:
 	@echo "Running SDK compatibility tests..."
 	@./scripts/test-sdk-compatibility.sh
 
-# Seed database with sample data
+# Seed database with sample data (3 apps, a week of events)
 seed:
-	go run cmd/seed/main.go
+	go run cmd/seed-demo/main.go
 
 # Seed 5000 realistic Rails/Sidekiq events (requires API key)
 # Usage: make seed-events KEY=lb_xxx

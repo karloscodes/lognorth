@@ -308,7 +308,6 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/settings/developer", lbhttp.SettingsDeveloperPageAction, protectedConfig)
 	server.Post("/settings", lbhttp.UpdateSettingsAction, protectedConfig)
 	server.Post("/settings/test", lbhttp.TestNotificationAction, protectedConfig)
-	server.Post("/settings/test-smtp", lbhttp.TestSMTPAction, protectedConfig)
 
 	// Agent API key management
 	server.Post("/settings/agent-key", lbhttp.CreateAgentKeyAction, protectedConfig)

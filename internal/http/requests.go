@@ -7,43 +7,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
-	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 )
-
-// EventsPageAction handles GET /events
-func EventsPageAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-	filters := parseFilters(ctx.Ctx)
-
-	// Get applications list
-	keys, _ := apikeys.List(db)
-	apps := make([]Application, 0, len(keys))
-	for _, k := range keys {
-		if k.Active {
-			apps = append(apps, Application{ID: k.ID, Name: k.Name})
-		}
-	}
-
-	eventList, total, err := events.List(db, filters)
-	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch events"})
-	}
-
-	return RenderPage(ctx.Ctx, "Events", Props{
-		"applications": apps,
-		"events":       eventList,
-		"filters": fiber.Map{
-			"is_error": filters.IsError,
-			"search":   filters.Search,
-		},
-		"pagination": fiber.Map{
-			"limit":  filters.Limit,
-			"offset": filters.Offset,
-			"total":  total,
-		},
-	})
-}
 
 // EventsAPIAction handles GET /api/v1/events
 func EventsAPIAction(ctx *cartridge.Context) error {
@@ -58,34 +23,6 @@ func EventsAPIAction(ctx *cartridge.Context) error {
 	return ctx.Ctx.JSON(fiber.Map{
 		"events": eventList,
 		"total":  total,
-	})
-}
-
-// EventDetailPageAction handles GET /events/:id
-func EventDetailPageAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-
-	id, err := strconv.ParseUint(ctx.Ctx.Params("id"), 10, 64)
-	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid event ID"})
-	}
-
-	event, err := events.FindByID(db, uint(id))
-	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Event not found"})
-	}
-
-	var relatedEvents []events.Event
-	if event.TraceID != "" {
-		relatedEvents, _ = events.FindByTraceID(db, event.TraceID)
-	}
-
-	eventContext, _ := event.GetContext()
-
-	return RenderPage(ctx.Ctx, "EventDetail", Props{
-		"event":         event,
-		"eventContext":  eventContext,
-		"relatedEvents": relatedEvents,
 	})
 }
 

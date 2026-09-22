@@ -116,19 +116,21 @@ func (e *Event) SetContext(ctx *EventContext) error {
 	return nil
 }
 
-// DeriveIsError determines if this event is an error based on context
-func DeriveIsError(ctx *EventContext) bool {
-	if ctx.Error != "" {
-		return true
+// IsErrorContext is the one rule for "this event is an error": the context
+// names an error or an error class, or its HTTP status is 5xx.
+func IsErrorContext(ctx map[string]any) bool {
+	for _, key := range []string{"error", "error_class"} {
+		if v, ok := ctx[key]; ok && v != nil && v != "" {
+			return true
+		}
 	}
-	if ctx.ErrorClass != "" {
-		return true
-	}
-	if ctx.ErrorType != "" {
-		return true
-	}
-	if ctx.Status >= 500 {
-		return true
+	switch v := ctx["status"].(type) {
+	case float64:
+		return v >= 500
+	case int:
+		return v >= 500
+	case int64:
+		return v >= 500
 	}
 	return false
 }

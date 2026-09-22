@@ -111,36 +111,6 @@ func TestFindByID(t *testing.T) {
 	}
 }
 
-func TestChangePassword(t *testing.T) {
-	db := setupTestDB(t)
-	CreateUser(db, "test@example.com", "oldpassword")
-
-	user1, _ := FindByEmail(db, "test@example.com")
-	oldHash := user1.EncryptedPassword
-
-	err := ChangePassword(db, "test@example.com", "newpassword")
-
-	if err != nil {
-		t.Fatalf("ChangePassword failed: %v", err)
-	}
-
-	user2, _ := FindByEmail(db, "test@example.com")
-	if user2.EncryptedPassword == oldHash {
-		t.Error("password hash should have changed")
-	}
-}
-
-func TestChangePassword_EmptyPassword(t *testing.T) {
-	db := setupTestDB(t)
-	CreateUser(db, "test@example.com", "password123")
-
-	err := ChangePassword(db, "test@example.com", "")
-
-	if err == nil {
-		t.Error("expected error for empty password")
-	}
-}
-
 func TestCount(t *testing.T) {
 	db := setupTestDB(t)
 
