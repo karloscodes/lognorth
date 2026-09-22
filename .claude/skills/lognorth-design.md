@@ -5,190 +5,64 @@ description: Use when building UI components, pages, or styling for LogNorth - c
 
 # LogNorth Design System
 
-## Color Palette
+The app is a dark terminal UI that matches lognorth.com. CLAUDE.md, section
+"Terminal Theme", is the source of truth for tokens, components, and keys.
+This file is the quick version.
 
-### Primary Palette
+## Terminal Theme
 
-| Use | Class |
-|-----|-------|
-| Primary text | `text-black` |
-| Secondary text | `text-black/50` |
-| Background | `bg-white` |
-| Subtle background | `bg-black/[0.02]` |
-| Border | `border-black/10` |
-| Border hover | `border-black/20` |
-| Divider | `border-black/10` or `h-px bg-black/20` |
+Dark only, and it reads like a terminal session. Same palette and font as
+lognorth.com. Tokens live in `web/src/index.css`; use them through Tailwind,
+never as hex values.
 
-### Accent Color
+| Token (Tailwind) | Use |
+|---|---|
+| `bg-background` | page (#0c0a09) |
+| `bg-raise` | selected row, hover, status bar (#1c1917) |
+| `text-foreground` | headings, primary values |
+| `text-text` | body copy |
+| `text-subtle` | secondary text |
+| `text-dim` | tertiary text; the floor for readable text (~5.3:1) |
+| `border-border` / `border-line` | strong line (panes) / hairline (rows) |
+| `text-error` / `bg-error` | errors only (#e11d48) |
+| `text-accent` / `bg-accent` | lime (#a3e635): wordmark brackets, active tab brackets, live dots, key hints in navigate mode |
 
-| Use | Value |
-|-----|-------|
-| Success/healthy | `#00D678` (green) |
-| Success dot | `bg-[#00D678]` |
-| Success text | `text-[#00D678]` |
-
-### Semantic Colors
-
-| Use | Class |
-|-----|-------|
-| Error text | `text-red-600` |
-| Error background | `bg-red-50` |
-| Error border | `border-red-200` |
-| Error dot | `bg-red-500` |
-
-### NEVER Use
-
-- Gray classes (`text-gray-*`, `bg-gray-*`)
-- Intermediate opacities (`black/60`, `black/70`, `black/80`)
-- `rounded-xl` or `rounded-lg` on containers
-
-## Typography
-
-| Element | Classes |
-|---------|---------|
-| Page title | `text-2xl font-bold text-black` |
-| Section header | `text-sm font-semibold text-black/50 uppercase tracking-wider` |
-| Card title | `text-lg font-semibold text-black` |
-| Labels | `text-sm font-semibold text-black` |
-| Body | `text-black` |
-| Secondary | `text-black/50` |
-| Timestamp | `text-xs text-black/50` |
-
-Rules:
-- Two text levels only: `text-black` or `text-black/50`
-- Use `font-semibold` liberally
-- Monospace for: paths, status codes, counts, durations
+- **No gray, no hex:** never `gray-*` or `text-[#...]`. Use the tokens above.
+- **Red means error.** Never decorative. An endpoint turns red only when it
+  alerts against its own history (`events.ListAlerts`), not by a fixed rate.
+- **No rounded corners.** `--radius` is 0. Radios and checkboxes are squares.
+- **Font:** IBM Plex Mono only, bundled in `web/src/fonts/` (OFL) and loaded by
+  `@font-face` in `index.css`. Vite hashes the files into `/assets`, so a
+  self-hosted install makes no third-party font requests. Max weight is 700.
+  Ligatures are off so `->` and `!=` stay literal.
 
 ## Components
 
-### Buttons
+- **Pane:** `.pane` with a `.pane-title` (and optional `.pane-right`) set into
+  the top border: `<div className="pane"><span className="pane-title">stack trace</span>...`
+- **Section label:** `.rule-label` renders `active  last 7 days ─────`.
+- **Key chip:** `.key` with a `<kbd>`: `<button className="key"><kbd>m</kbd> mute</button>`.
+- **Toggles:** the active option wears lime brackets: `[errors]`, `[7d]`.
+- **Page header:** `PageHeader` in `lib/shared.tsx` (26px bold title, subtle subtitle).
+- **Tabs:** `1 [issues] 2 logs 3 endpoints`; the active tab gets lime brackets.
+- **Stack traces:** `components/stack-trace.tsx` shows app frames and folds
+  library frames (`lib/stack.ts` decides which is which).
 
-```tsx
-// Primary
-<button className="px-4 py-2 bg-black text-white font-semibold hover:bg-black/80">
+## Keyboard (herdr style)
 
-// Secondary
-<button className="px-4 py-2 border border-black/20 font-semibold text-black/50 hover:border-black hover:text-black">
+- **Prefix:** `ctrl+b` opens navigate mode (the layout owns it). Tab numbers
+  light up and hint badges appear on every `data-key` element.
+  Then `1-3` tabs, `h/l` move, `enter` go, `0` home, `a` apps, `s` settings,
+  `w` app picker, `?` keys, `esc` cancel.
+- **Normal mode:** keys go to what is on screen. Pages add their own with
+  `pageKey(e)` from `lib/keys.ts`, which stays quiet while typing or while
+  navigate mode is open. Issues: `j/k enter m e E`. Issue and log pages: `esc`.
+  Logs: `/`.
+- **Status bar** (`layout.tsx`, desktop only): mode, screen, and the keys that
+  work right now. Add a screen's keys to `SCREEN_KEYS`.
 
-// Ghost
-<button className="px-4 py-2 text-black/50 font-semibold hover:text-black hover:bg-black/[0.02]">
-```
+## Voice
 
-### Inputs
-
-```tsx
-<label className="block text-sm font-semibold text-black mb-1.5">Label</label>
-<input className="w-full px-3 py-2 border border-black/20 text-sm focus:outline-none focus:ring-1 focus:ring-black placeholder:text-black/50" />
-```
-
-### Cards
-
-```tsx
-// Standard (sharp corners)
-<div className="bg-white border border-black/10 p-5">
-
-// List with dividers
-<div className="bg-white border border-black/10 divide-y divide-black/10 overflow-hidden">
-
-// Error state
-<div className="border border-red-200 bg-red-50 p-5">
-
-// Empty state
-<div className="border border-dashed border-black/20 py-16 text-center">
-  <p className="font-semibold text-black mb-1">No items</p>
-  <p className="text-sm text-black/50">Description.</p>
-</div>
-```
-
-### Status Indicators
-
-```tsx
-// Success dot
-<span className="w-2 h-2 rounded-full bg-[#00D678]" />
-
-// Error dot
-<span className="w-2 h-2 rounded-full bg-red-500" />
-
-// Live/pulsing
-<span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-```
-
-### Navigation Tabs (pills get rounding)
-
-```tsx
-<nav className="flex items-center gap-1 bg-black/[0.02] rounded-lg p-1">
-  <Link className={isActive
-    ? 'px-4 py-2 text-sm font-semibold rounded-md bg-white text-black shadow-sm'
-    : 'px-4 py-2 text-sm font-semibold rounded-md text-black/50 hover:text-black'
-  }>
-```
-
-### List Rows
-
-```tsx
-// Clickable row
-<a className="flex items-center justify-between p-5 hover:bg-black/[0.02]">
-
-// Error indicator (left border)
-<a className={`p-5 ${isError ? 'border-l-2 border-l-red-500' : ''}`}>
-
-// Unseen/new
-<a className={`p-5 ${isUnseen ? 'border-l-2 border-l-red-500 bg-red-50' : ''}`}>
-```
-
-### Messages
-
-```tsx
-// Success
-<div className="p-3 text-sm font-medium bg-[#00D678]/10 text-black">
-
-// Error
-<div className="p-3 text-sm font-medium bg-red-50 text-red-600">
-```
-
-## HTTP/Status Colors
-
-```tsx
-// Methods - no color decoration, just monospace
-<span className="font-mono text-xs font-semibold text-black/50">{method}</span>
-
-// Status codes - only these carry semantic weight
-500+: 'text-red-600 font-semibold'
-400+: 'text-black'
-200+: 'text-black/50'
-```
-
-## Layout
-
-```tsx
-// Page header
-<div className="flex items-center justify-between mb-8">
-  <div>
-    <h1 className="text-2xl font-bold text-black">Title</h1>
-    <p className="text-sm text-black/50 mt-1">Description</p>
-  </div>
-</div>
-
-// Form container
-<div className="max-w-md">
-  <div className="space-y-6">...</div>
-  <div className="flex gap-3 mt-6">...</div>
-</div>
-```
-
-## Spacing
-
-| Use | Class |
-|-----|-------|
-| Section gap | `mb-8` |
-| Element gap | `space-y-4` |
-| Card padding | `p-5` |
-| Button padding | `px-4 py-2` |
-
-## Rules
-
-1. **Two opacity levels only:** `text-black` (important) or `text-black/50` (not)
-2. **Sharp containers:** No `rounded-xl` on cards/forms. Only pills/badges get rounding.
-3. **One border width:** Use `border`, never `border-2`
-4. **Status codes carry meaning:** HTTP methods are monospace, no colors
-5. **No gray classes:** Use `black/*` opacity instead
+Short and plain. "X times", not "occurrences". "Quiet so far", "Nothing here",
+"Enjoy your day." for empty states. Lowercase labels in panes, tabs, and the
+status bar; sentence case for headings and messages.

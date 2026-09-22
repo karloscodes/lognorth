@@ -136,104 +136,57 @@ Write like you talk. No jargon. No corporate speak.
 - "Enjoy your day." (no issues)
 - "Nice work." (all clear)
 
-### No Gray, Ever
+### Terminal Theme
 
-NEVER use `gray-*` Tailwind classes. Use `black/*` opacity for all neutral tones.
+Dark only, and it reads like a terminal session. Same palette and font as
+lognorth.com. Tokens live in `web/src/index.css`; use them through Tailwind,
+never as hex values.
 
-| Don't | Do |
-|-------|-----|
-| `text-gray-600` | `text-black/60` |
-| `bg-gray-50` | `bg-black/[0.02]` |
-| `border-gray-200` | `border-black/10` |
-| `text-gray-400` | `text-black/40` |
+| Token (Tailwind) | Use |
+|---|---|
+| `bg-background` | page (#0c0a09) |
+| `bg-raise` | selected row, hover, status bar (#1c1917) |
+| `text-foreground` | headings, primary values |
+| `text-text` | body copy |
+| `text-subtle` | secondary text |
+| `text-dim` | tertiary text; the floor for readable text (~5.3:1) |
+| `border-border` / `border-line` | strong line (panes) / hairline (rows) |
+| `text-error` / `bg-error` | errors only (#e11d48) |
+| `text-accent` / `bg-accent` | lime (#a3e635): wordmark brackets, active tab brackets, live dots, key hints in navigate mode |
 
-### No Rounded Corners
+- **No gray, no hex:** never `gray-*` or `text-[#...]`. Use the tokens above.
+- **Red means error.** Never decorative. An endpoint turns red only when it
+  alerts against its own history (`events.ListAlerts`), not by a fixed rate.
+- **No rounded corners.** `--radius` is 0. Radios and checkboxes are squares.
+- **Font:** IBM Plex Mono only, bundled in `web/src/fonts/` (OFL) and loaded by
+  `@font-face` in `index.css`. Vite hashes the files into `/assets`, so a
+  self-hosted install makes no third-party font requests. Max weight is 700.
+  Ligatures are off so `->` and `!=` stay literal.
 
-NEVER use `rounded-*` classes larger than `rounded-sm`. Hard edges only.
+### Components
 
-Exception: `rounded-full` is OK for small status dots only.
+- **Pane:** `.pane` with a `.pane-title` (and optional `.pane-right`) set into
+  the top border: `<div className="pane"><span className="pane-title">stack trace</span>...`
+- **Section label:** `.rule-label` renders `active  last 7 days ─────`.
+- **Key chip:** `.key` with a `<kbd>`: `<button className="key"><kbd>m</kbd> mute</button>`.
+- **Toggles:** the active option wears lime brackets: `[errors]`, `[7d]`.
+- **Page header:** `PageHeader` in `lib/shared.tsx` (26px bold title, subtle subtitle).
+- **Tabs:** `1 [issues] 2 logs 3 endpoints`; the active tab gets lime brackets.
+- **Stack traces:** `components/stack-trace.tsx` shows app frames and folds
+  library frames (`lib/stack.ts` decides which is which).
 
-### Typography
+### Keyboard (herdr style)
 
-| Element | Class |
-|---------|-------|
-| Logo | `text-2xl font-black tracking-tight` |
-| Hero numbers | `text-6xl font-black` - the answer to "do I have a problem?" |
-| Page titles | `text-2xl font-bold text-black` |
-| Section headers | `text-sm font-bold text-black/50 uppercase tracking-wide` |
-| Important counts | `text-xl font-black font-mono tabular-nums` |
-| Body text | `text-black` or `font-medium text-black` |
-| Secondary text | `text-black/50` or `text-black/60` |
-| Code/paths | `font-mono text-sm` |
-
-**Rules:**
-- Numbers that matter use `font-mono tabular-nums` for alignment
-- Hero status (Home page) is massive - 6xl font-black
-- Count badges (38×, 124×) are font-black, not subtle
-- Use `font-semibold` liberally on nav, buttons, labels
-
-### Colors
-
-- **Black** - Primary text, borders, buttons
-- **White** - Backgrounds
-- **Red** (`text-red-600`, `border-red-500`) - Errors. Make them impossible to miss.
-- **Green** (`#00D678`) - Success states, active indicators (dots, borders)
-
-No other colors. No blue links. No yellow warnings. Binary: error or not.
-
-### Navigation
-
-Underline-based for primary nav:
-
-```tsx
-// Active
-className="font-semibold text-black border-b-2 border-black"
-
-// Inactive
-className="font-semibold text-black/50 hover:text-black"
-```
-
-Toggle groups are OK for filters (All/Success/Errors, Today/7d/30d/All).
-
-### Buttons
-
-```tsx
-// Primary
-className="bg-black text-white font-semibold px-4 py-2 hover:bg-black/80"
-
-// Secondary
-className="border border-black/20 font-semibold px-4 py-2 hover:border-black/40"
-```
-
-### Cards & Containers
-
-```tsx
-// Default card
-className="border border-black/10 bg-white hover:border-black/30 transition-all"
-
-// Card with errors
-className="border-2 border-red-500/30 bg-red-50 hover:border-red-500"
-
-// Active/healthy card
-className="border-2 border-[#00D678]/40 border-l-4 border-l-[#00D678]"
-```
-
-Cards should have visible hover states - borders get bolder.
-
-### Error States
-
-Errors demand attention:
-
-```tsx
-// Error row - red left border
-className="border-l-2 border-l-red-500"
-
-// Error count - bold and black (or red if unseen)
-className="font-mono text-xl font-black tabular-nums text-black"
-
-// Unseen error count
-className="font-mono text-xl font-black tabular-nums text-red-600"
-```
+- **Prefix:** `ctrl+b` opens navigate mode (the layout owns it). Tab numbers
+  light up and hint badges appear on every `data-key` element.
+  Then `1-3` tabs, `h/l` move, `enter` go, `0` home, `a` apps, `s` settings,
+  `w` app picker, `?` keys, `esc` cancel.
+- **Normal mode:** keys go to what is on screen. Pages add their own with
+  `pageKey(e)` from `lib/keys.ts`, which stays quiet while typing or while
+  navigate mode is open. Issues: `j/k enter m e E`. Issue and log pages: `esc`.
+  Logs: `/`.
+- **Status bar** (`layout.tsx`, desktop only): mode, screen, and the keys that
+  work right now. Add a screen's keys to `SCREEN_KEYS`.
 
 ### Page Subtitles
 
@@ -252,5 +205,5 @@ Examples:
 
 - **Phoenix Contexts:** Business logic in context packages
 - **Background jobs:** Events processed asynchronously
-- **No gray colors:** Only black, white, accent - use black/* opacity for neutrals
+- **Theme tokens only:** no `gray-*`, no hex colors. See Terminal Theme above
 - **Test integrity:** Never skip tests

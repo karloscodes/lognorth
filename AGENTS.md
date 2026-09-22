@@ -163,29 +163,18 @@ func RequestsPageAction(ctx *cartridge.Context) error {
 
 ## Styling Rules
 
-**Color palette: Black, White, and ONE accent color. No gray.**
-
-NEVER use `gray-*` Tailwind classes. Use `black/*` opacity for all neutral tones.
-
-| Don't use | Use instead |
-|-----------|-------------|
-| `text-gray-900` | `text-black` |
-| `text-gray-600` | `text-black/60` |
-| `text-gray-500` | `text-black/50` |
-| `text-gray-400` | `text-black/40` |
-| `bg-gray-50` | `bg-black/[0.02]` |
-| `bg-gray-100` | `bg-black/5` |
-| `border-gray-200` | `border-black/10` |
-| `hover:bg-gray-50` | `hover:bg-black/[0.02]` |
-
-Semantic colors (red for errors, amber for warnings) are allowed for meaning.
+Dark terminal theme, IBM Plex Mono, one lime accent, red for errors only.
+The full rules (tokens, panes, keyboard model) are in CLAUDE.md under
+"Terminal Theme". Use the theme tokens (`text-foreground`, `text-subtle`,
+`text-dim`, `border-border`, `bg-raise`, `text-error`, `text-accent`); never
+`gray-*` and never hex colors.
 
 ---
 
 ## Strong Requirements
 
 - **Phoenix Contexts:** Business logic in context packages, not handlers
-- **No gray colors:** Only black, white, accent - use `black/*` opacity for neutrals
+- **Theme tokens only:** no `gray-*`, no hex colors (see CLAUDE.md, Terminal Theme)
 - **Test integrity:** Never skip tests or mark as pending
 - **No arbitrary docs:** Don't create .md files unless explicitly requested
 
