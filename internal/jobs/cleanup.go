@@ -7,6 +7,7 @@ import (
 
 	"lognorth/internal/events"
 	"lognorth/internal/settings"
+	"lognorth/internal/uptime"
 )
 
 // CleanupProcessor handles cleanup of old processed events
@@ -62,6 +63,16 @@ func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 	}
 	if deletedStats > 0 {
 		ctx.Logger.Info("Cleaned up old endpoint stats", "deleted", deletedStats)
+	}
+
+	// Uptime checks: one a minute per app, kept uptime.Retention.
+	deletedChecks, err := uptime.DeleteOlderThan(ctx.DB, time.Now().Add(-uptime.Retention))
+	if err != nil {
+		ctx.Logger.Error("Failed to cleanup old uptime checks", "error", err)
+		return err
+	}
+	if deletedChecks > 0 {
+		ctx.Logger.Info("Cleaned up old uptime checks", "deleted", deletedChecks)
 	}
 
 	return nil

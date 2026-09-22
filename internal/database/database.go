@@ -11,6 +11,7 @@ import (
 	"lognorth/internal/config"
 	"lognorth/internal/events"
 	"lognorth/internal/settings"
+	"lognorth/internal/uptime"
 	"lognorth/internal/users"
 )
 
@@ -79,6 +80,7 @@ func Migrate(db *gorm.DB) error {
 		&events.SpikeState{},
 		&settings.Settings{},
 		&users.User{},
+		&uptime.Check{},
 	); err != nil {
 		return err
 	}

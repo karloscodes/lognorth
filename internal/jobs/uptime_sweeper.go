@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 	"lognorth/internal/settings"
+	"lognorth/internal/uptime"
 )
 
 // UptimeSweeper actively probes each app's URL every minute and alerts on
@@ -83,7 +85,12 @@ func (s *UptimeSweeper) checkApp(db *gorm.DB, key *apikeys.APIKey, settingsRow *
 		return // no URL set; user adds one via [edit]
 	}
 
-	up := s.probe(key.PingURL)
+	check := s.probe(key.PingURL)
+	check.APIKeyID = key.ID
+	check.CheckedAt = now
+	// Every probe is kept so the app can show response times and failures.
+	_ = uptime.Record(db, &check)
+	up := check.Up
 	key.LastPingedAt = now
 
 	switch {
@@ -122,26 +129,39 @@ func (s *UptimeSweeper) checkApp(db *gorm.DB, key *apikeys.APIKey, settingsRow *
 	})
 }
 
-// probe returns true if the URL responded with anything other than a
-// 5xx or a transport error within the timeout. 4xx is "up" — the server
-// is responding.
-func (s *UptimeSweeper) probe(url string) bool {
+// probe requests the URL once. It is up if the server answered with anything
+// below 500 within the timeout: a 4xx still means the server is responding.
+func (s *UptimeSweeper) probe(url string) uptime.Check {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return false
+		return uptime.Check{Error: "invalid URL"}
 	}
 	req.Header.Set("User-Agent", pingUserAgent)
 
+	start := time.Now()
 	resp, err := s.client.Do(req)
+	latency := int(time.Since(start).Milliseconds())
 	if err != nil {
-		return false
+		return uptime.Check{LatencyMS: latency, Error: probeError(err)}
 	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode < 500
+	return uptime.Check{Up: resp.StatusCode < 500, Status: resp.StatusCode, LatencyMS: latency}
+}
+
+// probeError says why a probe got no response, in a few words.
+func probeError(err error) string {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Sprintf("no answer within %s", probeTimeout)
+	}
+	msg := err.Error()
+	if len(msg) > 200 {
+		msg = msg[:200]
+	}
+	return msg
 }
 
 // notifyDown reports whether the alert went out.

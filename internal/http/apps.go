@@ -9,12 +9,14 @@ import (
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
+	"lognorth/internal/uptime"
 )
 
 // Application represents an app for the frontend
 type Application struct {
-	ID   uint   `json:"id"`
-	Name string `json:"name"`
+	ID     uint          `json:"id"`
+	Name   string        `json:"name"`
+	Uptime *uptime.State `json:"uptime,omitempty"` // for the status bar and the app picker
 }
 
 // getAppFromURL extracts app ID from URL and validates it
@@ -38,12 +40,14 @@ func getAppFromURL(ctx *cartridge.Context) (*apikeys.APIKey, []Application, erro
 		return nil, nil, err
 	}
 
-	// Build applications list
+	// Build applications list, each with its uptime at a glance.
 	keys, _ := apikeys.List(db)
+	states := uptime.States(db, keys, time.Now())
 	apps := make([]Application, 0, len(keys))
 	for _, k := range keys {
 		if k.Active {
-			apps = append(apps, Application{ID: k.ID, Name: k.Name})
+			state := states[k.ID]
+			apps = append(apps, Application{ID: k.ID, Name: k.Name, Uptime: &state})
 		}
 	}
 
@@ -208,6 +212,7 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 		"applications": apps,
 		"endpoints":    endpoints,
 		"alerts":       alerts,
+		"uptime":       uptime.ReportFor(db, *app, time.Now(), 24*time.Hour, 96),
 	})
 }
 

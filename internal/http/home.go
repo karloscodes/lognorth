@@ -1,17 +1,21 @@
 package http
 
 import (
+	"time"
+
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
+	"lognorth/internal/uptime"
 )
 
 // AppWithStats represents an app with its statistics
 type AppWithStats struct {
-	ID    uint     `json:"id"`
-	Name  string   `json:"name"`
-	Stats AppStats `json:"stats"`
+	ID     uint          `json:"id"`
+	Name   string        `json:"name"`
+	Stats  AppStats      `json:"stats"`
+	Uptime *uptime.State `json:"uptime,omitempty"`
 }
 
 // AppStats holds per-app statistics
@@ -30,13 +34,16 @@ func HomePageAction(ctx *cartridge.Context) error {
 
 	// Get applications with stats
 	keys, _ := apikeys.List(db)
+	states := uptime.States(db, keys, time.Now())
 	apps := make([]AppWithStats, 0, len(keys))
 	for _, k := range keys {
 		if k.Active {
 			stats := events.GetStats(db, k.ID)
+			state := states[k.ID]
 			apps = append(apps, AppWithStats{
-				ID:   k.ID,
-				Name: k.Name,
+				ID:     k.ID,
+				Name:   k.Name,
+				Uptime: &state,
 				Stats: AppStats{
 					Total:  stats.Total,
 					Errors: stats.Errors,

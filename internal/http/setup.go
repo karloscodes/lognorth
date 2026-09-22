@@ -2,6 +2,7 @@ package http
 
 import (
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
@@ -10,20 +11,22 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/events"
+	"lognorth/internal/uptime"
 )
 
 // AppForSetup represents an app with activity stats for the setup page
 type AppForSetup struct {
-	ID           uint   `json:"id"`
-	Name         string `json:"name"`
-	Key          string `json:"key"`
-	KeyPrefix    string `json:"key_prefix"`
-	Active       bool   `json:"active"`
-	TodayTotal   int64  `json:"today_total"`
-	LastSeen     *int64 `json:"last_seen"` // Unix timestamp, nil if never
-	PingURL      string `json:"ping_url"`
-	PingDisabled bool   `json:"ping_disabled"`
-	IsDown       bool   `json:"is_down"`
+	ID           uint          `json:"id"`
+	Name         string        `json:"name"`
+	Key          string        `json:"key"`
+	KeyPrefix    string        `json:"key_prefix"`
+	Active       bool          `json:"active"`
+	TodayTotal   int64         `json:"today_total"`
+	LastSeen     *int64        `json:"last_seen"` // Unix timestamp, nil if never
+	PingURL      string        `json:"ping_url"`
+	PingDisabled bool          `json:"ping_disabled"`
+	IsDown       bool          `json:"is_down"`
+	Uptime       *uptime.State `json:"uptime,omitempty"`
 }
 
 // SetupPageAction handles GET /apps (Inertia page)
@@ -39,9 +42,11 @@ func SetupPageAction(ctx *cartridge.Context) error {
 	// and post events into the demo.
 	isDemo := config.GetConfig().IsDemo()
 
-	// Enrich with stats
+	// Enrich with stats and uptime
+	states := uptime.States(db, keys, time.Now())
 	apps := make([]AppForSetup, 0, len(keys))
 	for _, k := range keys {
+		state := states[k.ID]
 		key := k.Key
 		if isDemo {
 			key = ""
@@ -55,6 +60,7 @@ func SetupPageAction(ctx *cartridge.Context) error {
 			PingURL:      k.PingURL,
 			PingDisabled: k.PingDisabled,
 			IsDown:       k.IsDown,
+			Uptime:       &state,
 		}
 		if k.Active {
 			stats := events.GetStats(db, k.ID)
