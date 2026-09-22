@@ -36,15 +36,14 @@ func IsRegression(lastOccurrence time.Time) bool {
 
 // SpikeState tracks spike alerting state per endpoint
 type SpikeState struct {
-	ID           uint      `gorm:"primaryKey"`
-	APIKeyID     uint      `gorm:"uniqueIndex:idx_spike_state_lookup"`
-	Path         string    `gorm:"size:500;uniqueIndex:idx_spike_state_lookup"`
-	IsSpiking    bool      `gorm:"default:false"`
+	ID           uint   `gorm:"primaryKey"`
+	APIKeyID     uint   `gorm:"uniqueIndex:idx_spike_state_lookup"`
+	Path         string `gorm:"size:500;uniqueIndex:idx_spike_state_lookup"`
 	LastAlertAt  time.Time
 	SpikeStartAt time.Time
-	// SPC fields for alert state tracking
-	Severity   string `gorm:"size:20"` // "warning", "critical", or ""
-	ErrorCount int    `gorm:"default:0"`
+	Severity     string `gorm:"size:20"` // "warning", "critical", or ""
+	ErrorCount   int    `gorm:"default:0"`
+	CleanChecks  int    `gorm:"default:0"` // Clean checks in a row since the last anomaly
 }
 
 func (SpikeState) TableName() string {

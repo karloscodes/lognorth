@@ -37,7 +37,8 @@ func RecordEndpointStat(db *gorm.DB, apiKeyID uint, path string, isError bool, d
 		return nil
 	}
 
-	bucket := TruncateTo5Min(timestamp)
+	// UTC: SQLite compares times as text, so all buckets need the same offset.
+	bucket := TruncateTo5Min(timestamp.UTC())
 
 	// Upsert: increment counters
 	var stat EndpointStat
@@ -75,7 +76,21 @@ func RecordEndpointStat(db *gorm.DB, apiKeyID uint, path string, isError bool, d
 // LastCompleteBucketTime returns the start of the last complete 5-minute bucket.
 // The current bucket is still filling, so its counts are partial.
 func LastCompleteBucketTime() time.Time {
-	return TruncateTo5Min(time.Now()).Add(-5 * time.Minute)
+	return TruncateTo5Min(time.Now().UTC()).Add(-5 * time.Minute)
+}
+
+// GetActiveEndpoints returns the endpoints with traffic in the last day.
+// A day, not an hour, so the silence check keeps watching an endpoint that stopped.
+func GetActiveEndpoints(db *gorm.DB, apiKeyID uint) []string {
+	since := time.Now().UTC().Add(-24 * time.Hour)
+
+	var paths []string
+	db.Model(&EndpointStat{}).
+		Where("api_key_id = ? AND bucket > ?", apiKeyID, since).
+		Distinct("path").
+		Pluck("path", &paths)
+
+	return paths
 }
 
 // GetLastCompleteBucket returns the stats for an endpoint in the last complete bucket.
@@ -97,90 +112,12 @@ func (s EndpointStat) ErrorRate() float64 {
 	return float64(s.Errors) / float64(s.Total) * 100
 }
 
-// GetBaselineErrorRate returns the average error rate for an endpoint
-// based on the same time-of-day over the past 7 days
-func GetBaselineErrorRate(db *gorm.DB, apiKeyID uint, path string) (float64, error) {
-	now := time.Now()
-	currentBucket := TruncateTo5Min(now)
+// StatsRetention covers the longest SPC history (4 weeks of volume) plus a day.
+const StatsRetention = (VolumeHistoryWeeks*7 + 1) * 24 * time.Hour
 
-	// Get same 5-min window from past 7 days
-	var totalEvents int64
-	var totalErrors int64
-
-	for i := 1; i <= 7; i++ {
-		targetBucket := currentBucket.AddDate(0, 0, -i)
-
-		var stat EndpointStat
-		result := db.Where("api_key_id = ? AND path = ? AND bucket = ?", apiKeyID, path, targetBucket).First(&stat)
-		if result.Error == nil {
-			totalEvents += stat.Total
-			totalErrors += stat.Errors
-		}
-	}
-
-	if totalEvents == 0 {
-		return 0, nil // No baseline data
-	}
-
-	return float64(totalErrors) / float64(totalEvents) * 100, nil
-}
-
-// EndpointSpike represents a detected spike
-type EndpointSpike struct {
-	APIKeyID    uint
-	Path        string
-	CurrentRate float64
-	Baseline    float64
-	Total       int64
-}
-
-// DetectSpikes finds endpoints with error rates significantly above baseline
-func DetectSpikes(db *gorm.DB, threshold int) ([]EndpointSpike, error) {
-	currentBucket := TruncateTo5Min(time.Now())
-
-	// Get all stats for current bucket with minimum traffic
-	var currentStats []EndpointStat
-	if err := db.Where("bucket = ? AND total >= 10", currentBucket).Find(&currentStats).Error; err != nil {
-		return nil, err
-	}
-
-	var spikes []EndpointSpike
-
-	for _, stat := range currentStats {
-		currentRate := float64(stat.Errors) / float64(stat.Total) * 100
-		baseline, err := GetBaselineErrorRate(db, stat.APIKeyID, stat.Path)
-		if err != nil {
-			continue
-		}
-
-		if isSignificantSpike(currentRate, baseline, threshold) {
-			spikes = append(spikes, EndpointSpike{
-				APIKeyID:    stat.APIKeyID,
-				Path:        stat.Path,
-				CurrentRate: currentRate,
-				Baseline:    baseline,
-				Total:       stat.Total,
-			})
-		}
-	}
-
-	return spikes, nil
-}
-
-// isSignificantSpike determines if the current rate is a real spike
-func isSignificantSpike(current, baseline float64, threshold int) bool {
-	if baseline == 0 {
-		// No baseline yet, use absolute threshold
-		return current >= float64(threshold)
-	}
-
-	// Alert if: 3x baseline OR +15% absolute increase (whichever is lower)
-	return current >= baseline*3 || current >= baseline+15
-}
-
-// CleanupOldStats removes stats older than 8 days (7 days for baseline + 1 day buffer)
+// CleanupOldStats removes stats older than StatsRetention.
 func CleanupOldStats(db *gorm.DB) (int64, error) {
-	cutoff := time.Now().AddDate(0, 0, -8)
+	cutoff := time.Now().UTC().Add(-StatsRetention)
 	result := db.Where("bucket < ?", cutoff).Delete(&EndpointStat{})
 	return result.RowsAffected, result.Error
 }

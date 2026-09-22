@@ -12,9 +12,9 @@ import (
 	"lognorth/internal/settings"
 )
 
-// AnomalyChecker runs SPC detection, learns baselines, and sends critical alerts.
-// Detection and learning run in one job so the order is fixed: check a bucket
-// against the baseline first, then learn from it.
+// AnomalyChecker runs SPC detection and sends critical alerts.
+// Every check compares the last complete bucket with the stored history in
+// endpoint_stats, so there is no baseline to learn or keep.
 type AnomalyChecker struct{}
 
 // NewAnomalyChecker creates a new anomaly checker.
@@ -32,141 +32,87 @@ func (j *AnomalyChecker) ProcessBatch(ctx *cartridge.JobContext) error {
 		return err
 	}
 
-	hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
+	at := events.LastCompleteBucketTime()
 
 	for _, key := range keys {
-		endpoints := events.GetActiveEndpoints(db, key.ID)
-
-		for _, path := range endpoints {
-			j.checkEndpoint(db, key.ID, key.Name, path, hourOfWeek)
+		for _, path := range events.GetActiveEndpoints(db, key.ID) {
+			j.checkEndpoint(db, key.ID, key.Name, path, at)
 		}
 	}
 
-	// Send critical alerts
-	j.sendCriticalAlerts(db)
+	j.sendCriticalAlerts(db, at)
 
 	return nil
 }
 
-func (j *AnomalyChecker) checkEndpoint(db *gorm.DB, apiKeyID uint, appName, path string, hourOfWeek int) {
-	stat, err := events.GetLastCompleteBucket(db, apiKeyID, path)
+func (j *AnomalyChecker) checkEndpoint(db *gorm.DB, apiKeyID uint, appName, path string, at time.Time) {
+	bucket, err := events.GetLastCompleteBucket(db, apiKeyID, path)
 	if err != nil {
 		return
 	}
 
-	j.checkSilence(db, apiKeyID, appName, path, hourOfWeek, stat.Total)
-	j.checkErrorRate(db, apiKeyID, appName, path, hourOfWeek, stat)
+	j.checkSilence(db, apiKeyID, appName, path, at, bucket.Total)
+	j.checkErrorRate(db, apiKeyID, appName, path, at, bucket)
 }
 
-func (j *AnomalyChecker) checkErrorRate(db *gorm.DB, apiKeyID uint, appName, path string, hourOfWeek int, stat events.EndpointStat) {
-	// Too few requests to trust the rate: do not check it, and do not learn from it.
-	if stat.Total < events.MinRequestsForErrorRate {
+func (j *AnomalyChecker) checkErrorRate(db *gorm.DB, apiKeyID uint, appName, path string, at time.Time, bucket events.EndpointStat) {
+	baseline, err := events.GetErrorRateBaseline(db, apiKeyID, path, at)
+	if err != nil || !baseline.Ready() {
 		return
 	}
-	currentRate := stat.ErrorRate()
+	lastHour, err := events.GetLastHour(db, apiKeyID, path, at)
+	if err != nil {
+		return
+	}
 
-	// Get baseline
-	baseline := events.GetOrCreateBaseline(db, apiKeyID, path, hourOfWeek)
-	mean, stddev := events.GetEffectiveBaseline(baseline)
+	_, spike := events.SPCIsSpike(bucket.ErrorRate(), bucket.Total, baseline)
+	_, drift := events.SPCIsDrift(lastHour.ErrorRate(), lastHour.Total, baseline)
 
-	// Control Chart check (spikes)
-	_, spikeSeverity := events.SPCIsSpike(currentRate, mean, stddev, stat.Total)
-
-	// Get CUSUM state for drift detection
-	cusumState := events.GetOrCreateCUSUMState(db, apiKeyID, path)
-
-	// CUSUM check (drift)
-	_, driftSeverity := events.UpdateCUSUM(cusumState, currentRate, mean)
-	db.Save(cusumState)
-
-	// Get spike state for alert tracking
 	state := events.GetOrCreateSpikeState(db, apiKeyID, path)
+	previousSeverity := state.Severity
+	events.UpdateSPCSeverity(db, state, events.MaxSeverity(spike, drift), int(bucket.Errors))
 
-	// Take worst severity
-	severity := events.MaxSeverity(spikeSeverity, driftSeverity)
-
-	if state.Severity != "" && severity == "" {
-		if events.SPCIsRecovered(currentRate, mean, stddev, stat.Total) {
-			j.handleRecovery(db, state, cusumState)
-		}
-	} else if severity != "" {
-		previousSeverity := state.Severity
-		events.UpdateSPCSeverity(db, state, severity, int(stat.Errors))
-
-		// Queue warning for digest if new warning
-		if previousSeverity == "" && state.Severity == "warning" {
-			msg := fmt.Sprintf("%s: %s error rate elevated to %.1f%% (normal: %.1f%%)",
-				appName, path, currentRate, mean)
-			events.QueueDigestItem(db, apiKeyID, path, msg, "warning")
-		}
-	}
-
-	// Learn only from normal buckets, so a spike does not raise the baseline.
-	// During cold start the defaults are not a real baseline, so always learn.
-	if state.Severity == "" || baseline.SampleCount < events.MinSamplesForBaseline {
-		events.UpdateBaseline(db, baseline, currentRate)
+	// Queue warning for digest if new warning
+	if previousSeverity == "" && state.Severity == "warning" {
+		msg := fmt.Sprintf("%s: %s error rate elevated to %.1f%% (normal: %.1f%%)",
+			appName, path, lastHour.ErrorRate(), baseline.Rate)
+		events.QueueDigestItem(db, apiKeyID, path, msg, "warning")
 	}
 }
 
-func (j *AnomalyChecker) handleRecovery(db *gorm.DB, state *events.SpikeState, cusumState *events.CUSUMState) {
-	// Clear state, no notification needed
-	// Recovery is the absence of a problem - you don't need to be told things are fine
-	events.ClearSPCState(db, state)
-	events.ClearCUSUMState(db, cusumState)
-}
+func (j *AnomalyChecker) checkSilence(db *gorm.DB, apiKeyID uint, appName, path string, at time.Time, currentVolume int64) {
+	baseline, err := events.GetVolumeBaseline(db, apiKeyID, path, at)
+	if err != nil || !baseline.Ready() {
+		return
+	}
 
-func (j *AnomalyChecker) checkSilence(db *gorm.DB, apiKeyID uint, appName, path string, hourOfWeek int, currentVolume int64) {
-	baseline := events.GetOrCreateVolumeBaseline(db, apiKeyID, path, hourOfWeek)
+	_, severity := events.IsSilence(float64(currentVolume), baseline)
+
 	state := events.GetOrCreateSilenceState(db, apiKeyID, path)
+	previousSeverity := state.Severity
+	events.UpdateSilenceSeverity(db, state, severity)
 
-	// A mean of 0 means not enough data yet
-	if mean, stddev := events.GetEffectiveVolumeBaseline(baseline); mean > 0 {
-		_, severity := events.IsSilence(float64(currentVolume), mean, stddev)
-
-		if state.Severity != "" && severity == "" {
-			if events.IsSilenceRecovered(float64(currentVolume), mean, stddev) {
-				events.ClearSilenceState(db, state)
-			}
-		} else if severity != "" {
-			previousSeverity := state.Severity
-			events.UpdateSilenceSeverity(db, state, severity)
-
-			// Queue warning for digest if new warning
-			if previousSeverity == "" && state.Severity == "warning" {
-				msg := fmt.Sprintf("%s: %s traffic dropped to %d requests (normally %.0f)",
-					appName, path, currentVolume, mean)
-				events.QueueDigestItem(db, apiKeyID, path, msg, "warning")
-			}
-		}
-	}
-
-	// Learn only from normal traffic, so an outage does not lower the baseline.
-	if state.Severity == "" {
-		events.UpdateVolumeBaseline(db, baseline, float64(currentVolume))
+	// Queue warning for digest if new warning
+	if previousSeverity == "" && state.Severity == "warning" {
+		msg := fmt.Sprintf("%s: %s traffic dropped to %d requests (normally %.0f)",
+			appName, path, currentVolume, baseline.Median)
+		events.QueueDigestItem(db, apiKeyID, path, msg, "warning")
 	}
 }
 
-func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB) {
+func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB, at time.Time) {
 	s, err := settings.Get(db)
 	if err != nil || !s.CanNotify() {
 		return
 	}
 
-	spikes := events.GetUnnotifiedCriticalSpikes(db)
-
-	for _, spike := range spikes {
-		// Get app name
+	for _, spike := range events.GetUnnotifiedCriticalSpikes(db) {
 		var key apikeys.APIKey
 		db.First(&key, spike.APIKeyID)
 
-		// Get baseline for context (mean only — the simplified email copy
-		// dropped the z-score, so stddev isn't used here anymore).
-		hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
-		baseline := events.GetOrCreateBaseline(db, spike.APIKeyID, spike.Path, hourOfWeek)
-		mean, _ := events.GetEffectiveBaseline(baseline)
-
-		stat, _ := events.GetLastCompleteBucket(db, spike.APIKeyID, spike.Path)
-		currentRate := stat.ErrorRate()
+		baseline, _ := events.GetErrorRateBaseline(db, spike.APIKeyID, spike.Path, at)
+		bucket, _ := events.GetLastCompleteBucket(db, spike.APIKeyID, spike.Path)
+		currentRate := bucket.ErrorRate()
 
 		subject := fmt.Sprintf("%s — spike: %s at %.1f%%", key.Name, spike.Path, currentRate)
 		body := fmt.Sprintf(`%s is at %.1f%% errors — normally %.1f%%.
@@ -175,9 +121,9 @@ func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB) {
 %s/apps/%d/issues`,
 			spike.Path,
 			currentRate,
-			mean,
+			baseline.Rate,
 			spike.ErrorCount,
-			int(time.Since(spike.SpikeStartAt).Minutes()),
+			int(time.Since(spike.SpikeStartAt).Minutes())+5, // The first bad bucket started 5 min before detection
 			s.BaseURL,
 			spike.APIKeyID,
 		)
@@ -187,22 +133,13 @@ func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB) {
 		}
 	}
 
-	// Send silence alerts
-	j.sendSilenceAlerts(db, s)
-}
-
-func (j *AnomalyChecker) sendSilenceAlerts(db *gorm.DB, s *settings.Settings) {
-	silences := events.GetUnnotifiedCriticalSilences(db)
-
-	for _, silence := range silences {
+	for _, silence := range events.GetUnnotifiedCriticalSilences(db) {
 		var key apikeys.APIKey
 		db.First(&key, silence.APIKeyID)
 
-		hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
-		baseline := events.GetOrCreateVolumeBaseline(db, silence.APIKeyID, silence.Path, hourOfWeek)
-		mean, _ := events.GetEffectiveVolumeBaseline(baseline)
+		baseline, _ := events.GetVolumeBaseline(db, silence.APIKeyID, silence.Path, at)
 
-		silentMin := int(time.Since(silence.SilenceStartAt).Minutes())
+		silentMin := int(time.Since(silence.SilenceStartAt).Minutes()) + 5
 		subject := fmt.Sprintf("%s — silent: %s for %d min", key.Name, silence.Path, silentMin)
 		body := fmt.Sprintf(`%s has been silent for %d min.
 Normally ~%.0f requests.
@@ -210,7 +147,7 @@ Normally ~%.0f requests.
 %s/apps/%d/issues`,
 			silence.Path,
 			silentMin,
-			mean,
+			baseline.Median,
 			s.BaseURL,
 			silence.APIKeyID,
 		)

@@ -50,7 +50,7 @@ func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		}
 	}
 
-	// Delete endpoint stats older than 8 days (7 for baseline + 1 buffer)
+	// Delete endpoint stats older than the SPC history needs
 	deletedStats, err := events.CleanupOldStats(ctx.DB)
 	if err != nil {
 		ctx.Logger.Error("Failed to cleanup old stats", "error", err)

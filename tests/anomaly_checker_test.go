@@ -27,36 +27,65 @@ func (tdb *testDB) runAnomalyChecker() {
 	}
 }
 
-func (tdb *testDB) baselineSamples(apiKeyID uint, path string) int {
-	hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
-	return events.GetOrCreateBaseline(tdb.db, apiKeyID, path, hourOfWeek).SampleCount
+// seedHistory records the same traffic in every history bucket, `count`
+// windows `step` apart, like a normal past for the endpoint.
+func (tdb *testDB) seedHistory(apiKeyID uint, path string, step time.Duration, count, total, errors int) {
+	at := events.LastCompleteBucketTime()
+	for i := 1; i <= count; i++ {
+		center := at.Add(-time.Duration(i) * step)
+		for b := center.Add(-events.HistoryWindow); !b.After(center.Add(events.HistoryWindow)); b = b.Add(5 * time.Minute) {
+			tdb.createEndpointStatsAt(b, apiKeyID, path, total, errors)
+		}
+	}
 }
 
-func TestAnomalyChecker(t *testing.T) {
-	t.Run("with a spike on a learned baseline", func(t *testing.T) {
+// seedDays gives an endpoint 7 normal days at this time of day.
+func (tdb *testDB) seedDays(apiKeyID uint, path string, total, errors int) {
+	tdb.seedHistory(apiKeyID, path, 24*time.Hour, events.ErrorRateHistoryDays, total, errors)
+}
+
+// setLastBucket changes the traffic of the last complete bucket.
+func (tdb *testDB) setLastBucket(path string, total, errors int) {
+	tdb.db.Model(&events.EndpointStat{}).
+		Where("path = ? AND bucket = ?", path, events.LastCompleteBucketTime()).
+		Updates(map[string]any{"total": total, "errors": errors})
+}
+
+func TestAnomalyChecker_ErrorRate(t *testing.T) {
+	t.Run("with a spike", func(t *testing.T) {
 		tdb := setupAlertingTestDB(t)
 		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
-		tdb.createBaseline(apiKey.ID, "/api/orders", events.HourOfWeek(events.LastCompleteBucketTime()), 1.0, 0.5, 50)
-		tdb.createEndpointStats(apiKey.ID, "/api/orders", 1000, 50)
+		tdb.seedDays(apiKey.ID, "/api/orders", 1000, 10)
+		tdb.createEndpointStats(apiKey.ID, "/api/orders", 1000, 80)
 
 		tdb.runAnomalyChecker()
 
 		state := tdb.getAlertState(apiKey.ID, "/api/orders")
 		if state.Severity != "critical" {
-			t.Errorf("expected critical, got %q", state.Severity)
+			t.Errorf("8%% on a 1%% history → expected critical, got %q", state.Severity)
 		}
-		if state.ErrorCount != 50 {
-			t.Errorf("expected the real error count 50, got %d", state.ErrorCount)
+		if state.ErrorCount != 80 {
+			t.Errorf("expected the real error count 80, got %d", state.ErrorCount)
 		}
-		if got := tdb.baselineSamples(apiKey.ID, "/api/orders"); got != 50 {
-			t.Errorf("expected the baseline to skip the spike (50 samples), got %d", got)
+	})
+
+	t.Run("with normal traffic", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
+		tdb.seedDays(apiKey.ID, "/api/orders", 1000, 10)
+		tdb.createEndpointStats(apiKey.ID, "/api/orders", 1000, 12)
+
+		tdb.runAnomalyChecker()
+
+		if state := tdb.getAlertState(apiKey.ID, "/api/orders"); state.Severity != "" {
+			t.Errorf("1.2%% on a 1%% history → expected no alert, got %q", state.Severity)
 		}
 	})
 
 	t.Run("with too few requests", func(t *testing.T) {
 		tdb := setupAlertingTestDB(t)
 		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
-		tdb.createBaseline(apiKey.ID, "/api/admin", events.HourOfWeek(events.LastCompleteBucketTime()), 0.0, 0.0, 50)
+		tdb.seedDays(apiKey.ID, "/api/admin", 1000, 0)
 		tdb.createEndpointStats(apiKey.ID, "/api/admin", 2, 1)
 
 		tdb.runAnomalyChecker()
@@ -64,15 +93,12 @@ func TestAnomalyChecker(t *testing.T) {
 		if state := tdb.getAlertState(apiKey.ID, "/api/admin"); state.Severity != "" {
 			t.Errorf("1 error in 2 requests → expected no alert, got %q", state.Severity)
 		}
-		if got := tdb.baselineSamples(apiKey.ID, "/api/admin"); got != 50 {
-			t.Errorf("expected no learning from 2 requests (50 samples), got %d", got)
-		}
 	})
 
 	t.Run("with one error on an endpoint that never fails", func(t *testing.T) {
 		tdb := setupAlertingTestDB(t)
 		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
-		tdb.createBaseline(apiKey.ID, "/api/health", events.HourOfWeek(events.LastCompleteBucketTime()), 0.0, 0.0001, 50)
+		tdb.seedDays(apiKey.ID, "/api/health", 1000, 0)
 		tdb.createEndpointStats(apiKey.ID, "/api/health", 1000, 1)
 
 		tdb.runAnomalyChecker()
@@ -80,21 +106,13 @@ func TestAnomalyChecker(t *testing.T) {
 		if state := tdb.getAlertState(apiKey.ID, "/api/health"); state.Severity != "" {
 			t.Errorf("1 error in 1,000 requests → expected no alert, got %q", state.Severity)
 		}
-		if got := tdb.baselineSamples(apiKey.ID, "/api/health"); got != 51 {
-			t.Errorf("expected the baseline to learn from a normal bucket (51 samples), got %d", got)
-		}
 	})
 
 	t.Run("with a spike in the bucket that is still filling", func(t *testing.T) {
 		tdb := setupAlertingTestDB(t)
 		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
-		tdb.db.Create(&events.EndpointStat{
-			APIKeyID: apiKey.ID,
-			Path:     "/api/orders",
-			Bucket:   events.TruncateTo5Min(time.Now()),
-			Total:    100,
-			Errors:   50,
-		})
+		tdb.seedDays(apiKey.ID, "/api/orders", 1000, 10)
+		tdb.createEndpointStatsAt(events.TruncateTo5Min(time.Now().UTC()), apiKey.ID, "/api/orders", 100, 50)
 
 		tdb.runAnomalyChecker()
 
@@ -103,44 +121,157 @@ func TestAnomalyChecker(t *testing.T) {
 		}
 	})
 
-	t.Run("with a new endpoint during cold start", func(t *testing.T) {
+	t.Run("without history", func(t *testing.T) {
 		tdb := setupAlertingTestDB(t)
 		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
-		tdb.createEndpointStats(apiKey.ID, "/api/search", 100, 10)
+		tdb.createEndpointStats(apiKey.ID, "/api/new", 1000, 500)
 
 		tdb.runAnomalyChecker()
 
-		if state := tdb.getAlertState(apiKey.ID, "/api/search"); state.Severity != "critical" {
-			t.Errorf("10%% on cold-start defaults (2%%±2%%) → expected critical, got %q", state.Severity)
-		}
-		if got := tdb.baselineSamples(apiKey.ID, "/api/search"); got != 1 {
-			t.Errorf("expected the baseline to keep learning during cold start (1 sample), got %d", got)
+		if state := tdb.getAlertState(apiKey.ID, "/api/new"); state.Severity != "" {
+			t.Errorf("a new endpoint has no normal yet → expected no alert, got %q", state.Severity)
 		}
 	})
 
+	t.Run("with a slow rise over the last hour", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
+		tdb.seedDays(apiKey.ID, "/api/checkout", 1000, 10)
+		at := events.LastCompleteBucketTime()
+		for b := at.Add(-55 * time.Minute); !b.After(at); b = b.Add(5 * time.Minute) {
+			tdb.createEndpointStatsAt(b, apiKey.ID, "/api/checkout", 1000, 15)
+		}
+
+		tdb.runAnomalyChecker()
+
+		if state := tdb.getAlertState(apiKey.ID, "/api/checkout"); state.Severity != "critical" {
+			t.Errorf("1.5%% for an hour on a 1%% history → expected critical drift, got %q", state.Severity)
+		}
+	})
+
+	t.Run("with an outage in the history", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
+		tdb.seedDays(apiKey.ID, "/api/orders", 1000, 10)
+		yesterday := events.LastCompleteBucketTime().Add(-24 * time.Hour)
+		tdb.db.Model(&events.EndpointStat{}).Where("bucket = ?", yesterday).Update("errors", 500)
+		tdb.createEndpointStats(apiKey.ID, "/api/orders", 1000, 40)
+
+		tdb.runAnomalyChecker()
+
+		if state := tdb.getAlertState(apiKey.ID, "/api/orders"); state.Severity != "critical" {
+			t.Errorf("one past outage must not hide a 4%% spike → expected critical, got %q", state.Severity)
+		}
+	})
+
+	t.Run("recovers after two clean checks", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
+		tdb.seedDays(apiKey.ID, "/api/orders", 1000, 10)
+		tdb.createEndpointStats(apiKey.ID, "/api/orders", 1000, 80)
+		tdb.runAnomalyChecker()
+		tdb.setLastBucket("/api/orders", 1000, 10)
+
+		tdb.runAnomalyChecker()
+		afterOne := tdb.getAlertState(apiKey.ID, "/api/orders").Severity
+		tdb.runAnomalyChecker()
+		afterTwo := tdb.getAlertState(apiKey.ID, "/api/orders").Severity
+
+		if afterOne != "critical" {
+			t.Errorf("after one clean check → expected still critical, got %q", afterOne)
+		}
+		if afterTwo != "" {
+			t.Errorf("after two clean checks → expected cleared, got %q", afterTwo)
+		}
+	})
+}
+
+func TestAnomalyChecker_Silence(t *testing.T) {
 	t.Run("with a traffic drop", func(t *testing.T) {
 		tdb := setupAlertingTestDB(t)
 		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
-		hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
-		tdb.db.Create(&events.VolumeBaselineStat{
-			APIKeyID:    apiKey.ID,
-			Path:        "/api/webhooks",
-			HourOfWeek:  hourOfWeek,
-			Mean:        1000,
-			StdDev:      100,
-			SampleCount: 50,
-		})
+		tdb.seedHistory(apiKey.ID, "/api/webhooks", 7*24*time.Hour, events.VolumeHistoryWeeks, 1000, 0)
 		tdb.createEndpointStats(apiKey.ID, "/api/webhooks", 10, 0)
 
 		tdb.runAnomalyChecker()
 
 		silence := events.GetOrCreateSilenceState(tdb.db, apiKey.ID, "/api/webhooks")
 		if silence.Severity != "critical" {
-			t.Errorf("10 requests on a 1000±100 baseline → expected critical, got %q", silence.Severity)
+			t.Errorf("10 requests on a 1,000 history → expected critical, got %q", silence.Severity)
 		}
-		volume := events.GetOrCreateVolumeBaseline(tdb.db, apiKey.ID, "/api/webhooks", hourOfWeek)
-		if volume.SampleCount != 50 || volume.Mean != 1000 {
-			t.Errorf("expected the outage to stay out of the baseline, got mean=%.0f samples=%d", volume.Mean, volume.SampleCount)
+	})
+
+	t.Run("with no requests at all", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
+		tdb.seedHistory(apiKey.ID, "/api/webhooks", 7*24*time.Hour, events.VolumeHistoryWeeks, 1000, 0)
+		tdb.createEndpointStatsAt(events.LastCompleteBucketTime().Add(-time.Hour), apiKey.ID, "/api/webhooks", 1000, 0)
+
+		tdb.runAnomalyChecker()
+
+		silence := events.GetOrCreateSilenceState(tdb.db, apiKey.ID, "/api/webhooks")
+		if silence.Severity != "critical" {
+			t.Errorf("an empty bucket on a 1,000 history → expected critical, got %q", silence.Severity)
+		}
+	})
+
+	t.Run("with normal traffic", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
+		tdb.seedHistory(apiKey.ID, "/api/webhooks", 7*24*time.Hour, events.VolumeHistoryWeeks, 1000, 0)
+		tdb.createEndpointStats(apiKey.ID, "/api/webhooks", 980, 0)
+
+		tdb.runAnomalyChecker()
+
+		silence := events.GetOrCreateSilenceState(tdb.db, apiKey.ID, "/api/webhooks")
+		if silence.Severity != "" {
+			t.Errorf("980 requests on a 1,000 history → expected no alert, got %q", silence.Severity)
+		}
+	})
+}
+
+func TestGetUnnotifiedCriticalSpikes(t *testing.T) {
+	t.Run("returns a new critical spike", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		tdb.db.Create(&events.SpikeState{Path: "/api/orders", Severity: "critical", SpikeStartAt: time.Now()})
+
+		spikes := events.GetUnnotifiedCriticalSpikes(tdb.db)
+
+		if len(spikes) != 1 {
+			t.Errorf("expected 1 spike to email, got %d", len(spikes))
+		}
+	})
+
+	t.Run("waits for the cooldown after the last email", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		tdb.db.Create(&events.SpikeState{
+			Path:         "/api/orders",
+			Severity:     "critical",
+			SpikeStartAt: time.Now(),
+			LastAlertAt:  time.Now().Add(-10 * time.Minute),
+		})
+
+		spikes := events.GetUnnotifiedCriticalSpikes(tdb.db)
+
+		if len(spikes) != 0 {
+			t.Errorf("an email 10 min ago → expected no new email, got %d", len(spikes))
+		}
+	})
+
+	t.Run("does not email the same spike twice", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		start := time.Now().Add(-3 * time.Hour)
+		tdb.db.Create(&events.SpikeState{
+			Path:         "/api/orders",
+			Severity:     "critical",
+			SpikeStartAt: start,
+			LastAlertAt:  start.Add(time.Minute),
+		})
+
+		spikes := events.GetUnnotifiedCriticalSpikes(tdb.db)
+
+		if len(spikes) != 0 {
+			t.Errorf("expected no second email for the same spike, got %d", len(spikes))
 		}
 	})
 }

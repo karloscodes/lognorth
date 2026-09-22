@@ -2,75 +2,84 @@ package tests
 
 import (
 	"testing"
-	"time"
 
 	"lognorth/internal/events"
 )
 
-// manyRequests makes the binomial stddev floor negligible, so a test checks
-// only the learned mean and stddev.
-const manyRequests = 100_000
+// A baseline with enough history: 1% errors, buckets vary like binomial.
+var onePercent = events.ErrorRateBaseline{Rate: 1.0, Dispersion: 1, HourDispersion: 1, Buckets: 91}
 
 func TestSPCIsSpike(t *testing.T) {
-	t.Run("returns critical when above 3 sigma", func(t *testing.T) {
-		isSpike, severity := events.SPCIsSpike(10.0, 2.0, 2.0, manyRequests) // z = (10-2)/2 = 4
+	// At 1% over 1,000 requests, one binomial stddev is 0.31%.
 
-		if !isSpike {
-			t.Error("expected spike to be detected")
-		}
-		if severity != "critical" {
-			t.Errorf("expected critical, got %s", severity)
-		}
-	})
+	t.Run("returns critical at 5 sigma or more", func(t *testing.T) {
+		isSpike, severity := events.SPCIsSpike(3.0, 1000, onePercent) // z = 6.4
 
-	t.Run("returns warning when between 2 and 3 sigma", func(t *testing.T) {
-		isSpike, severity := events.SPCIsSpike(6.5, 2.0, 2.0, manyRequests) // z = (6.5-2)/2 = 2.25
-
-		if !isSpike {
-			t.Error("expected spike to be detected")
-		}
-		if severity != "warning" {
-			t.Errorf("expected warning, got %s", severity)
+		if !isSpike || severity != "critical" {
+			t.Errorf("expected critical, got spike=%v severity=%q", isSpike, severity)
 		}
 	})
 
-	t.Run("returns false when within normal range", func(t *testing.T) {
-		isSpike, _ := events.SPCIsSpike(3.0, 2.0, 2.0, manyRequests) // z = (3-2)/2 = 0.5
+	t.Run("returns warning between 3 and 5 sigma", func(t *testing.T) {
+		isSpike, severity := events.SPCIsSpike(2.2, 1000, onePercent) // z = 3.8
+
+		if !isSpike || severity != "warning" {
+			t.Errorf("expected warning, got spike=%v severity=%q", isSpike, severity)
+		}
+	})
+
+	t.Run("returns nothing within normal range", func(t *testing.T) {
+		isSpike, _ := events.SPCIsSpike(1.5, 1000, onePercent) // z = 1.6
 
 		if isSpike {
 			t.Error("expected no spike")
 		}
 	})
 
-	t.Run("uses the binomial stddev when the learned stddev is zero", func(t *testing.T) {
-		isSpike, severity := events.SPCIsSpike(5.0, 2.0, 0.0, manyRequests)
+	t.Run("widens the limits for an endpoint that varies more than binomial", func(t *testing.T) {
+		noisy := onePercent
+		noisy.Dispersion = 3
 
-		if !isSpike {
-			t.Error("expected spike with zero stddev fallback")
-		}
-		if severity != "critical" {
-			t.Errorf("expected critical, got %s", severity)
+		isSpike, _ := events.SPCIsSpike(3.0, 1000, noisy) // z = 6.4 / 3 = 2.1
+
+		if isSpike {
+			t.Error("expected no spike on a noisy endpoint")
 		}
 	})
 
 	t.Run("ignores buckets with too few requests", func(t *testing.T) {
-		isSpike, _ := events.SPCIsSpike(50.0, 0.0, 0.0, 2) // 1 error in 2 requests
+		isSpike, _ := events.SPCIsSpike(50.0, 2, onePercent) // 1 error in 2 requests
 
 		if isSpike {
 			t.Error("expected no spike below the minimum request count")
 		}
 	})
 
-	t.Run("does not alert on one error for an endpoint that never fails", func(t *testing.T) {
-		isSpike, _ := events.SPCIsSpike(0.1, 0.0, 0.0001, 1000) // 1 error in 1,000 requests
+	t.Run("waits for enough history", func(t *testing.T) {
+		learning := onePercent
+		learning.Buckets = 5
+
+		isSpike, _ := events.SPCIsSpike(50.0, 1000, learning)
 
 		if isSpike {
-			t.Error("expected no spike: the learned stddev collapsed, the binomial floor applies")
+			t.Error("expected no spike without enough history")
+		}
+	})
+
+	t.Run("does not alert on one error for an endpoint that never fails", func(t *testing.T) {
+		neverFails := events.ErrorRateBaseline{Rate: 0, Dispersion: 1, HourDispersion: 1, Buckets: 91}
+
+		isSpike, _ := events.SPCIsSpike(0.1, 1000, neverFails) // 1 error in 1,000 requests
+
+		if isSpike {
+			t.Error("expected no spike: one error is within the 1-error-per-bucket floor")
 		}
 	})
 
 	t.Run("alerts on many errors for an endpoint that never fails", func(t *testing.T) {
-		_, severity := events.SPCIsSpike(5.0, 0.0, 0.0001, 1000) // 50 errors in 1,000 requests
+		neverFails := events.ErrorRateBaseline{Rate: 0, Dispersion: 1, HourDispersion: 1, Buckets: 91}
+
+		_, severity := events.SPCIsSpike(5.0, 1000, neverFails) // 50 errors in 1,000 requests
 
 		if severity != "critical" {
 			t.Errorf("expected critical, got %q", severity)
@@ -78,367 +87,104 @@ func TestSPCIsSpike(t *testing.T) {
 	})
 }
 
-func TestUpdateCUSUM(t *testing.T) {
-	t.Run("accumulates positive deviation", func(t *testing.T) {
-		state := &events.CUSUMState{Cumulative: 0}
+func TestSPCIsDrift(t *testing.T) {
+	t.Run("catches a rise that one bucket cannot show", func(t *testing.T) {
+		// 1.5% on 1,000 requests is z = 1.6. Over 12,000 requests it is z = 5.5.
+		_, bucketSeverity := events.SPCIsSpike(1.5, 1000, onePercent)
+		_, hourSeverity := events.SPCIsDrift(1.5, 12000, onePercent)
 
-		events.UpdateCUSUM(state, 3.0, 2.0) // deviation = 3 - 2 - 0.5 = 0.5
-
-		if state.Cumulative != 0.5 {
-			t.Errorf("expected 0.5, got %f", state.Cumulative)
+		if bucketSeverity != "" {
+			t.Errorf("expected no spike on one bucket, got %q", bucketSeverity)
+		}
+		if hourSeverity != "critical" {
+			t.Errorf("expected critical drift over the hour, got %q", hourSeverity)
 		}
 	})
 
-	t.Run("does not go below zero", func(t *testing.T) {
-		state := &events.CUSUMState{Cumulative: 0}
+	t.Run("uses the hour dispersion", func(t *testing.T) {
+		wanders := onePercent
+		wanders.HourDispersion = 4
 
-		events.UpdateCUSUM(state, 1.0, 2.0) // deviation = 1 - 2 - 0.5 = -1.5
+		isDrift, _ := events.SPCIsDrift(1.5, 12000, wanders) // z = 5.5 / 4 = 1.4
 
-		if state.Cumulative != 0 {
-			t.Errorf("expected 0, got %f", state.Cumulative)
-		}
-	})
-
-	t.Run("returns critical when threshold exceeded", func(t *testing.T) {
-		state := &events.CUSUMState{Cumulative: 4.6}
-
-		detected, severity := events.UpdateCUSUM(state, 3.0, 2.0) // adds 0.5
-
-		if !detected {
-			t.Error("expected drift detected")
-		}
-		if severity != "critical" {
-			t.Errorf("expected critical, got %s", severity)
-		}
-	})
-
-	t.Run("returns warning when above warning threshold", func(t *testing.T) {
-		state := &events.CUSUMState{Cumulative: 2.1}
-
-		detected, severity := events.UpdateCUSUM(state, 3.0, 2.0) // adds 0.5 = 2.6
-
-		if !detected {
-			t.Error("expected drift detected")
-		}
-		if severity != "warning" {
-			t.Errorf("expected warning, got %s", severity)
+		if isDrift {
+			t.Error("expected no drift on an endpoint whose hourly rate wanders")
 		}
 	})
 }
 
-func TestHourOfWeek(t *testing.T) {
-	t.Run("monday midnight is 0", func(t *testing.T) {
-		// 2026-02-09 is a Monday
-		monday := time.Date(2026, 2, 9, 0, 0, 0, 0, time.UTC)
+func TestIsSilence(t *testing.T) {
+	steady := events.VolumeBaseline{Median: 1000, MAD: 50, Buckets: 52} // stddev ≈ 74
 
-		if got := events.HourOfWeek(monday); got != 0 {
-			t.Errorf("expected 0, got %d", got)
+	t.Run("returns critical when traffic stops", func(t *testing.T) {
+		_, severity := events.IsSilence(0, steady)
+
+		if severity != "critical" {
+			t.Errorf("expected critical, got %q", severity)
 		}
 	})
 
-	t.Run("sunday 23:00 is 167", func(t *testing.T) {
-		// 2026-02-15 is a Sunday
-		sunday := time.Date(2026, 2, 15, 23, 0, 0, 0, time.UTC)
+	t.Run("returns warning on a large drop", func(t *testing.T) {
+		_, severity := events.IsSilence(700, steady) // z = 4.0
 
-		if got := events.HourOfWeek(sunday); got != 167 {
-			t.Errorf("expected 167, got %d", got)
+		if severity != "warning" {
+			t.Errorf("expected warning, got %q", severity)
+		}
+	})
+
+	t.Run("returns nothing on a normal dip", func(t *testing.T) {
+		isSilent, _ := events.IsSilence(900, steady) // z = 1.3
+
+		if isSilent {
+			t.Error("expected no silence")
+		}
+	})
+
+	t.Run("uses the Poisson floor when the history is flat", func(t *testing.T) {
+		flat := events.VolumeBaseline{Median: 1000, MAD: 0, Buckets: 52} // stddev = √1000 ≈ 32
+
+		isSilent, _ := events.IsSilence(950, flat) // z = 1.6
+
+		if isSilent {
+			t.Error("expected no silence: a 5% dip is within Poisson noise")
+		}
+	})
+
+	t.Run("skips low-traffic endpoints", func(t *testing.T) {
+		quiet := events.VolumeBaseline{Median: 20, MAD: 2, Buckets: 52}
+
+		isSilent, _ := events.IsSilence(0, quiet)
+
+		if isSilent {
+			t.Error("expected no silence below the minimum volume")
+		}
+	})
+
+	t.Run("waits for enough history", func(t *testing.T) {
+		learning := events.VolumeBaseline{Median: 1000, MAD: 50, Buckets: 5}
+
+		isSilent, _ := events.IsSilence(0, learning)
+
+		if isSilent {
+			t.Error("expected no silence without enough history")
 		}
 	})
 }
 
 func TestMaxSeverity(t *testing.T) {
 	tests := []struct {
-		a, b     string
-		expected string
+		a, b, want string
 	}{
 		{"critical", "warning", "critical"},
 		{"warning", "critical", "critical"},
-		{"warning", "warning", "warning"},
-		{"", "warning", "warning"},
 		{"warning", "", "warning"},
+		{"", "warning", "warning"},
 		{"", "", ""},
 	}
 
 	for _, tt := range tests {
-		got := events.MaxSeverity(tt.a, tt.b)
-		if got != tt.expected {
-			t.Errorf("MaxSeverity(%q, %q) = %q, want %q", tt.a, tt.b, got, tt.expected)
+		if got := events.MaxSeverity(tt.a, tt.b); got != tt.want {
+			t.Errorf("MaxSeverity(%q, %q) = %q, want %q", tt.a, tt.b, got, tt.want)
 		}
 	}
-}
-
-func TestSPCIsRecovered(t *testing.T) {
-	t.Run("returns true when below threshold", func(t *testing.T) {
-		// threshold = mean + 1*stddev = 2 + 1*1 = 3
-		if !events.SPCIsRecovered(2.5, 2.0, 1.0, manyRequests) {
-			t.Error("expected recovered")
-		}
-	})
-
-	t.Run("returns false when above threshold", func(t *testing.T) {
-		// threshold = mean + 1*stddev = 2 + 1*1 = 3
-		if events.SPCIsRecovered(4.0, 2.0, 1.0, manyRequests) {
-			t.Error("expected not recovered")
-		}
-	})
-}
-
-func TestGetEffectiveBaseline(t *testing.T) {
-	t.Run("returns defaults for cold start", func(t *testing.T) {
-		baseline := &events.BaselineStat{
-			Mean:        5.0,
-			StdDev:      1.0,
-			SampleCount: 10, // Below MinSamplesForBaseline (20)
-		}
-
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		if mean != events.DefaultMean {
-			t.Errorf("expected default mean %f, got %f", events.DefaultMean, mean)
-		}
-		if stddev != events.DefaultStdDev {
-			t.Errorf("expected default stddev %f, got %f", events.DefaultStdDev, stddev)
-		}
-	})
-
-	t.Run("returns learned values after enough samples", func(t *testing.T) {
-		baseline := &events.BaselineStat{
-			Mean:        5.0,
-			StdDev:      1.5,
-			SampleCount: 25,
-		}
-
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		if mean != 5.0 {
-			t.Errorf("expected 5.0, got %f", mean)
-		}
-		if stddev != 1.5 {
-			t.Errorf("expected 1.5, got %f", stddev)
-		}
-	})
-}
-
-// =============================================================================
-// SCENARIO TESTS: Small Data (Cold Start) vs Medium Data (Learned Baseline)
-// =============================================================================
-
-// TestSmallData_ColdStart tests detection behavior with insufficient samples.
-// This simulates a new app with only a few days of data.
-func TestSmallData_ColdStart(t *testing.T) {
-	// Scenario: New app, only 5 samples collected so far
-	// System should use conservative defaults (mean=2%, stddev=2%)
-
-	t.Run("uses conservative defaults with 5 samples", func(t *testing.T) {
-		baseline := &events.BaselineStat{
-			Mean:        10.0, // App's actual mean is 10%, but we don't trust it yet
-			StdDev:      1.0,
-			SampleCount: 5,
-		}
-
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		// Should use defaults, not the learned values
-		if mean != 2.0 {
-			t.Errorf("cold start should use default mean 2.0, got %f", mean)
-		}
-		if stddev != 2.0 {
-			t.Errorf("cold start should use default stddev 2.0, got %f", stddev)
-		}
-	})
-
-	t.Run("8% error rate triggers critical during cold start", func(t *testing.T) {
-		// With defaults (mean=2, stddev=2), 8% gives z-score = (8-2)/2 = 3
-		// This should be critical (> 3 sigma)
-		baseline := &events.BaselineStat{SampleCount: 5}
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		isSpike, severity := events.SPCIsSpike(8.0, mean, stddev, manyRequests)
-
-		if !isSpike || severity != "critical" {
-			t.Errorf("8%% error rate during cold start should be critical, got spike=%v severity=%s", isSpike, severity)
-		}
-	})
-
-	t.Run("5% error rate does not alert during cold start", func(t *testing.T) {
-		// With defaults (mean=2, stddev=2), 5% gives z-score = (5-2)/2 = 1.5
-		// This is below warning threshold (2 sigma), so no alert
-		baseline := &events.BaselineStat{SampleCount: 5}
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		isSpike, _ := events.SPCIsSpike(5.0, mean, stddev, manyRequests)
-
-		if isSpike {
-			t.Error("5% error rate during cold start should NOT trigger spike (z=1.5 < 2)")
-		}
-	})
-
-	t.Run("6% error rate triggers warning during cold start", func(t *testing.T) {
-		// With defaults (mean=2, stddev=2), 6% gives z-score = (6-2)/2 = 2
-		// This is exactly at warning threshold
-		baseline := &events.BaselineStat{SampleCount: 5}
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		isSpike, severity := events.SPCIsSpike(6.1, mean, stddev, manyRequests)
-
-		if !isSpike || severity != "warning" {
-			t.Errorf("6.1%% error rate during cold start should be warning, got spike=%v severity=%s", isSpike, severity)
-		}
-	})
-}
-
-// TestMediumData_LearnedBaseline tests detection with enough samples to trust the baseline.
-// This simulates an app with ~1 month of data (20+ samples per hour bucket).
-func TestMediumData_LearnedBaseline(t *testing.T) {
-	// Scenario: App with 50 samples - enough to trust the learned baseline
-	// App normally runs at 5% error rate with stddev of 1%
-
-	t.Run("uses learned values with 50 samples", func(t *testing.T) {
-		baseline := &events.BaselineStat{
-			Mean:        5.0,
-			StdDev:      1.0,
-			SampleCount: 50,
-		}
-
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		if mean != 5.0 {
-			t.Errorf("should use learned mean 5.0, got %f", mean)
-		}
-		if stddev != 1.0 {
-			t.Errorf("should use learned stddev 1.0, got %f", stddev)
-		}
-	})
-
-	t.Run("8% is critical for low-error app", func(t *testing.T) {
-		// App normally at 5% ± 1%
-		// 8% gives z-score = (8-5)/1 = 3, exactly at critical threshold
-		baseline := &events.BaselineStat{
-			Mean:        5.0,
-			StdDev:      1.0,
-			SampleCount: 50,
-		}
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		isSpike, severity := events.SPCIsSpike(8.1, mean, stddev, manyRequests)
-
-		if !isSpike || severity != "critical" {
-			t.Errorf("8.1%% for 5%%±1%% app should be critical, got spike=%v severity=%s", isSpike, severity)
-		}
-	})
-
-	t.Run("7% is warning for low-error app", func(t *testing.T) {
-		// App normally at 5% ± 1%
-		// 7% gives z-score = (7-5)/1 = 2, at warning threshold
-		baseline := &events.BaselineStat{
-			Mean:        5.0,
-			StdDev:      1.0,
-			SampleCount: 50,
-		}
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		isSpike, severity := events.SPCIsSpike(7.1, mean, stddev, manyRequests)
-
-		if !isSpike || severity != "warning" {
-			t.Errorf("7.1%% for 5%%±1%% app should be warning, got spike=%v severity=%s", isSpike, severity)
-		}
-	})
-
-	t.Run("6% is normal for low-error app", func(t *testing.T) {
-		// App normally at 5% ± 1%
-		// 6% gives z-score = (6-5)/1 = 1, within normal range
-		baseline := &events.BaselineStat{
-			Mean:        5.0,
-			StdDev:      1.0,
-			SampleCount: 50,
-		}
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		isSpike, _ := events.SPCIsSpike(6.0, mean, stddev, manyRequests)
-
-		if isSpike {
-			t.Error("6% for 5%±1% app should be normal (z=1)")
-		}
-	})
-}
-
-// TestHighVarianceApp tests an app with naturally high variance.
-// Some apps have variable error rates - SPC should adapt.
-func TestHighVarianceApp(t *testing.T) {
-	// Scenario: App with mean 10% and stddev 3% (high variance)
-	// This app naturally fluctuates between 4% and 16%
-
-	t.Run("16% is normal for high-variance app", func(t *testing.T) {
-		// 10% ± 3%, so 16% is z-score = (16-10)/3 = 2, at warning threshold
-		baseline := &events.BaselineStat{
-			Mean:        10.0,
-			StdDev:      3.0,
-			SampleCount: 50,
-		}
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		isSpike, _ := events.SPCIsSpike(15.9, mean, stddev, manyRequests)
-
-		if isSpike {
-			t.Error("15.9% for 10%±3% app should be normal (z<2)")
-		}
-	})
-
-	t.Run("20% triggers critical for high-variance app", func(t *testing.T) {
-		// 10% ± 3%, so 20% is z-score = (20-10)/3 = 3.33, critical
-		baseline := &events.BaselineStat{
-			Mean:        10.0,
-			StdDev:      3.0,
-			SampleCount: 50,
-		}
-		mean, stddev := events.GetEffectiveBaseline(baseline)
-
-		isSpike, severity := events.SPCIsSpike(20.0, mean, stddev, manyRequests)
-
-		if !isSpike || severity != "critical" {
-			t.Errorf("20%% for 10%%±3%% app should be critical, got spike=%v severity=%s", isSpike, severity)
-		}
-	})
-}
-
-// TestCUSUMDriftDetection tests gradual drift that individual checks miss.
-func TestCUSUMDriftDetection(t *testing.T) {
-	// Scenario: Error rate slowly creeping up over multiple checks
-	// Each individual reading looks normal, but the trend is concerning
-
-	t.Run("detects slow drift over multiple readings", func(t *testing.T) {
-		state := &events.CUSUMState{Cumulative: 0}
-		mean := 5.0 // Baseline mean
-
-		// Simulate 10 readings slightly above normal (6% each)
-		// deviation per reading = 6 - 5 - 0.5 = 0.5
-		for i := 0; i < 10; i++ {
-			events.UpdateCUSUM(state, 6.0, mean)
-		}
-
-		// After 10 readings: cumulative = 10 * 0.5 = 5.0
-		// This should trigger critical (threshold = 5.0)
-		if state.Cumulative < events.CUSUMCriticalThreshold {
-			t.Errorf("expected cumulative >= %f after drift, got %f",
-				events.CUSUMCriticalThreshold, state.Cumulative)
-		}
-	})
-
-	t.Run("decreases when readings return to normal", func(t *testing.T) {
-		state := &events.CUSUMState{Cumulative: 3.0} // Some accumulated drift
-		mean := 5.0
-
-		// Reading below mean reduces the accumulator (but doesn't fully clear in one reading)
-		events.UpdateCUSUM(state, 4.0, mean) // deviation = 4 - 5 - 0.5 = -1.5, new = max(0, 3.0-1.5) = 1.5
-
-		if state.Cumulative != 1.5 {
-			t.Errorf("cumulative should be 1.5 after partial reduction, got %f", state.Cumulative)
-		}
-
-		// Multiple below-mean readings eventually reset to 0
-		events.UpdateCUSUM(state, 4.0, mean) // 1.5 - 1.5 = 0
-		if state.Cumulative != 0 {
-			t.Errorf("cumulative should be 0 after full reduction, got %f", state.Cumulative)
-		}
-	})
 }
