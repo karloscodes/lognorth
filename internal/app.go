@@ -148,14 +148,17 @@ func MountRoutes(server *cartridge.Server) {
 	ingestRateLimiter := conditionalRateLimiter(cfg, cartridgemiddleware.RateLimiter(
 		cartridgemiddleware.WithMax(1000),
 		cartridgemiddleware.WithDuration(time.Minute),
+		cartridgemiddleware.WithKeyGenerator(clientIP),
 	))
 	loginRateLimiter := conditionalRateLimiter(cfg, cartridgemiddleware.RateLimiter(
 		cartridgemiddleware.WithMax(5),
 		cartridgemiddleware.WithDuration(time.Minute),
+		cartridgemiddleware.WithKeyGenerator(clientIP),
 	))
 	agentRateLimiter := conditionalRateLimiter(cfg, cartridgemiddleware.RateLimiter(
 		cartridgemiddleware.WithMax(60),
 		cartridgemiddleware.WithDuration(time.Minute),
+		cartridgemiddleware.WithKeyGenerator(clientIP),
 	))
 
 	// Onboarding check middleware
@@ -171,6 +174,7 @@ func MountRoutes(server *cartridge.Server) {
 		app.Use(cartridgemiddleware.RateLimiter(
 			cartridgemiddleware.WithMax(60),
 			cartridgemiddleware.WithDuration(time.Minute),
+			cartridgemiddleware.WithKeyGenerator(clientIP),
 		))
 		app.Use(func(c *fiber.Ctx) error {
 			method := c.Method()
@@ -313,6 +317,21 @@ func MountRoutes(server *cartridge.Server) {
 	server.Post("/settings/agent-key", lbhttp.CreateAgentKeyAction, protectedConfig)
 	server.Post("/settings/agent-key/regenerate", lbhttp.RegenerateAgentKeyAction, protectedConfig)
 	server.Post("/settings/agent-key/revoke", lbhttp.RevokeAgentKeyAction, protectedConfig)
+}
+
+// clientIP is the rate limiter key. kamal-proxy appends the address it saw to
+// X-Forwarded-For, so behind it the last entry is the real client; the earlier
+// entries come from the client and can be anything, which is what c.IP()
+// returns. A request that did not come through a trusted proxy is keyed on
+// the connection address.
+func clientIP(c *fiber.Ctx) string {
+	if c.IsProxyTrusted() {
+		if forwarded := c.Get(fiber.HeaderXForwardedFor); forwarded != "" {
+			entries := strings.Split(forwarded, ",")
+			return strings.TrimSpace(entries[len(entries)-1])
+		}
+	}
+	return c.Context().RemoteIP().String()
 }
 
 // onboardingCheckMiddleware redirects to setup if no users exist
