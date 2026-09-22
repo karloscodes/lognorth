@@ -7,7 +7,7 @@ interface Props {
 
 export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }: Props) {
   const [copiedKey, setCopiedKey] = useState(false)
-  const [copiedSetup, setCopiedSetup] = useState(false)
+  const [copiedStep, setCopiedStep] = useState<number | null>(null)
   const [newAgentKey, setNewAgentKey] = useState<string | null>(null)
   const [currentPrefix, setCurrentPrefix] = useState(initialPrefix)
   const [agentKeyError, setAgentKeyError] = useState<string | null>(null)
@@ -21,11 +21,17 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://your-instance.com'
   const connectCommand = `/lognorth:connect ${origin} ${newAgentKey ?? 'lgn-agent-...'}`
 
-  const copySetup = () => {
-    navigator.clipboard.writeText(connectCommand)
-    setCopiedSetup(true)
-    setTimeout(() => setCopiedSetup(false), 2000)
+  const copyStep = (index: number, command: string) => {
+    navigator.clipboard.writeText(command)
+    setCopiedStep(index)
+    setTimeout(() => setCopiedStep(null), 2000)
   }
+
+  const setupSteps = [
+    '/plugin marketplace add karloscodes/lognorth-releases',
+    '/plugin install lognorth',
+    connectCommand,
+  ]
 
   const createAgentKey = async () => {
     setAgentKeyError(null)
@@ -151,26 +157,31 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
         <p className="text-sm font-semibold text-foreground mb-2">Setup</p>
         <p className="text-sm text-foreground/60 mb-3">
           {currentPrefix
-            ? 'Paste these into Claude Code. The last line needs the key, which is only shown once, so regenerate it if you no longer have it.'
-            : 'Create an agent key above, then paste these into Claude Code.'}
+            ? 'Three commands in Claude Code, one at a time. The last one carries your key, which is only shown once, so regenerate it if you no longer have it.'
+            : 'Create an agent key above. Then run these three commands in Claude Code, one at a time.'}
         </p>
-        <code className="block text-sm font-mono text-foreground/80 whitespace-pre-wrap">
-          {`/plugin marketplace add karloscodes/lognorth-releases
-/plugin install lognorth`}
-        </code>
-        <div className="mt-2 flex items-start gap-2">
-          <code className="flex-1 block text-sm font-mono text-foreground/80 break-all">
-            {connectCommand}
-          </code>
-          <button
-            type="button"
-            onClick={copySetup}
-            className="shrink-0 px-3 py-1 border border-foreground/20 text-xs font-semibold text-foreground/70 hover:border-foreground/40 hover:text-foreground transition-colors"
-          >
-            {copiedSetup ? 'Copied!' : 'Copy'}
-          </button>
+        <div className="space-y-2">
+          {setupSteps.map((command, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="font-mono text-sm text-foreground/40 pt-1 tabular-nums">{i + 1}</span>
+              <code className="flex-1 px-3 py-1 bg-card border border-foreground/10 text-sm font-mono text-foreground/80 break-all">
+                {command}
+              </code>
+              <button
+                type="button"
+                onClick={() => copyStep(i, command)}
+                className="shrink-0 px-3 py-1 border border-foreground/20 text-xs font-semibold text-foreground/70 hover:border-foreground/40 hover:text-foreground transition-colors"
+              >
+                {copiedStep === i ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          ))}
         </div>
         <p className="text-sm text-foreground/50 mt-3">
+          Run them one at a time. If Claude Code asks you to "Enter marketplace source", type only{' '}
+          <code className="font-mono">karloscodes/lognorth-releases</code> there.
+        </p>
+        <p className="text-sm text-foreground/50 mt-2">
           Restart Claude Code and it has four read-only tools over your log. Other clients take the same
           endpoint:{' '}
           <code className="font-mono">{origin}/mcp</code>.{' '}
