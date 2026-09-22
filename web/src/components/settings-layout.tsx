@@ -18,30 +18,28 @@ export function SettingsLayout({
 }) {
   return (
     <Layout currentPath="/settings">
-      <div className="flex flex-col md:flex-row gap-12">
-        <nav className="md:w-44 md:shrink-0">
-          <h1 className="text-2xl font-bold text-foreground mb-4 md:mb-6">Settings</h1>
-          <ul className="flex md:flex-col gap-1 md:gap-1 overflow-x-auto md:overflow-visible">
+      <div className="flex flex-col gap-10 md:flex-row md:gap-12">
+        <nav className="md:w-48 md:shrink-0" aria-label="Settings">
+          <h1 className="sr-only">Settings</h1>
+          <p className="mb-3 text-xs text-dim">~ $ ls settings/</p>
+          <ul className="flex gap-4 overflow-x-auto md:flex-col md:gap-0 md:overflow-visible">
             {NAV.map((item) => {
               const active = currentPath.startsWith(item.path)
               return (
                 <li key={item.path} className="shrink-0">
                   <Link
                     href={item.path}
-                    className={`block py-1.5 px-2 -mx-2 text-sm font-semibold whitespace-nowrap ${
-                      active
-                        ? 'text-foreground border-l-2 border-foreground md:pl-3'
-                        : 'text-foreground/50 hover:text-foreground md:pl-3'
-                    }`}
+                    className={`block whitespace-nowrap py-1 text-[13px] ${active ? 'font-bold text-foreground' : 'text-subtle hover:text-foreground'}`}
                   >
-                    {item.label}
+                    <span className={`hidden md:inline ${active ? 'text-accent' : 'text-transparent'}`}>&gt; </span>
+                    {item.label.toLowerCase()}
                   </Link>
                 </li>
               )
             })}
           </ul>
         </nav>
-        <div className="flex-1 max-w-xl">{children}</div>
+        <div className="max-w-xl flex-1">{children}</div>
       </div>
     </Layout>
   )
