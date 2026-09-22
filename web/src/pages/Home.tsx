@@ -3,10 +3,27 @@ import { Link } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
 import { Mono } from '@/lib/shared'
 import type { Application, Issue } from '@/lib/shared'
+import { uptimeLabel, percent } from '@/lib/uptime'
 
 interface Props {
   applications?: Application[]
   recentIssues?: Issue[]
+}
+
+const APP_COLS = 'grid grid-cols-[1fr_7ch_5ch_11ch_9ch_22ch] gap-4 max-md:grid-cols-[1fr_7ch]'
+
+// Uptime at a glance: "up 84ms · 99.98%" or "down 12m".
+function PingCell({ app }: { app: Application }) {
+  const u = app.uptime
+  if (!u || u.status === 'none') return <span className="text-dim max-md:hidden">—</span>
+  const label = uptimeLabel(u)
+  return (
+    <span className={`flex items-center gap-1.5 truncate max-md:hidden ${label.bad ? 'font-bold text-error' : 'text-subtle'}`} title={u.url}>
+      <i className={`h-[7px] w-[7px] shrink-0 ${label.dot}`} />
+      {label.text}
+      {u.uptime_24h !== undefined && <span className="text-dim"> · {percent(u.uptime_24h)}</span>}
+    </span>
+  )
 }
 
 export default function Home({ applications = [], recentIssues = [] }: Props) {
@@ -82,12 +99,13 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
 
       <div className="pane mt-9 pb-1.5 pt-3.5">
         <span className="pane-title">apps</span>
-        <div className="grid grid-cols-[1fr_7ch_7ch_11ch_9ch] gap-4 border-b border-line px-[18px] pb-2 text-[11px] text-dim max-md:grid-cols-[1fr_7ch]">
+        <div className={`${APP_COLS} border-b border-line px-[18px] pb-2 text-[11px] text-dim`}>
           <span>name</span>
           <span className="text-right">active</span>
           <span className="text-right max-md:hidden">new</span>
           <span className="text-right max-md:hidden">requests</span>
           <span className="text-right max-md:hidden">errors</span>
+          <span className="max-md:hidden">ping</span>
         </div>
         {apps.map((app) => {
           const s = statsOf(app.id)
@@ -95,7 +113,7 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
             <Link
               key={app.id}
               href={`/apps/${app.id}/issues`}
-              className={`grid grid-cols-[1fr_7ch_7ch_11ch_9ch] items-center gap-4 border-t border-line px-[18px] py-2.5 text-[13px] first-of-type:border-t-0 hover:bg-raise max-md:grid-cols-[1fr_7ch] ${
+              className={`${APP_COLS} items-center border-t border-line px-[18px] py-2.5 text-[13px] first-of-type:border-t-0 hover:bg-raise ${
                 s.active > 0 ? 'shadow-[inset_3px_0_0_0_hsl(var(--error))]' : ''
               }`}
             >
@@ -107,6 +125,7 @@ export default function Home({ applications = [], recentIssues = [] }: Props) {
               <Mono className="text-right text-foreground max-md:hidden">{s.unseen || ''}</Mono>
               <Mono className="text-right text-subtle max-md:hidden">{app.stats ? app.stats.total.toLocaleString() : ''}</Mono>
               <Mono className="text-right text-subtle max-md:hidden">{app.stats ? app.stats.errors.toLocaleString() : ''}</Mono>
+              <PingCell app={app} />
             </Link>
           )
         })}

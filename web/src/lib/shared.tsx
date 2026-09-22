@@ -3,6 +3,7 @@
 
 import { AlertTriangle, CheckCircle } from 'lucide-react'
 import { ReactNode } from 'react'
+import type { UptimeState } from '@/lib/uptime'
 
 // === UI Components ===
 
@@ -66,6 +67,7 @@ export interface Application {
     total: number
     errors: number
   }
+  uptime?: UptimeState // the URL ping, when the app has one
 }
 
 // LogEntry represents a unified log entry (HTTP request, job, or generic log)

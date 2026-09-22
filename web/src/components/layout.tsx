@@ -3,6 +3,7 @@ import avatarUrl from '@/assets/avatar.jpg'
 import { Link, router, usePage } from '@inertiajs/react'
 import type { Application } from '@/lib/shared'
 import { typing } from '@/lib/keys'
+import { uptimeLabel } from '@/lib/uptime'
 
 interface LayoutProps {
   children: ReactNode
@@ -236,6 +237,9 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
   })
 
   const screenKeys = SCREEN_KEYS[screen] ?? []
+  // The current app's uptime ping, shown in the status bar.
+  const currentUptime = applications?.find((a) => a.id === appId)?.uptime
+  const uptime = uptimeLabel(currentUptime)
 
   return (
     <div className="min-h-screen bg-background pb-0 md:pb-7">
@@ -295,7 +299,10 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
                           {app.name}
                           {app.id === appId && <span className={i === pickSel ? '' : 'text-dim'}> *</span>}
                         </span>
-                        <span className={i === pickSel ? '' : 'text-dim'}>{app.id === appId ? 'here' : ''}</span>
+                        <span className={`flex items-center gap-1.5 ${i === pickSel ? '' : 'text-dim'}`}>
+                          {app.uptime && app.uptime.status !== 'none' && <i className={`h-[7px] w-[7px] ${uptimeLabel(app.uptime).dot}`} />}
+                          {app.uptime && app.uptime.status !== 'none' ? uptimeLabel(app.uptime).text : ''}
+                        </span>
                       </button>
                     ))}
                     <div className="mx-2 my-1.5 border-t border-dashed border-border" />
@@ -370,8 +377,14 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
         {screen && <span className="flex items-center border-r border-line px-3 text-foreground">{screen}</span>}
         {isDemo && <span className="flex items-center border-r border-line px-3 text-foreground">[RO] demo</span>}
         {appName && (
-          <span className="flex items-center px-3">
+          <span className="flex items-center gap-2 px-3">
             {appName}
+            {currentUptime && currentUptime.status !== 'none' && (
+              <a href={`/apps/${appId}/endpoints`} className={`flex items-center gap-1.5 ${uptime.bad ? 'font-bold text-error' : 'text-subtle'} hover:text-foreground`} title={currentUptime.url}>
+                · <i className={`h-[7px] w-[7px] ${uptime.dot}`} />
+                {uptime.text}
+              </a>
+            )}
           </span>
         )}
         <span className="flex-1" />

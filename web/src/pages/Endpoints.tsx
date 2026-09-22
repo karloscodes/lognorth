@@ -3,6 +3,8 @@ import { formatDistanceToNow } from 'date-fns'
 import { Layout } from '@/components/layout'
 import { Mono, PageHeader, EmptyState } from '@/lib/shared'
 import type { Application } from '@/lib/shared'
+import { UptimePane } from '@/components/uptime-pane'
+import type { UptimeReport } from '@/lib/uptime'
 
 interface EndpointStats {
   path: string
@@ -30,6 +32,7 @@ interface RecentError {
 interface Props {
   endpoints: EndpointStats[]
   alerts?: Alert[]
+  uptime?: UptimeReport
   appId: number
   appName: string
   applications?: Application[]
@@ -118,7 +121,7 @@ function EndpointRow({ endpoint, alert, maxRate, appId }: { endpoint: EndpointSt
   )
 }
 
-export default function Endpoints({ endpoints: endpointsProp, alerts = [], appId, appName, applications }: Props) {
+export default function Endpoints({ endpoints: endpointsProp, alerts = [], uptime, appId, appName, applications }: Props) {
   // The server sends them most broken first.
   const endpoints = endpointsProp || []
   const totalErrors = endpoints.reduce((sum, e) => sum + e.errors, 0)
@@ -145,6 +148,8 @@ export default function Endpoints({ endpoints: endpointsProp, alerts = [], appId
           )
         }
       />
+
+      {uptime && <UptimePane report={uptime} />}
 
       {endpoints.length === 0 ? (
         <EmptyState title="Quiet so far" description="Requests appear once your app is connected." />

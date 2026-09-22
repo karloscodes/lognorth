@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Layout } from '@/components/layout'
+import { AuthShell, FIELD, SUBMIT, Notice } from '@/components/auth-shell'
+import { uptimeLabel, percent, type UptimeState } from '@/lib/uptime'
 
 interface APIKey {
   id: number
@@ -12,6 +14,7 @@ interface APIKey {
   ping_url?: string
   ping_disabled?: boolean
   is_down?: boolean
+  uptime?: UptimeState
 }
 
 // The server sends one flash message: { type, message }.
@@ -24,8 +27,6 @@ interface Props {
   apiKeys?: APIKey[]
   flash?: Flash
 }
-
-const FIELD = 'w-full border border-border bg-raise/40 px-3 py-2 text-[13px] text-foreground placeholder:text-dim focus:border-foreground focus:outline-none'
 
 // "[copy]" that confirms for 2 seconds, and only once the clipboard took it.
 function CopyButton({ text, className = '' }: { text: string; className?: string }) {
@@ -94,13 +95,7 @@ function AppRow({ app }: { app: APIKey }) {
   const recent = app.last_seen !== null && Date.now() / 1000 - app.last_seen < 3600
 
   // Uptime: a ping every minute when the app has a URL.
-  const uptime = app.ping_disabled
-    ? { dot: 'border border-border', label: 'uptime off' }
-    : app.is_down
-      ? { dot: 'bg-error', label: 'down' }
-      : app.ping_url
-        ? { dot: 'bg-accent', label: app.ping_url }
-        : { dot: 'border border-dashed border-border', label: 'no url' }
+  const uptime = uptimeLabel(app.uptime)
 
   const confirmDelete = (e: React.FormEvent) => {
     if (!confirm(`Delete "${app.name}"? This will stop tracking for this app.`)) e.preventDefault()
@@ -164,9 +159,13 @@ function AppRow({ app }: { app: APIKey }) {
             <span>·</span>
             <span className="flex min-w-0 items-center gap-1.5">
               <i className={`h-[7px] w-[7px] shrink-0 ${uptime.dot}`} />
-              <span className={`max-w-[26ch] truncate ${app.is_down ? 'text-error' : 'text-subtle'}`} title={app.ping_url}>
-                {uptime.label}
-              </span>
+              <span className={uptime.bad ? 'font-bold text-error' : 'text-subtle'}>{uptime.text}</span>
+              {app.uptime?.uptime_24h !== undefined && <span>· {percent(app.uptime.uptime_24h)} 24h</span>}
+              {app.ping_url && (
+                <span className="max-w-[28ch] truncate" title={app.ping_url}>
+                  · {app.ping_url}
+                </span>
+              )}
             </span>
             <button type="button" onClick={() => setEditingURL(!editingURL)} className="hover:text-foreground">
               [{editingURL ? 'close' : 'edit'}]
@@ -252,28 +251,16 @@ function FirstApp({ error }: { error?: string }) {
   const [name, setName] = useState('')
   const [url, setURL] = useState('')
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-sm px-6">
-        <div className="mb-10 text-center">
-          <span className="text-4xl font-bold tracking-tight">
-            <span className="text-accent">[</span>lognorth<span className="text-accent">]</span>
-          </span>
-          <p className="mt-2 text-[13px] text-subtle">Logging you own.</p>
-        </div>
-
-        <div className="pane px-5 pb-5 pt-7">
-          <span className="pane-title">~ $ lognorth apps add</span>
-          <h1 className="mb-5 text-lg font-bold text-foreground">Add your first app</h1>
-          {error && <p className="mb-4 border border-error px-3 py-2 text-[13px] text-error">{error}</p>}
-          <form action="/apps/api-keys" method="POST" className="space-y-3">
-            <input type="text" name="name" placeholder="App name (e.g. shop-prod)" value={name} onChange={(e) => setName(e.target.value)} autoFocus className={FIELD} />
-            <input type="url" name="url" placeholder="App URL for uptime pings (optional)" value={url} onChange={(e) => setURL(e.target.value)} className={FIELD} />
-            <button type="submit" disabled={!name.trim()} className="w-full bg-accent py-2.5 text-[13px] font-bold text-accent-foreground hover:bg-foreground disabled:opacity-40">
-              Create app
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
+    <AuthShell title="~ $ lognorth apps add">
+      <h1 className="mb-5 text-lg font-bold text-foreground">Add your first app</h1>
+      {error && <Notice kind="error">{error}</Notice>}
+      <form action="/apps/api-keys" method="POST" className="space-y-3">
+        <input type="text" name="name" placeholder="App name (e.g. shop-prod)" value={name} onChange={(e) => setName(e.target.value)} autoFocus className={FIELD} />
+        <input type="url" name="url" placeholder="App URL for uptime pings (optional)" value={url} onChange={(e) => setURL(e.target.value)} className={FIELD} />
+        <button type="submit" disabled={!name.trim()} className={SUBMIT}>
+          Create app
+        </button>
+      </form>
+    </AuthShell>
   )
 }
