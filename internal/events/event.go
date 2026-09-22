@@ -408,7 +408,7 @@ type HistogramBucket struct {
 
 // GetHistogram returns volume buckets for the given time range with dynamic granularity
 // Minimum granularity is 1 hour, scales up for longer time ranges
-func GetHistogram(db *gorm.DB, apiKeyID uint, startTime, endTime time.Time, _ int) []HistogramBucket {
+func GetHistogram(db *gorm.DB, apiKeyID uint, startTime, endTime time.Time) []HistogramBucket {
 	// Default time range: last 24 hours
 	now := time.Now()
 	if endTime.IsZero() {

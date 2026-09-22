@@ -66,7 +66,7 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 	}
 
 	// Get histogram data - 48 buckets for the time range
-	histogram := events.GetHistogram(db, app.ID, filters.StartTime, filters.EndTime, 48)
+	histogram := events.GetHistogram(db, app.ID, filters.StartTime, filters.EndTime)
 
 	return RenderPage(ctx.Ctx, "Log", Props{
 		"appId":        app.ID,

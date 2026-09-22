@@ -332,7 +332,7 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-bold text-foreground">Quiet hours</h3>
-              <p className="text-foreground/50 text-sm">No alerts during these hours.</p>
+              <p className="text-foreground/50 text-sm">No alerts during these hours. Times are UTC, the server's clock.</p>
             </div>
             <Switch
               checked={form.quiet_hours_enabled}
