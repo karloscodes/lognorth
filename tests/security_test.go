@@ -2,6 +2,7 @@ package tests
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"lognorth/internal"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
+	"lognorth/internal/events"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
 )
@@ -266,4 +268,38 @@ func TestIngestLimitsBatchSize(t *testing.T) {
 	if res.StatusCode != http.StatusRequestEntityTooLarge {
 		t.Errorf("status = %d, want 413 for 1,001 events", res.StatusCode)
 	}
+}
+
+func TestAppPages(t *testing.T) {
+	t.Run("the events poll returns only the app it asks for", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		cookie := sa.login()
+		shop, _, _ := apikeys.Create(sa.db, "shop")
+		blog, _, _ := apikeys.Create(sa.db, "blog")
+		events.Create(sa.db, &events.Event{APIKeyID: shop.ID, Message: "GET /cart 200"})
+		events.Create(sa.db, &events.Event{APIKeyID: blog.ID, Message: "GET /post 200"})
+
+		res := sa.do("GET", fmt.Sprintf("/api/v1/events?app_id=%d", shop.ID), nil, map[string]string{"Cookie": cookie})
+
+		var payload struct {
+			Events []events.Event `json:"events"`
+		}
+		json.NewDecoder(res.Body).Decode(&payload)
+		if len(payload.Events) != 1 || payload.Events[0].APIKeyID != shop.ID {
+			t.Errorf("events = %+v, want only the shop event", payload.Events)
+		}
+	})
+
+	t.Run("the delete form removes the app", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		cookie := sa.login()
+		shop, _, _ := apikeys.Create(sa.db, "shop")
+
+		sa.do("POST", fmt.Sprintf("/apps/api-keys/%d/delete", shop.ID), url.Values{},
+			map[string]string{"Cookie": cookie, "Sec-Fetch-Site": "same-origin"})
+
+		if _, err := apikeys.FindByID(sa.db, shop.ID); err == nil {
+			t.Error("the app still exists after the delete form")
+		}
+	})
 }

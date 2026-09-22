@@ -25,7 +25,7 @@ function routeLabel(ctx: LogContext): string | null {
 export default function LogDetail({ entry, entryContext, relatedEntries, appId, appName, applications, issueHash }: Props) {
   const config = getConfig(entry.is_error)
   const Icon = config.icon
-  const logPath = appId ? `/apps/${appId}/log` : '/log'
+  const logPath = `/apps/${appId}/log`
   const ctx = entryContext || parseContext(entry.context)
   const isHttpRequest = ctx.method && ctx.path
   const isJob = ctx.job

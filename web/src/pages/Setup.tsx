@@ -15,10 +15,10 @@ interface APIKey {
   is_down?: boolean
 }
 
+// The server sends one flash message: { type, message }.
 interface Flash {
-  error?: string
-  success?: string
-  newKey?: string
+  type?: string
+  message?: string
 }
 
 interface Props {
@@ -27,6 +27,8 @@ interface Props {
 }
 
 export default function Setup({ apiKeys = [], flash }: Props) {
+  const newKey = flash?.type === 'newKey' ? flash.message : undefined
+  const flashError = flash?.type === 'error' ? flash.message : undefined
   const [appName, setAppName] = useState('')
   const [appURL, setAppURL] = useState('')
   const [copied, setCopied] = useState(false)
@@ -35,8 +37,8 @@ export default function Setup({ apiKeys = [], flash }: Props) {
   const [editingId, setEditingId] = useState<number | null>(null)
 
   const copyKey = () => {
-    if (flash?.newKey) {
-      navigator.clipboard.writeText(flash.newKey)
+    if (newKey) {
+      navigator.clipboard.writeText(newKey)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
@@ -46,7 +48,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
   const hasApps = activeApps.length > 0
 
   // First-time setup: clean page without header
-  if (!hasApps && !flash?.newKey) {
+  if (!hasApps && !newKey) {
     return (
       <div className="min-h-screen bg-card flex items-center justify-center">
         <div className="w-full max-w-sm px-6">
@@ -57,9 +59,9 @@ export default function Setup({ apiKeys = [], flash }: Props) {
 
           <h1 className="text-xl font-bold text-foreground text-center mb-6">Add your first app</h1>
 
-          {flash?.error && (
+          {flashError && (
             <div className="bg-[#e11d48]/10 border-2 border-[#e11d48]/20 text-[#e11d48] px-4 py-3 text-sm font-medium mb-4">
-              {flash.error}
+              {flashError}
             </div>
           )}
 
@@ -106,14 +108,14 @@ export default function Setup({ apiKeys = [], flash }: Props) {
         </div>
 
         {/* New key alert */}
-        {flash?.newKey && (
+        {newKey && (
           <section className="mb-8">
             <div className="border-2 border-foreground p-5">
               <p className="font-semibold text-foreground mb-1">Copy your API key</p>
               <p className="text-sm text-foreground/60 mb-4">You won't see this again.</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 bg-foreground/[0.03] p-3 text-sm font-mono break-all select-all text-foreground">
-                  {flash.newKey}
+                  {newKey}
                 </code>
                 <button
                   onClick={copyKey}
@@ -285,7 +287,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                       {isShowingKey ? 'Hide' : 'API Key'}
                     </button>
                     <form
-                      action={`/apps/api-keys/${app.id}`}
+                      action={`/apps/api-keys/${app.id}/delete`}
                       method="POST"
                       onSubmit={(e) => {
                         if (!confirm(`Delete "${app.name}"? This will stop tracking for this app.`)) {
@@ -293,7 +295,6 @@ export default function Setup({ apiKeys = [], flash }: Props) {
                         }
                       }}
                     >
-                      <input type="hidden" name="_method" value="DELETE" />
                       <button
                         type="submit"
                         className="p-2 opacity-0 group-hover:opacity-100 text-foreground/30 hover:text-[#e11d48] hover:bg-[#e11d48]/10 transition-all"

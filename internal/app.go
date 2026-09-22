@@ -261,7 +261,7 @@ func MountRoutes(server *cartridge.Server) {
 	server.Post("/apps/api-keys/:id/ping-url", lbhttp.SetPingURLAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/toggle-ping", lbhttp.TogglePingAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/revoke", lbhttp.RevokeAPIKeyAction, protectedConfig)
-	server.Delete("/apps/api-keys/:id", lbhttp.DeleteAPIKeyAction, protectedConfig)
+	server.Post("/apps/api-keys/:id/delete", lbhttp.DeleteAPIKeyAction, protectedConfig)
 
 	// Global log redirects to home (force app selection)
 	redirectHome := func(ctx *cartridge.Context) error {

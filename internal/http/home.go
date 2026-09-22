@@ -46,7 +46,11 @@ func HomePageAction(ctx *cartridge.Context) error {
 	}
 
 	// Get all issues across all apps for accurate counts
-	recentIssues, _ := events.ListIssuesWithState(db, 0, 200)
+	recentIssues, err := events.ListIssuesWithState(db, 0, 200)
+	if err != nil {
+		ctx.Logger.Error("Failed to list issues", "error", err)
+		recentIssues = []events.IssueWithState{}
+	}
 
 	return RenderPage(ctx.Ctx, "Home", Props{
 		"applications":  apps,

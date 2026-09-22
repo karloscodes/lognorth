@@ -195,12 +195,28 @@ export const methodColor = (_method?: string) => 'text-foreground/50'
 
 // === Helper to parse context ===
 
+// Fields the pages render as text. SDKs send whatever they like, and an object
+// rendered as a React child crashes the page, so these become JSON strings.
+const TEXT_FIELDS = [
+  'method', 'path', 'controller', 'action', 'route', 'handler', 'job', 'error', 'environment', 'user', 'ip',
+  'user_agent', 'body', 'error_type', 'error_location', 'error_class', 'error_caller', 'error_file', 'stack_trace',
+]
+
+const asText = (v: unknown) => (v !== null && typeof v === 'object' ? JSON.stringify(v) : v)
+
 export const parseContext = (contextStr?: string): LogContext => {
   if (!contextStr) return {}
   try {
     const parsed = JSON.parse(contextStr)
     // Ensure we always return an object, even if context is "null" or invalid
-    return parsed && typeof parsed === 'object' ? parsed : {}
+    if (!parsed || typeof parsed !== 'object') return {}
+    for (const field of TEXT_FIELDS) {
+      if (field in parsed) parsed[field] = asText(parsed[field])
+    }
+    if (parsed.headers && typeof parsed.headers === 'object') {
+      for (const key of Object.keys(parsed.headers)) parsed.headers[key] = asText(parsed.headers[key])
+    }
+    return parsed
   } catch {
     return {}
   }

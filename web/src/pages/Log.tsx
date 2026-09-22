@@ -112,7 +112,7 @@ const groupByTraceId = (entries: LogEntry[]): LogGroup[] => {
 }
 
 function LogRow({ entry, appId, hideErrorBorder, treeLine }: { entry: LogEntry; appId?: number; hideErrorBorder?: boolean; treeLine?: 'parent' | 'first-child' | 'child' | 'last-child' | 'only-child' }) {
-  const href = appId ? `/apps/${appId}/log/${entry.id}` : `/log/${entry.id}`
+  const href = `/apps/${appId}/log/${entry.id}`
   const ctx = parseContext(entry.context)
   const isRequest = !!(ctx.method && ctx.path)
   const isError = entry.is_error
@@ -402,7 +402,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
   const [groupEnabled, setGroupEnabled] = useState(true)
   const [liveEnabled, setLiveEnabled] = useState(false)
 
-  const basePath = appId ? `/apps/${appId}/log` : '/log'
+  const basePath = `/apps/${appId}/log`
   const logGroups = groupEnabled && !filters.trace && !filters.search ? groupByTraceId(entries) : []
 
   // Live polling - fetch latest and merge with existing
