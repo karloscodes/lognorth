@@ -1,7 +1,7 @@
 package apikeys
 
 import (
-	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,12 +12,7 @@ import (
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	dbPath := "test_" + t.Name() + ".db"
-	t.Cleanup(func() {
-		os.Remove(dbPath)
-		os.Remove(dbPath + "-wal")
-		os.Remove(dbPath + "-shm")
-	})
+	dbPath := filepath.Join(t.TempDir(), "test.db")
 
 	manager := sqlite.NewManager(sqlite.Config{Path: dbPath, EnableWAL: true})
 	db, err := manager.Connect()

@@ -2,7 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
-	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,12 +19,7 @@ import (
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	dbPath := "test_" + strings.ReplaceAll(t.Name(), "/", "_") + ".db"
-	t.Cleanup(func() {
-		os.Remove(dbPath)
-		os.Remove(dbPath + "-wal")
-		os.Remove(dbPath + "-shm")
-	})
+	dbPath := filepath.Join(t.TempDir(), "test.db")
 
 	manager := sqlite.NewManager(sqlite.Config{Path: dbPath, EnableWAL: true})
 	db, err := manager.Connect()

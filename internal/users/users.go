@@ -47,6 +47,23 @@ func FindByID(db *gorm.DB, id uint) (*User, error) {
 	return &user, nil
 }
 
+// SetPassword replaces a user's password. lnctl reset-password uses it when
+// the owner is locked out.
+func SetPassword(db *gorm.DB, email, password string) error {
+	if len(password) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	user, err := FindByEmail(db, email)
+	if err != nil {
+		return err
+	}
+	hashed, err := crypto.GeneratePasswordHash(password)
+	if err != nil {
+		return err
+	}
+	return db.Model(user).Update("encrypted_password", string(hashed)).Error
+}
+
 // CreateUser creates a new user with the supplied credentials
 // ErrSetupDone means the first user already exists.
 var ErrSetupDone = errors.New("setup is already done")

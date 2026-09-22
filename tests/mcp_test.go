@@ -6,9 +6,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http/httptest"
-	"os"
+	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -43,12 +42,7 @@ type mcpTestApp struct {
 func setupMCPTestApp(t *testing.T) *mcpTestApp {
 	t.Helper()
 
-	dbPath := "test_" + strings.ReplaceAll(t.Name(), "/", "_") + ".db"
-	t.Cleanup(func() {
-		os.Remove(dbPath)
-		os.Remove(dbPath + "-wal")
-		os.Remove(dbPath + "-shm")
-	})
+	dbPath := filepath.Join(t.TempDir(), "test.db")
 
 	manager := sqlite.NewManager(sqlite.Config{Path: dbPath, EnableWAL: true})
 	db, err := manager.Connect()

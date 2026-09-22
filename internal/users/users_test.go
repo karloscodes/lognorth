@@ -1,9 +1,10 @@
 package users
 
 import (
-	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/karloscodes/cartridge/crypto"
 	"github.com/karloscodes/cartridge/sqlite"
 	"gorm.io/gorm"
 )
@@ -11,12 +12,7 @@ import (
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	dbPath := "test_" + t.Name() + ".db"
-	t.Cleanup(func() {
-		os.Remove(dbPath)
-		os.Remove(dbPath + "-wal")
-		os.Remove(dbPath + "-shm")
-	})
+	dbPath := filepath.Join(t.TempDir(), "test.db")
 
 	manager := sqlite.NewManager(sqlite.Config{Path: dbPath, EnableWAL: true})
 	db, err := manager.Connect()
@@ -142,4 +138,41 @@ func TestIsOnboardingRequired(t *testing.T) {
 	if required {
 		t.Error("should not require onboarding when user exists")
 	}
+}
+
+func TestSetPassword(t *testing.T) {
+	t.Run("the new password works and the old one does not", func(t *testing.T) {
+		db := setupTestDB(t)
+		CreateUser(db, "owner@example.com", "old-password")
+
+		err := SetPassword(db, "owner@example.com", "new-password")
+
+		if err != nil {
+			t.Fatalf("SetPassword failed: %v", err)
+		}
+		user, _ := FindByEmail(db, "owner@example.com")
+		if !crypto.VerifyPassword(user.EncryptedPassword, "new-password") {
+			t.Error("the new password does not verify")
+		}
+		if crypto.VerifyPassword(user.EncryptedPassword, "old-password") {
+			t.Error("the old password still verifies")
+		}
+	})
+
+	t.Run("rejects a short password", func(t *testing.T) {
+		db := setupTestDB(t)
+		CreateUser(db, "owner@example.com", "old-password")
+
+		if err := SetPassword(db, "owner@example.com", "short"); err == nil {
+			t.Error("expected an error for a 5-character password")
+		}
+	})
+
+	t.Run("rejects an unknown email", func(t *testing.T) {
+		db := setupTestDB(t)
+
+		if err := SetPassword(db, "nobody@example.com", "new-password"); err == nil {
+			t.Error("expected an error for an unknown user")
+		}
+	})
 }

@@ -2,12 +2,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -33,6 +36,7 @@ type Command interface {
 var commands = []Command{
 	&MigrateCommand{},
 	&StatusCommand{},
+	&ResetPasswordCommand{},
 	&HelpCommand{},
 }
 
@@ -147,6 +151,67 @@ func (c *StatusCommand) Execute(ctx context.Context, app *internal.Application, 
 	log.Printf("- Idle: %d", sqlDB.Stats().Idle)
 
 	return nil
+}
+
+// ResetPasswordCommand sets a new password for a user who is locked out.
+// Run it inside the container: docker exec -it lognorth /app/lnctl reset-password you@example.com
+type ResetPasswordCommand struct{}
+
+func (c *ResetPasswordCommand) Name() string { return "reset-password" }
+func (c *ResetPasswordCommand) Description() string {
+	return "Sets a new password for a user: reset-password <email>"
+}
+
+func (c *ResetPasswordCommand) Execute(ctx context.Context, app *internal.Application, args []string) error {
+	if app == nil {
+		return fmt.Errorf("app initialization failed")
+	}
+	if len(args) != 1 {
+		return fmt.Errorf("usage: lnctl reset-password <email>")
+	}
+	email := args[0]
+
+	in := bufio.NewReader(os.Stdin)
+	password, err := readHidden(in, "New password: ")
+	if err != nil {
+		return err
+	}
+	again, err := readHidden(in, "Repeat it: ")
+	if err != nil {
+		return err
+	}
+	if password != again {
+		return fmt.Errorf("the passwords do not match")
+	}
+
+	if err := users.SetPassword(app.DBManager.GetConnection(), email, password); err != nil {
+		return fmt.Errorf("could not set the password for %s: %w", email, err)
+	}
+	log.Printf("Password updated for %s. To sign out every session, also rotate LOGNORTH_PRIVATE_KEY.", email)
+	return nil
+}
+
+// readHidden reads one line without echoing it when stdin is a terminal.
+// It uses the system stty, so it needs no extra dependency; with piped input
+// stty fails quietly and the line is read as is.
+func readHidden(in *bufio.Reader, prompt string) (string, error) {
+	fmt.Fprint(os.Stderr, prompt)
+	stty := func(mode string) {
+		cmd := exec.Command("stty", mode)
+		cmd.Stdin = os.Stdin
+		_ = cmd.Run()
+	}
+	stty("-echo")
+	defer func() {
+		stty("echo")
+		fmt.Fprintln(os.Stderr)
+	}()
+
+	line, err := in.ReadString('\n')
+	if err != nil && line == "" {
+		return "", fmt.Errorf("could not read the password: %w", err)
+	}
+	return strings.TrimRight(line, "\r\n"), nil
 }
 
 // HelpCommand shows usage information
