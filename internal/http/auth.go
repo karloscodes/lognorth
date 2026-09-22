@@ -1,18 +1,15 @@
 package http
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"log/slog"
-	"time"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/crypto"
 	"github.com/karloscodes/cartridge/flash"
 
-	"lognorth/internal/onboarding"
 	"lognorth/internal/users"
 )
 
@@ -21,7 +18,7 @@ func LoginPageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
 	// Check if onboarding is required first
-	required, err := onboarding.IsOnboardingRequired(db)
+	required, err := users.IsOnboardingRequired(db)
 	if err != nil {
 		ctx.Logger.Error("Failed to check if onboarding required on login", slog.Any("error", err))
 	} else if required {
@@ -91,180 +88,61 @@ func LogoutAction(ctx *cartridge.Context) error {
 	return ctx.Redirect("/login", fiber.StatusFound)
 }
 
-// OnboardingPageAction handles GET /setup (onboarding)
+// OnboardingPageAction handles GET /setup: the form that creates the owner.
 func OnboardingPageAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-
-	// Check if onboarding is required
-	required, err := onboarding.IsOnboardingRequired(db)
-	if err != nil {
-		ctx.Logger.Error("Failed to check if onboarding required", slog.Any("error", err))
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).SendString("Internal error")
+	if setupDone(ctx) {
+		return ctx.Redirect("/login", fiber.StatusFound)
 	}
+	return RenderPage(ctx.Ctx, "Onboarding", Props{})
+}
 
-	// If not required, redirect to login
-	if !required {
+// OnboardingAction handles POST /setup. It creates the owner and logs them in.
+// Once any user exists it refuses, so setup cannot add a second admin.
+func OnboardingAction(ctx *cartridge.Context) error {
+	if setupDone(ctx) {
 		return ctx.Redirect("/login", fiber.StatusFound)
 	}
 
-	// Get or create onboarding session
-	sessionID := ctx.Ctx.Cookies("_onboarding_session")
-	var session *onboarding.OnboardingSession
+	email := strings.TrimSpace(ctx.FormValue("email"))
+	password := ctx.FormValue("password")
 
-	if sessionID != "" {
-		session, _ = onboarding.GetSession(db, sessionID)
+	var problem string
+	switch {
+	case email == "":
+		problem = "Email is required"
+	case len(password) < 8:
+		problem = "Password must be at least 8 characters"
+	case password != ctx.FormValue("confirm_password"):
+		problem = "Passwords do not match"
 	}
-
-	if session == nil {
-		// Generate new session ID
-		sessionID = generateSessionID()
-		session, err = onboarding.CreateSession(db, sessionID)
-		if err != nil {
-			ctx.Logger.Error("Failed to create onboarding session", slog.Any("error", err))
-			return ctx.Ctx.Status(fiber.StatusInternalServerError).SendString("Internal error")
-		}
-
-		// Set cookie
-		ctx.Ctx.Cookie(&fiber.Cookie{
-			Name:     "_onboarding_session",
-			Value:    sessionID,
-			Expires:  time.Now().Add(1 * time.Hour),
-			HTTPOnly: true,
-			Secure:   ctx.Config.IsProduction(),
-			SameSite: "Lax",
+	if problem != "" {
+		return RenderPage(ctx.Ctx, "Onboarding", Props{
+			"email": email,
+			"flash": flash.FlashMessage{Type: "error", Message: problem},
 		})
 	}
 
-	return RenderPage(ctx.Ctx, "Onboarding", Props{
-		"step":  session.Step,
-		"email": session.Data.Email,
-	})
-}
-
-// OnboardingUserAction handles POST /setup/user
-func OnboardingUserAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-
-	if setupDone(ctx) {
-		return ctx.Redirect("/login", fiber.StatusFound)
-	}
-
-	email := ctx.FormValue("email")
-	if email == "" {
-		flash.SetFlash(ctx.Ctx, "error", "Email is required")
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	sessionID := ctx.Ctx.Cookies("_onboarding_session")
-	if sessionID == "" {
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	session, err := onboarding.GetSession(db, sessionID)
-	if err != nil {
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	// Update session with email and advance to password step
-	session.Data.Email = email
-	err = onboarding.UpdateSession(db, sessionID, onboarding.StepPassword, session.Data)
-	if err != nil {
-		ctx.Logger.Error("Failed to update onboarding session", slog.Any("error", err))
-		flash.SetFlash(ctx.Ctx, "error", "Failed to save progress")
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	return ctx.Redirect("/setup", fiber.StatusFound)
-}
-
-// OnboardingPasswordAction handles POST /setup/password
-func OnboardingPasswordAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-
-	if setupDone(ctx) {
-		return ctx.Redirect("/login", fiber.StatusFound)
-	}
-
-	password := ctx.FormValue("password")
-	confirmPassword := ctx.FormValue("confirm_password")
-
-	if password == "" {
-		flash.SetFlash(ctx.Ctx, "error", "Password is required")
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	if len(password) < 8 {
-		flash.SetFlash(ctx.Ctx, "error", "Password must be at least 8 characters")
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	if password != confirmPassword {
-		flash.SetFlash(ctx.Ctx, "error", "Passwords do not match")
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	sessionID := ctx.Ctx.Cookies("_onboarding_session")
-	if sessionID == "" {
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	session, err := onboarding.GetSession(db, sessionID)
-	if err != nil {
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	if session.Data.Email == "" {
-		flash.SetFlash(ctx.Ctx, "error", "Please enter your email first")
-		return ctx.Redirect("/setup", fiber.StatusFound)
-	}
-
-	// Create the owner. CreateFirstUser refuses once any user exists, so a
-	// second setup session cannot add another admin.
-	err = users.CreateFirstUser(db, session.Data.Email, password)
+	err := users.CreateFirstUser(ctx.DB(), email, password)
 	if errors.Is(err, users.ErrSetupDone) {
 		return ctx.Redirect("/login", fiber.StatusFound)
 	}
 	if err != nil {
 		ctx.Logger.Error("Failed to create user", slog.Any("error", err))
-		flash.SetFlash(ctx.Ctx, "error", "Failed to create account")
-		return ctx.Redirect("/setup", fiber.StatusFound)
+		return RenderPage(ctx.Ctx, "Onboarding", Props{
+			"email": email,
+			"flash": flash.FlashMessage{Type: "error", Message: "Failed to create account"},
+		})
 	}
 
-	// Complete onboarding
-	onboarding.CompleteSession(db, sessionID)
-
-	// Clear onboarding cookie
-	ctx.Ctx.Cookie(&fiber.Cookie{
-		Name:     "_onboarding_session",
-		Value:    "",
-		Expires:  time.Now().Add(-1 * time.Hour),
-		HTTPOnly: true,
-		Secure:   ctx.Config.IsProduction(),
-		SameSite: "Lax",
-	})
-
-	// Auto-login the user
-	user, _ := users.FindByEmail(db, session.Data.Email)
-	if user != nil {
+	if user, err := users.FindByEmail(ctx.DB(), email); err == nil {
 		ctx.Session.SetSession(ctx.Ctx, user.ID)
 	}
-
 	flash.SetFlash(ctx.Ctx, "success", "Account created successfully!")
 	return ctx.Redirect("/", fiber.StatusFound)
 }
 
-// setupDone reports whether the first user exists. After that, the setup
-// routes refuse every request, whatever onboarding cookie it carries.
+// setupDone reports whether the first user exists.
 func setupDone(ctx *cartridge.Context) bool {
-	required, err := onboarding.IsOnboardingRequired(ctx.DB())
+	required, err := users.IsOnboardingRequired(ctx.DB())
 	return err != nil || !required
-}
-
-// generateSessionID returns 32 random bytes, hex encoded.
-func generateSessionID() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		panic("crypto/rand failed: " + err.Error())
-	}
-	return hex.EncodeToString(b)
 }

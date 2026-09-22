@@ -10,7 +10,6 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/events"
-	"lognorth/internal/onboarding"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
 )
@@ -80,7 +79,6 @@ func Migrate(db *gorm.DB) error {
 		&events.SpikeState{},
 		&settings.Settings{},
 		&users.User{},
-		&onboarding.OnboardingSession{},
 	); err != nil {
 		return err
 	}

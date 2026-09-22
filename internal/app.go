@@ -21,8 +21,8 @@ import (
 	lbhttp "lognorth/internal/http"
 	"lognorth/internal/jobs"
 	"lognorth/internal/license"
-	"lognorth/internal/onboarding"
 	"lognorth/internal/settings"
+	"lognorth/internal/users"
 )
 
 // Application wraps cartridge.Application with LogNorth-specific components
@@ -251,8 +251,7 @@ func MountRoutes(server *cartridge.Server) {
 			EnableSecFetchSite: cartridge.Bool(true),
 		}
 		server.Get("/setup", lbhttp.OnboardingPageAction, onboardingConfig)
-		server.Post("/setup/user", lbhttp.OnboardingUserAction, onboardingPostConfig)
-		server.Post("/setup/password", lbhttp.OnboardingPasswordAction, onboardingPostConfig)
+		server.Post("/setup", lbhttp.OnboardingAction, onboardingPostConfig)
 	}
 
 	// Event JSON for the Logs and Endpoints pages. Session only: agents read
@@ -322,7 +321,7 @@ func onboardingCheckMiddleware(dbMgr *database.DBManager, logger *slog.Logger) f
 	return func(c *fiber.Ctx) error {
 		db := dbMgr.GetConnection()
 
-		required, err := onboarding.IsOnboardingRequired(db)
+		required, err := users.IsOnboardingRequired(db)
 		if err != nil {
 			logger.Error("Failed to check if onboarding required", slog.Any("error", err))
 			return c.Status(fiber.StatusInternalServerError).SendString("System error")

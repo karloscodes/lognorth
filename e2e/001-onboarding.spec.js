@@ -49,27 +49,17 @@ test.describe("Onboarding Flow - MUST RUN FIRST", () => {
 		const headingText = await heading.textContent();
 		helpers.log(`Page heading: ${headingText}`);
 
-		// Step 1: Enter email
+		// One form: email, password, and confirmation
 		const emailInput = page.locator('input[type="email"], input[name="email"], input#email');
 		await expect(emailInput).toBeVisible({ timeout: 5000 });
 		await emailInput.fill(TEST_EMAIL);
 		helpers.log(`Email entered: ${TEST_EMAIL}`);
 
-		// Submit email form
-		await page.click('button[type="submit"]');
-		await page.waitForLoadState("networkidle");
-
-		// Step 2: Enter password
-		const passwordInput = page.locator('input[name="password"], input#password');
-		await expect(passwordInput).toBeVisible({ timeout: 10000 });
-		await passwordInput.fill(TEST_PASSWORD);
-
-		const confirmInput = page.locator('input[name="confirm_password"], input#confirm_password');
-		await expect(confirmInput).toBeVisible();
-		await confirmInput.fill(TEST_PASSWORD);
+		await page.locator('input[name="password"], input#password').fill(TEST_PASSWORD);
+		await page.locator('input[name="confirm_password"], input#confirm_password').fill(TEST_PASSWORD);
 		helpers.log("Password entered");
 
-		// Submit password form
+		// Submit the form
 		await page.click('button[type="submit"]');
 		await page.waitForLoadState("networkidle");
 

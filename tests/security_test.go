@@ -176,61 +176,56 @@ func TestCrossSiteWritesAreBlocked(t *testing.T) {
 	})
 }
 
-// onboardingCookie opens /setup and returns the onboarding session cookie.
-func (sa *securityApp) onboardingCookie() string {
-	sa.t.Helper()
+func TestSetup(t *testing.T) {
+	sameOrigin := map[string]string{"Sec-Fetch-Site": "same-origin"}
+	owner := url.Values{"email": {"owner@example.com"}, "password": {"correct-horse"}, "confirm_password": {"correct-horse"}}
 
-	res := sa.do("GET", "/setup", nil, nil)
-	for _, c := range res.Cookies() {
-		if c.Name == "_onboarding_session" {
-			return c.Name + "=" + c.Value
+	t.Run("creates the owner and logs them in", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+
+		res := sa.do("POST", "/setup", owner, sameOrigin)
+
+		if loc := res.Header.Get("Location"); loc != "/" {
+			t.Errorf("Location = %q, want the home page after setup", loc)
 		}
-	}
-	sa.t.Fatal("GET /setup set no onboarding cookie")
-	return ""
-}
+		if _, err := users.FindByEmail(sa.db, "owner@example.com"); err != nil {
+			t.Errorf("owner was not created: %v", err)
+		}
+	})
 
-func TestSetupCreatesTheOwner(t *testing.T) {
-	sa := setupSecurityApp(t)
-	headers := map[string]string{"Sec-Fetch-Site": "same-origin", "Cookie": sa.onboardingCookie()}
+	t.Run("keeps the email when the passwords do not match", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		form := url.Values{"email": {"owner@example.com"}, "password": {"correct-horse"}, "confirm_password": {"other-horse"}}
 
-	sa.do("POST", "/setup/user", url.Values{"email": {"owner@example.com"}}, headers)
-	res := sa.do("POST", "/setup/password",
-		url.Values{"password": {"correct-horse"}, "confirm_password": {"correct-horse"}}, headers)
+		res := sa.do("POST", "/setup", form, sameOrigin)
 
-	if loc := res.Header.Get("Location"); loc != "/" {
-		t.Errorf("Location = %q, want the home page after setup", loc)
-	}
-	if _, err := users.FindByEmail(sa.db, "owner@example.com"); err != nil {
-		t.Errorf("owner was not created: %v", err)
-	}
-}
+		body, _ := io.ReadAll(res.Body)
+		if !strings.Contains(string(body), "Passwords do not match") || !strings.Contains(string(body), "owner@example.com") {
+			t.Errorf("body does not show the error with the email kept")
+		}
+		var count int64
+		sa.db.Model(&users.User{}).Count(&count)
+		if count != 0 {
+			t.Errorf("users = %d, want none", count)
+		}
+	})
 
-func TestSetupClosesAfterTheFirstUser(t *testing.T) {
-	sa := setupSecurityApp(t)
+	t.Run("refuses a second admin once the owner exists", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		sa.do("POST", "/setup", owner, sameOrigin)
 
-	// An attacker opens /setup on the fresh install and keeps the cookie.
-	attacker := sa.onboardingCookie()
+		attacker := url.Values{"email": {"attacker@example.com"}, "password": {"attacker-pass"}, "confirm_password": {"attacker-pass"}}
+		res := sa.do("POST", "/setup", attacker, sameOrigin)
 
-	// The owner finishes setup.
-	if err := users.CreateUser(sa.db, "owner@example.com", "correct-horse"); err != nil {
-		t.Fatalf("Failed to create the owner: %v", err)
-	}
-
-	// The attacker replays the setup steps with the old cookie.
-	withCookie := map[string]string{"Sec-Fetch-Site": "same-origin", "Cookie": attacker}
-	sa.do("POST", "/setup/user", url.Values{"email": {"attacker@example.com"}}, withCookie)
-	res := sa.do("POST", "/setup/password",
-		url.Values{"password": {"attacker-pass"}, "confirm_password": {"attacker-pass"}}, withCookie)
-
-	var count int64
-	sa.db.Model(&users.User{}).Count(&count)
-	if count != 1 {
-		t.Errorf("users = %d, want only the owner", count)
-	}
-	if loc := res.Header.Get("Location"); loc != "/login" {
-		t.Errorf("Location = %q, want /login once setup is done", loc)
-	}
+		var count int64
+		sa.db.Model(&users.User{}).Count(&count)
+		if count != 1 {
+			t.Errorf("users = %d, want only the owner", count)
+		}
+		if loc := res.Header.Get("Location"); loc != "/login" {
+			t.Errorf("Location = %q, want /login once setup is done", loc)
+		}
+	})
 }
 
 func TestSettingsJSONHidesSecrets(t *testing.T) {

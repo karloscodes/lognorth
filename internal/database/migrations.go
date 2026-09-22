@@ -25,6 +25,7 @@ var dataMigrations = []struct {
 	{"2026-09-22-events-issue-hash", events.BackfillIssueHashes},
 	{"2026-09-22-events-timestamps-utc", func(db *gorm.DB) error { return events.NormalizeToUTC(db, "events", "timestamp") }},
 	{"2026-09-22-endpoint-stats-buckets-utc", func(db *gorm.DB) error { return events.NormalizeToUTC(db, "endpoint_stats", "bucket") }},
+	{"2026-09-22-drop-onboarding-sessions", func(db *gorm.DB) error { return db.Exec("DROP TABLE IF EXISTS onboarding_sessions").Error }},
 }
 
 // schemaMigration records one data migration that ran.
