@@ -1,6 +1,7 @@
 import { formatDistanceToNow } from 'date-fns'
 import { Clock, Hash, Briefcase, ArrowRight, Layers } from 'lucide-react'
 import { Layout } from '@/components/layout'
+import { TraceTree } from '@/components/trace-tree'
 import { getConfig, statusColor, parseContext } from '@/lib/shared'
 import type { Application, LogEntry, LogContext } from '@/lib/shared'
 
@@ -163,101 +164,16 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
 
       {/* Trace Log - what happened before/after in this request */}
       {relatedEntries.length > 1 && (() => {
-        const isTrace = entry.trace_id && relatedEntries.every((e: LogEntry) => e.trace_id === entry.trace_id)
-        const isRequest = (e: LogEntry) => {
-          const c = parseContext(e.context)
-          return c.method && c.status && c.path
-        }
-
-        // Separate the request wrapper from child events
-        const requestEntry = isTrace ? relatedEntries.find(e => isRequest(e)) : null
-        const childEntries = requestEntry
-          ? relatedEntries.filter(e => e.id !== requestEntry.id)
-          : relatedEntries.filter(e => e.id !== entry.id)
-
-        const requestCtx = requestEntry ? parseContext(requestEntry.context) : null
-        const requestConfig = requestEntry ? getConfig(requestEntry.is_error) : null
-
+        const isTrace = !!entry.trace_id && relatedEntries.every((e: LogEntry) => e.trace_id === entry.trace_id)
         return (
-          <div className="mb-8">
-            <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-3">
-              {isTrace ? 'Request Context' : 'Nearby Logs'}
-            </h3>
-            <div className="border-2 border-foreground/10 overflow-hidden font-mono text-xs">
-              {/* Request wrapper header */}
-              {requestEntry && requestCtx && requestConfig && (() => {
-                const ReqIcon = requestConfig.icon
-                const isCurrent = requestEntry.id === entry.id
-                return (
-                  <a
-                    href={isCurrent ? undefined : `${logPath}/${requestEntry.id}`}
-                    className={`flex items-center gap-2 px-4 py-2.5 bg-foreground/[0.02] border-b border-foreground/10 ${isCurrent ? 'font-bold' : 'hover:bg-foreground/[0.04] transition-colors'}`}
-                  >
-                    <div className={`p-1 ${requestConfig.colors}`}>
-                      <ReqIcon className="w-3 h-3" />
-                    </div>
-                    {requestCtx.method && <span className={`font-bold text-foreground/50`}>{requestCtx.method}</span>}
-                    <span className="text-foreground/70">{requestCtx.path}</span>
-                    {requestCtx.status && <span className={`font-bold ${statusColor(requestCtx.status)}`}>{requestCtx.status}</span>}
-                    <span className="text-foreground/40 ml-auto shrink-0">{requestEntry.duration_ms}ms</span>
-                  </a>
-                )
-              })()}
-
-              {/* Child events */}
-              {childEntries.map((e, i) => {
-                const isCurrent = e.id === entry.id
-                const eConfig = getConfig(e.is_error)
-                const EIcon = eConfig.icon
-                const eCtx = isCurrent ? ctx : parseContext(e.context)
-                const isLast = i === childEntries.length - 1
-                const borderClass = !isLast ? 'border-b border-foreground/5' : ''
-                const indent = requestEntry ? 'pl-8' : 'pl-4'
-
-                const content = (
-                  <>
-                    <div className={`p-1 ${eConfig.colors}`}>
-                      <EIcon className="w-3 h-3" />
-                    </div>
-                    <span className={`truncate ${isCurrent ? 'text-foreground font-bold' : 'text-foreground/70'}`}>{eCtx.path || e.message}</span>
-                    {eCtx.error_file && <span className="text-foreground/40">{eCtx.error_file}{eCtx.error_line ? `:${eCtx.error_line}` : ''}</span>}
-                    {eCtx.method && <span className={`font-bold text-foreground/50`}>{eCtx.method}</span>}
-                    {eCtx.status && <span className={`font-bold ${statusColor(eCtx.status)}`}>{eCtx.status}</span>}
-                    {e.duration_ms > 0 && <span className="text-foreground/40 ml-auto shrink-0">{e.duration_ms}ms</span>}
-                  </>
-                )
-
-                if (isCurrent) {
-                  return (
-                    <div key={e.id} className={`relative flex items-center gap-2 ${indent} pr-4 py-2.5 bg-foreground/[0.04] ${borderClass}`}>
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-foreground" />
-                      {content}
-                    </div>
-                  )
-                }
-
-                return (
-                  <a
-                    key={e.id}
-                    href={`${logPath}/${e.id}`}
-                    className={`flex items-center gap-2 ${indent} pr-4 py-2.5 hover:bg-foreground/[0.02] transition-colors ${borderClass}`}
-                  >
-                    {content}
-                  </a>
-                )
-              })}
-
-              {isTrace && entry.trace_id && (
-                <a
-                  href={`${logPath}?trace=${entry.trace_id}`}
-                  className="flex items-center justify-between px-4 py-2.5 bg-foreground/[0.02] border-t border-foreground/10 font-mono text-xs font-bold text-foreground/60 hover:text-foreground transition-colors"
-                >
-                  <span>{relatedEntries.length} entries in this trace</span>
-                  <span>View full trace →</span>
-                </a>
-              )}
-            </div>
-          </div>
+          <TraceTree
+            title={isTrace ? 'Request Context' : 'Nearby Logs'}
+            entries={relatedEntries}
+            currentId={entry.id}
+            logPath={logPath}
+            grouped={isTrace}
+            traceId={entry.trace_id}
+          />
         )
       })()}
 
