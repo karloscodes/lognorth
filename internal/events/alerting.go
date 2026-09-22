@@ -78,78 +78,42 @@ func (e *AlertEngine) CanNotify() bool {
 // ALERT CHECKS
 // =============================================================================
 
-// CheckNewErrorOrRegression checks if we should alert for this error
-func (e *AlertEngine) CheckNewErrorOrRegression(ctx map[string]any, apiKeyID uint, appName string) {
-	if !e.CanNotify() {
-		return
-	}
-
-	errorMsg, _ := ctx["error"].(string)
-
-	// Prefer new three-tier hashing when structured fields are available
-	errorClass, _ := ctx["error_class"].(string)
-	if errorClass == "" {
-		errorClass, _ = ctx["error_type"].(string)
-	}
-	errorFile, _ := ctx["error_file"].(string)
-	errorLine := 0
-	if el, ok := ctx["error_line"].(int); ok {
-		errorLine = el
-	} else if el, ok := ctx["error_line"].(float64); ok {
-		errorLine = int(el)
-	}
-
-	var hash string
-	if errorClass != "" || errorMsg != "" {
-		h1, h2, h3 := computeErrorHashes(errorClass, errorMsg, errorFile, errorLine, apiKeyID)
-		if h3 != "" {
-			hash = h3
-		} else if h2 != "" {
-			hash = h2
-		} else {
-			hash = h1
-		}
-	}
-	// Fallback to legacy hash if new hashing produced nothing
+// CheckNewErrorOrRegression records an occurrence of the event's issue and
+// alerts when the issue is new, or back after RegressionQuietPeriod. It keys on
+// the same issue_hash the issue list, mute, and seen state use. The state is
+// tracked even without a notification channel, so setting one up later does
+// not alert on every existing issue.
+func (e *AlertEngine) CheckNewErrorOrRegression(event *Event, appName string) error {
+	hash := event.IssueHash
 	if hash == "" {
-		hash = hashError(ctx, apiKeyID)
+		return nil
 	}
-
 	now := time.Now()
 
 	var seen IssueSeen
 	result := e.db.Where("error_hash = ?", hash).First(&seen)
 
 	if result.Error == gorm.ErrRecordNotFound {
-		// NEW ERROR - always alert
-		e.sendAlert(alertNewError, appName, errorClass, errorMsg, errorFile, errorLine, hash, 0)
-		e.db.Create(&IssueSeen{
-			ErrorHash:        hash,
-			SeenAt:           now,
-			LastOccurrenceAt: now,
-			LastNotifiedAt:   now,
-		})
-		return
+		if err := e.db.Create(&IssueSeen{ErrorHash: hash, LastOccurrenceAt: now}).Error; err != nil {
+			return err
+		}
+		return e.sendAlert(alertNewError, appName, event, 0)
+	}
+	if result.Error != nil {
+		return result.Error
 	}
 
-	// Skip if muted - still track occurrence but no alert
-	if seen.Muted {
-		seen.LastOccurrenceAt = now
-		e.db.Save(&seen)
-		return
+	// Zero LastOccurrenceAt means a row with no tracked occurrence yet; record
+	// it silently rather than claiming a 292-year regression.
+	var sendErr error
+	if !seen.Muted && !seen.LastOccurrenceAt.IsZero() && IsRegression(seen.LastOccurrenceAt) {
+		sendErr = e.sendAlert(alertRegression, appName, event, time.Since(seen.LastOccurrenceAt))
 	}
 
-	// Check REGRESSION - alert if quiet period passed.
-	// Zero LastOccurrenceAt means legacy row without tracked occurrences; backfill
-	// silently rather than claiming a 292-year regression (int64 duration overflow).
-	if !seen.LastOccurrenceAt.IsZero() && IsRegression(seen.LastOccurrenceAt) {
-		quietPeriod := time.Since(seen.LastOccurrenceAt)
-		e.sendAlert(alertRegression, appName, errorClass, errorMsg, errorFile, errorLine, hash, quietPeriod)
-		seen.LastNotifiedAt = now
+	if err := e.db.Model(&seen).Update("last_occurrence_at", now).Error; err != nil {
+		return err
 	}
-
-	seen.LastOccurrenceAt = now
-	e.db.Save(&seen)
+	return sendErr
 }
 
 // =============================================================================
@@ -163,32 +127,48 @@ const (
 	alertRegression
 )
 
-func (e *AlertEngine) sendAlert(typ alertType, appName, errorClass, errorMsg, errorFile string, errorLine int, hash string, duration time.Duration) {
-	headline := formatHeadline(errorClass, errorMsg)
+func (e *AlertEngine) sendAlert(typ alertType, appName string, event *Event, duration time.Duration) error {
+	if !e.CanNotify() {
+		return nil
+	}
+
+	headline := formatHeadline(event.ErrorClass, event.ErrorMessage)
+	short := firstLine(headline, 120)
 
 	var subject string
 	switch typ {
 	case alertNewError:
-		subject = fmt.Sprintf("%s — new: %s", appName, headline)
+		subject = fmt.Sprintf("%s — new: %s", appName, short)
 	case alertRegression:
 		if dur := formatDuration(duration); dur != "" {
-			subject = fmt.Sprintf("%s — back after %s: %s", appName, dur, headline)
+			subject = fmt.Sprintf("%s — back after %s: %s", appName, dur, short)
 		} else {
-			subject = fmt.Sprintf("%s — back: %s", appName, headline)
+			subject = fmt.Sprintf("%s — back: %s", appName, short)
 		}
 	}
 
 	body := headline
-	if loc := formatLocation(errorFile, errorLine); loc != "" {
+	if loc := formatLocation(event.ErrorFile, event.ErrorLine); loc != "" {
 		body += "\nat " + loc
 	}
-
 	if e.settings.BaseURL != "" {
-		body += fmt.Sprintf("\n\n%s/issues/%s", e.settings.BaseURL, hash)
+		body += fmt.Sprintf("\n\n%s/issues/%s", e.settings.BaseURL, event.IssueHash)
 	}
-	body += "\n\nAsk your agent: /lognorth:investigate " + hash
+	body += "\n\nAsk your agent: /lognorth:investigate " + event.IssueHash
 
-	e.settings.SendEmail(subject, body)
+	return e.settings.SendNotification(subject, body)
+}
+
+// firstLine returns the first line of s, cut to max characters. Subjects and
+// titles must be one line: ntfy rejects a newline in a header, and SMTP would
+// read the rest as extra headers.
+func firstLine(s string, max int) string {
+	s, _, _ = strings.Cut(s, "\n")
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > max {
+		return string(r[:max-1]) + "…"
+	}
+	return s
 }
 
 // formatHeadline combines class and message into a single human line.

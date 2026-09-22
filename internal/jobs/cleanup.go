@@ -19,17 +19,6 @@ func NewCleanupProcessor() *CleanupProcessor {
 
 // ProcessBatch cleans up old events
 func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
-	// Delete processed ingested events older than 1 hour
-	// (they've already been copied to the events table)
-	deleted, err := events.DeleteProcessed(ctx.DB, 1*time.Hour)
-	if err != nil {
-		ctx.Logger.Error("Failed to cleanup processed events", "error", err)
-		return err
-	}
-	if deleted > 0 {
-		ctx.Logger.Info("Cleaned up processed ingested events", "deleted", deleted)
-	}
-
 	// Delete events older than configured retention period
 	s, err := settings.Get(ctx.DB)
 	if err != nil {
@@ -48,6 +37,21 @@ func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		if deletedEvents > 0 {
 			ctx.Logger.Info("Cleaned up old events", "deleted", deletedEvents, "retention_days", s.RetentionDays)
 		}
+	}
+
+	// Without a license, ingested events wait unprocessed. Keep that backlog
+	// within the retention period (90 days when retention is "forever").
+	backlog := retention
+	if backlog == 0 {
+		backlog = 90 * 24 * time.Hour
+	}
+	deletedBacklog, err := events.DeleteIngestedOlderThan(ctx.DB, backlog)
+	if err != nil {
+		ctx.Logger.Error("Failed to cleanup the ingest backlog", "error", err)
+		return err
+	}
+	if deletedBacklog > 0 {
+		ctx.Logger.Info("Cleaned up the ingest backlog", "deleted", deletedBacklog)
 	}
 
 	// Delete endpoint stats older than the SPC history needs

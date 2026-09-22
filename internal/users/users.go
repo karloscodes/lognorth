@@ -29,11 +29,6 @@ var ErrUserExists = errors.New("user already exists")
 // ErrUserNotFound is returned when a user lookup fails
 var ErrUserNotFound = gorm.ErrRecordNotFound
 
-// AutoMigrate creates the users table
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&User{})
-}
-
 // FindByEmail retrieves a user by email
 func FindByEmail(db *gorm.DB, email string) (*User, error) {
 	var user User

@@ -20,26 +20,6 @@ func setupAlertingTestDB(t *testing.T) *testDB {
 	t.Helper()
 	db := setupTestDB(t)
 
-	// Migrate endpoint stats
-	if err := events.AutoMigrateStats(db); err != nil {
-		t.Fatalf("Failed to migrate endpoint stats: %v", err)
-	}
-
-	// Migrate SPC tables
-	if err := events.AutoMigrateSPC(db); err != nil {
-		t.Fatalf("Failed to migrate SPC tables: %v", err)
-	}
-
-	// Migrate spike states
-	if err := db.AutoMigrate(&events.SpikeState{}); err != nil {
-		t.Fatalf("Failed to migrate spike states: %v", err)
-	}
-
-	// Migrate settings
-	if err := db.AutoMigrate(&settings.Settings{}); err != nil {
-		t.Fatalf("Failed to migrate settings: %v", err)
-	}
-
 	// Create default settings (email not configured - we just check state)
 	db.Create(&settings.Settings{})
 

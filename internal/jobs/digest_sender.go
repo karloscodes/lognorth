@@ -81,7 +81,7 @@ func (j *DigestSender) buildDigestBody(db *gorm.DB, items []events.DigestItem, s
 	var keys []apikeys.APIKey
 	db.Where("active = ?", true).Find(&keys)
 
-	yesterday := time.Now().AddDate(0, 0, -1)
+	yesterday := time.Now().UTC().AddDate(0, 0, -1)
 	wroteStats := false
 	for _, key := range keys {
 		var totalEvents, totalErrors int64

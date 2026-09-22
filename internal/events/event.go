@@ -36,22 +36,20 @@ type Event struct {
 	//   hash_2: hash_1 + error_file              — same error in the same file
 	//   hash_3: hash_1 + error_file + error_line  — exact location (primary grouping key)
 	//
-	// hash_3 is the default grouping key. When file/line are missing, falls back to hash_1.
 	// hash_1 links related locations ("also happens at") — same error, different files.
-	// Notifications use hash_3 when available, hash_1 otherwise.
-	ErrorHash1 string `gorm:"column:error_hash_1;size:64" json:"error_hash_1"`
+	ErrorHash1 string `gorm:"column:error_hash_1;size:64;index" json:"error_hash_1"`
 	ErrorHash2 string `gorm:"column:error_hash_2;size:64" json:"error_hash_2"`
-	ErrorHash3 string `gorm:"column:error_hash_3;size:64;index" json:"error_hash_3"`
+	ErrorHash3 string `gorm:"column:error_hash_3;size:64" json:"error_hash_3"`
+
+	// IssueHash groups events into issues: the most specific hash available
+	// (hash_3, then hash_2, then hash_1). Issues, mute, seen state, alerts, and
+	// the MCP issue filter all key on it.
+	IssueHash string `gorm:"size:64;index" json:"issue_hash"`
 }
 
 // TableName specifies the table name
 func (Event) TableName() string {
 	return "events"
-}
-
-// AutoMigrate creates the events table if it doesn't exist
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Event{})
 }
 
 // EventContext represents the parsed Context field
@@ -94,21 +92,6 @@ type EventContext struct {
 
 	// Custom fields (anything else)
 	Extra map[string]any `json:"extra,omitempty"`
-}
-
-// ToMap converts EventContext to a map for hashError
-func (c *EventContext) ToMap() map[string]any {
-	m := make(map[string]any)
-	if c.Error != "" {
-		m["error"] = c.Error
-	}
-	if c.ErrorType != "" {
-		m["error_type"] = c.ErrorType
-	}
-	if c.ErrorLocation != "" {
-		m["error_location"] = c.ErrorLocation
-	}
-	return m
 }
 
 // GetContext parses and returns the event context
@@ -173,12 +156,35 @@ func PopulateErrorFields(event *Event, ctx *EventContext) {
 			event.ErrorClass, event.ErrorMessage, event.ErrorFile, event.ErrorLine, event.APIKeyID,
 		)
 	}
+	event.IssueHash = event.mostSpecificHash()
 }
 
-// Create inserts a new event
+// mostSpecificHash returns hash_3, then hash_2, then hash_1, whichever is set first.
+func (e *Event) mostSpecificHash() string {
+	for _, h := range []string{e.ErrorHash3, e.ErrorHash2, e.ErrorHash1} {
+		if h != "" {
+			return h
+		}
+	}
+	return ""
+}
+
+// Create inserts a new event. Timestamps are stored in UTC: SQLite compares
+// them as text, so every row must use the same offset.
 func Create(db *gorm.DB, event *Event) error {
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now()
+	}
+	event.Timestamp = event.Timestamp.UTC()
+	// Every stored error event carries its error fields and issue hash,
+	// whichever path stores it.
+	if event.IsError && event.ErrorHash1 == "" {
+		if ctx, err := event.GetContext(); err == nil {
+			PopulateErrorFields(event, ctx)
+		}
+	}
+	if event.IssueHash == "" {
+		event.IssueHash = event.mostSpecificHash()
 	}
 	return db.Create(event).Error
 }
@@ -204,11 +210,11 @@ func FindByTraceID(db *gorm.DB, traceID string) ([]Event, error) {
 // FindNearby retrieves events around a given event by timestamp (3 before, 3 after)
 func FindNearby(db *gorm.DB, appID uint, event *Event) ([]Event, error) {
 	var before []Event
-	db.Where("app_id = ? AND id != ? AND timestamp <= ?", appID, event.ID, event.Timestamp).
+	db.Where("api_key_id = ? AND id != ? AND timestamp <= ?", appID, event.ID, event.Timestamp).
 		Order("timestamp DESC, id DESC").Limit(3).Find(&before)
 
 	var after []Event
-	db.Where("app_id = ? AND id != ? AND timestamp >= ?", appID, event.ID, event.Timestamp).
+	db.Where("api_key_id = ? AND id != ? AND timestamp >= ?", appID, event.ID, event.Timestamp).
 		Order("timestamp ASC, id ASC").Limit(3).Find(&after)
 
 	// Reverse before so it's chronological
@@ -221,64 +227,6 @@ func FindNearby(db *gorm.DB, appID uint, event *Event) ([]Event, error) {
 	result = append(result, *event)
 	result = append(result, after...)
 	return result, nil
-}
-
-// errorFilterMatch holds the criteria to match events for a specific error hash
-type errorFilterMatch struct {
-	Error         string
-	ErrorType     string
-	ErrorLocation string
-}
-
-// findErrorFilterByHash looks up the error grouping that matches the given hash
-func findErrorFilterByHash(db *gorm.DB, hash string, apiKeyID uint) *errorFilterMatch {
-	query := `
-		SELECT DISTINCT
-			json_extract(context, '$.error') as error,
-			json_extract(context, '$.error_type') as error_type,
-			json_extract(context, '$.error_location') as error_location,
-			api_key_id
-		FROM events
-		WHERE is_error = 1
-			AND (json_extract(context, '$.error') IS NOT NULL AND json_extract(context, '$.error') != ''
-				OR json_extract(context, '$.error_type') IS NOT NULL)
-	`
-	args := []any{}
-	if apiKeyID > 0 {
-		query += " AND api_key_id = ?"
-		args = append(args, apiKeyID)
-	}
-
-	type errorWithApp struct {
-		Error         string `gorm:"column:error"`
-		ErrorType     string `gorm:"column:error_type"`
-		ErrorLocation string `gorm:"column:error_location"`
-		APIKeyID      uint   `gorm:"column:api_key_id"`
-	}
-	var errorRows []errorWithApp
-	if err := db.Raw(query, args...).Scan(&errorRows).Error; err != nil {
-		return nil
-	}
-
-	for _, row := range errorRows {
-		checkAPIKeyID := apiKeyID
-		if apiKeyID == 0 {
-			checkAPIKeyID = row.APIKeyID
-		}
-		ctx := map[string]any{
-			"error":          row.Error,
-			"error_type":     row.ErrorType,
-			"error_location": row.ErrorLocation,
-		}
-		if hashError(ctx, checkAPIKeyID) == hash {
-			return &errorFilterMatch{
-				Error:         row.Error,
-				ErrorType:     row.ErrorType,
-				ErrorLocation: row.ErrorLocation,
-			}
-		}
-	}
-	return nil
 }
 
 // ListFilters defines filtering options for listing events
@@ -305,34 +253,13 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 		query = query.Where("is_error = ?", *filters.IsError)
 	}
 	if !filters.StartTime.IsZero() {
-		query = query.Where("timestamp >= ?", filters.StartTime)
+		query = query.Where("timestamp >= ?", filters.StartTime.UTC())
 	}
 	if !filters.EndTime.IsZero() {
-		query = query.Where("timestamp <= ?", filters.EndTime)
+		query = query.Where("timestamp <= ?", filters.EndTime.UTC())
 	}
 	if filters.ErrorHash != "" {
-		// Try matching by new hash columns first
-		var hashCount int64
-		db.Model(&Event{}).Where("error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?",
-			filters.ErrorHash, filters.ErrorHash, filters.ErrorHash).Count(&hashCount)
-
-		if hashCount > 0 {
-			query = query.Where("error_hash_3 = ? OR error_hash_2 = ? OR error_hash_1 = ?",
-				filters.ErrorHash, filters.ErrorHash, filters.ErrorHash)
-		} else {
-			// Fall back to legacy lookup for old events
-			errorFilter := findErrorFilterByHash(db, filters.ErrorHash, filters.APIKeyID)
-			if errorFilter != nil {
-				if errorFilter.ErrorType != "" {
-					query = query.Where("json_extract(context, '$.error_type') = ? AND COALESCE(json_extract(context, '$.error_location'), '') = ?",
-						errorFilter.ErrorType, errorFilter.ErrorLocation)
-				} else {
-					query = query.Where("json_extract(context, '$.error') = ?", errorFilter.Error)
-				}
-			} else {
-				query = query.Where("1 = 0")
-			}
-		}
+		query = query.Where("issue_hash = ?", filters.ErrorHash)
 	}
 	if filters.TraceID != "" {
 		query = query.Where("trace_id = ?", filters.TraceID)
@@ -366,11 +293,21 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 	return events, total, nil
 }
 
-// DeleteOlderThan removes events older than the specified duration
+// DeleteOlderThan removes events older than the specified duration. It deletes
+// in chunks, so ingest does not wait on one long write lock.
 func DeleteOlderThan(db *gorm.DB, duration time.Duration) (int64, error) {
-	cutoff := time.Now().Add(-duration)
-	result := db.Where("timestamp < ?", cutoff).Delete(&Event{})
-	return result.RowsAffected, result.Error
+	cutoff := time.Now().UTC().Add(-duration)
+	var total int64
+	for {
+		result := db.Exec("DELETE FROM events WHERE id IN (SELECT id FROM events WHERE timestamp < ? LIMIT 5000)", cutoff)
+		if result.Error != nil {
+			return total, result.Error
+		}
+		total += result.RowsAffected
+		if result.RowsAffected < 5000 {
+			return total, nil
+		}
+	}
 }
 
 // Stats holds event count statistics
@@ -435,7 +372,7 @@ func GetStats(db *gorm.DB, apiKeyID uint) Stats {
 
 	errQ := db.Model(&Event{}).Where("is_error = ?", true)
 	totalQ := db.Model(&Event{})
-	todayQ := db.Model(&Event{}).Where("timestamp >= ?", time.Now().Truncate(24*time.Hour))
+	todayQ := db.Model(&Event{}).Where("timestamp >= ?", time.Now().UTC().Truncate(24*time.Hour))
 
 	if apiKeyID > 0 {
 		errQ = errQ.Where("api_key_id = ?", apiKeyID)
@@ -530,7 +467,7 @@ func GetHistogram(db *gorm.DB, apiKeyID uint, startTime, endTime time.Time, _ in
 
 	query := db.Model(&Event{}).
 		Select("((strftime('%s', timestamp) - ?) / ?) as bucket_idx, is_error, COUNT(*) as count", startUnix, bucketSizeSeconds).
-		Where("timestamp >= ? AND timestamp < ?", startTime, endTime).
+		Where("timestamp >= ? AND timestamp < ?", startTime.UTC(), endTime.UTC()).
 		Group("bucket_idx, is_error")
 
 	if apiKeyID > 0 {

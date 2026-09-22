@@ -57,11 +57,6 @@ func (APIKey) TableName() string {
 	return "api_keys"
 }
 
-// AutoMigrate creates the api_keys table if it doesn't exist
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&APIKey{})
-}
-
 // Generate creates a new random API key with the given prefix
 func Generate(prefix string) (string, error) {
 	bytes := make([]byte, 32)
@@ -102,7 +97,10 @@ func Validate(db *gorm.DB, key string) (*APIKey, error) {
 	}
 
 	// Update last used timestamp
-	db.Model(&apiKey).Update("last_used", time.Now())
+	// At most one write per minute per key: ingest is the hot path.
+	if time.Since(apiKey.LastUsed) > time.Minute {
+		db.Model(&apiKey).Update("last_used", time.Now())
+	}
 
 	return &apiKey, nil
 }
@@ -114,7 +112,10 @@ func ValidateAppKey(db *gorm.DB, key string) (*APIKey, error) {
 		return nil, err
 	}
 
-	db.Model(&apiKey).Update("last_used", time.Now())
+	// At most one write per minute per key: ingest is the hot path.
+	if time.Since(apiKey.LastUsed) > time.Minute {
+		db.Model(&apiKey).Update("last_used", time.Now())
+	}
 
 	return &apiKey, nil
 }

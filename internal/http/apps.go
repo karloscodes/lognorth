@@ -155,10 +155,8 @@ func AppLogDetailPageAction(ctx *cartridge.Context) error {
 		"relatedEntries": relatedEntries,
 	}
 
-	if entry.IsError {
-		if issueHash := events.GetIssueHashForEvent(entry); issueHash != "" {
-			props["issueHash"] = issueHash
-		}
+	if entry.IsError && entry.IssueHash != "" {
+		props["issueHash"] = entry.IssueHash
 	}
 
 	return RenderPage(ctx.Ctx, "LogDetail", props)

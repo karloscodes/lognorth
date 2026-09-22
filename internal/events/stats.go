@@ -21,11 +21,6 @@ func (EndpointStat) TableName() string {
 	return "endpoint_stats"
 }
 
-// AutoMigrateStats creates the endpoint_stats table
-func AutoMigrateStats(db *gorm.DB) error {
-	return db.AutoMigrate(&EndpointStat{})
-}
-
 // TruncateTo5Min truncates a time to 5-minute boundary
 func TruncateTo5Min(t time.Time) time.Time {
 	return t.Truncate(5 * time.Minute)

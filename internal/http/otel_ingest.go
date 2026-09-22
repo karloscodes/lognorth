@@ -49,27 +49,27 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 		})
 	}
 
-	created := 0
+	var toStore []*events.IngestedEvent
 
 	for _, rl := range req.GetResourceLogs() {
 		resourceAttrs := flattenProtoAttributes(rl.GetResource())
 
 		for _, sl := range rl.GetScopeLogs() {
 			for _, lr := range sl.GetLogRecords() {
-				ingested := convertProtoLogRecord(lr, resourceAttrs, validatedKey.ID)
-				if ingested == nil {
-					continue
+				if ingested := convertProtoLogRecord(lr, resourceAttrs, validatedKey.ID); ingested != nil {
+					toStore = append(toStore, ingested)
 				}
-
-				if err := events.CreateIngested(db, ingested); err != nil {
-					continue
-				}
-				created++
 			}
 		}
 	}
 
-	return ctx.Ctx.Status(fiber.StatusOK).JSON(fiber.Map{"created": created})
+	// On a failed write, say so: OTel exporters retry on 503.
+	if err := events.CreateIngested(db, toStore); err != nil {
+		ctx.Logger.Error("Failed to store OTel events", "error", err)
+		return ctx.Ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Could not store events. Retry."})
+	}
+
+	return ctx.Ctx.Status(fiber.StatusOK).JSON(fiber.Map{"created": len(toStore)})
 }
 
 // OtelSinkAction handles POST /v1/traces and /v1/metrics

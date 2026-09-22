@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"lognorth/internal/apikeys"
+	"lognorth/internal/database"
 	"lognorth/internal/events"
 )
 
@@ -30,23 +31,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
-	if err := apikeys.AutoMigrate(db); err != nil {
-		t.Fatalf("Failed to migrate api keys: %v", err)
-	}
-	if err := events.AutoMigrate(db); err != nil {
-		t.Fatalf("Failed to migrate events: %v", err)
-	}
-	if err := events.AutoMigrateIssues(db); err != nil {
-		t.Fatalf("Failed to migrate issues: %v", err)
-	}
-	if err := events.AutoMigrateStats(db); err != nil {
-		t.Fatalf("Failed to migrate stats: %v", err)
-	}
-	if err := events.AutoMigrateSPC(db); err != nil {
-		t.Fatalf("Failed to migrate SPC tables: %v", err)
-	}
-	if err := db.AutoMigrate(&events.SpikeState{}); err != nil {
-		t.Fatalf("Failed to migrate spike states: %v", err)
+	if err := database.Migrate(db); err != nil {
+		t.Fatalf("Failed to migrate: %v", err)
 	}
 
 	return db

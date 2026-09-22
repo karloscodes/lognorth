@@ -53,28 +53,7 @@ func (dm *DBManager) MigrateDatabase() error {
 	}
 
 	// Run migrations in a transaction
-	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.AutoMigrate(
-			&apikeys.APIKey{},
-			&events.Event{},
-			&events.IngestedEvent{},
-			&events.IssueSeen{},
-			&events.EndpointStat{},
-			&events.SpikeState{},
-			&settings.Settings{},
-			&users.User{},
-			&onboarding.OnboardingSession{},
-		); err != nil {
-			return err
-		}
-
-		// SPC alerting tables
-		if err := events.AutoMigrateSPC(tx); err != nil {
-			return fmt.Errorf("failed to migrate SPC tables: %w", err)
-		}
-
-		return nil
-	})
+	err := db.Transaction(Migrate)
 	if err != nil {
 		dm.logger.Error("Failed to auto-migrate database", slog.Any("error", err))
 		return err
@@ -86,4 +65,27 @@ func (dm *DBManager) MigrateDatabase() error {
 
 	dm.logger.Info("Database migration completed successfully")
 	return nil
+}
+
+// Migrate brings the database to the current version: AutoMigrate for the
+// schema, then the data migrations that have not run yet. The app and the
+// tests both use it, so there is one list of tables.
+func Migrate(db *gorm.DB) error {
+	if err := db.AutoMigrate(
+		&apikeys.APIKey{},
+		&events.Event{},
+		&events.IngestedEvent{},
+		&events.IssueSeen{},
+		&events.EndpointStat{},
+		&events.SpikeState{},
+		&settings.Settings{},
+		&users.User{},
+		&onboarding.OnboardingSession{},
+	); err != nil {
+		return err
+	}
+	if err := events.AutoMigrateSPC(db); err != nil {
+		return fmt.Errorf("failed to migrate SPC tables: %w", err)
+	}
+	return runDataMigrations(db)
 }

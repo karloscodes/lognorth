@@ -17,6 +17,7 @@ import (
 	"github.com/karloscodes/cartridge/sqlite"
 
 	"lognorth/internal/apikeys"
+	"lognorth/internal/database"
 	"lognorth/internal/events"
 	lbhttp "lognorth/internal/http"
 	"lognorth/internal/jobs"
@@ -55,19 +56,8 @@ func setupMCPTestApp(t *testing.T) *mcpTestApp {
 		t.Fatalf("Failed to connect: %v", err)
 	}
 
-	for name, migrate := range map[string]func() error{
-		"apikeys":  func() error { return apikeys.AutoMigrate(db) },
-		"settings": func() error { return settings.AutoMigrate(db) },
-		"events":   func() error { return events.AutoMigrate(db) },
-		"ingested": func() error { return events.AutoMigrateIngested(db) },
-		"issues":   func() error { return events.AutoMigrateIssues(db) },
-		"stats":    func() error { return events.AutoMigrateStats(db) },
-		"spc":      func() error { return events.AutoMigrateSPC(db) },
-		"spikes":   func() error { return db.AutoMigrate(&events.SpikeState{}) },
-	} {
-		if err := migrate(); err != nil {
-			t.Fatalf("Failed to migrate %s: %v", name, err)
-		}
+	if err := database.Migrate(db); err != nil {
+		t.Fatalf("Failed to migrate: %v", err)
 	}
 
 	agentKey, err := settings.CreateAgentKey(db)

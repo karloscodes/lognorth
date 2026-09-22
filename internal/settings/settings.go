@@ -73,11 +73,6 @@ func (Settings) TableName() string {
 	return "settings"
 }
 
-// AutoMigrate creates the settings table
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&Settings{})
-}
-
 // Get retrieves the settings (creates default if none exist)
 func Get(db *gorm.DB) (*Settings, error) {
 	var settings Settings

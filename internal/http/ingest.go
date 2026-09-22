@@ -42,6 +42,9 @@ type IngestRequest struct {
 	ErrorLocation string `json:"error_location,omitempty"` // e.g., "checkout.ts:42"
 }
 
+// maxEventsPerRequest caps one request. The SDKs send batches of 10.
+const maxEventsPerRequest = 1000
+
 // IngestBatchRequest represents a batch of events
 type IngestBatchRequest struct {
 	Events []IngestRequest `json:"events"`
@@ -127,8 +130,14 @@ func IngestAction(ctx *cartridge.Context) error {
 		ingestEvents = []IngestRequest{single}
 	}
 
-	// Store events in ingested_events table (fast write)
-	created := 0
+	if len(ingestEvents) > maxEventsPerRequest {
+		return ctx.Ctx.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
+			"error": fmt.Sprintf("at most %d events per request", maxEventsPerRequest),
+		})
+	}
+
+	// Validate everything first, then store the batch in one transaction.
+	var toStore []*events.IngestedEvent
 	errors := []string{}
 
 	for i, req := range ingestEvents {
@@ -173,8 +182,7 @@ func IngestAction(ctx *cartridge.Context) error {
 			contextJSON = []byte("{}")
 		}
 
-		// Create ingested event (fast write, no processing)
-		ingested := &events.IngestedEvent{
+		toStore = append(toStore, &events.IngestedEvent{
 			APIKeyID:   validatedKey.ID,
 			Message:    req.Message,
 			TraceID:    req.TraceID,
@@ -182,16 +190,18 @@ func IngestAction(ctx *cartridge.Context) error {
 			IsError:    req.DeriveIsError(),
 			Context:    string(contextJSON),
 			Timestamp:  timestamp,
-		}
-
-		if err := events.CreateIngested(db, ingested); err != nil {
-			continue
-		}
-
-		created++
+		})
 	}
 
-	response := fiber.Map{"created": created}
+	// On a failed write, say so: SDKs retry on 5xx, and a 201 would drop the events.
+	if err := events.CreateIngested(db, toStore); err != nil {
+		ctx.Logger.Error("Failed to store events", "error", err)
+		return ctx.Ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Could not store events. Retry.",
+		})
+	}
+
+	response := fiber.Map{"created": len(toStore)}
 	if len(errors) > 0 {
 		response["errors"] = errors
 	}

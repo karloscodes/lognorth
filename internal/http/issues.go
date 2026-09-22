@@ -110,13 +110,7 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 	var alsoHappensAt []events.RelatedLocation
 	if len(issue.Entries) > 0 {
 		first := issue.Entries[0]
-		if first.ErrorHash1 != "" {
-			currentHash3 := first.ErrorHash3
-			if currentHash3 == "" {
-				currentHash3 = hash
-			}
-			alsoHappensAt, _ = events.GetRelatedLocations(db, first.ErrorHash1, currentHash3, first.ErrorFile, app.ID)
-		}
+		alsoHappensAt, _ = events.GetRelatedLocations(db, first.ErrorHash1, hash, first.ErrorFile, app.ID)
 	}
 
 	events.MarkIssueSeen(db, hash)

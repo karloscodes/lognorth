@@ -1,35 +1,14 @@
 package events
 
 import (
-	"os"
 	"testing"
 	"time"
 
-	"github.com/karloscodes/cartridge/sqlite"
 	"gorm.io/gorm"
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
-	t.Helper()
-
-	dbPath := "test_" + t.Name() + ".db"
-	t.Cleanup(func() {
-		os.Remove(dbPath)
-		os.Remove(dbPath + "-wal")
-		os.Remove(dbPath + "-shm")
-	})
-
-	manager := sqlite.NewManager(sqlite.Config{Path: dbPath, EnableWAL: true})
-	db, err := manager.Connect()
-	if err != nil {
-		t.Fatalf("Failed to connect: %v", err)
-	}
-
-	if err := AutoMigrate(db); err != nil {
-		t.Fatalf("Failed to migrate: %v", err)
-	}
-
-	return db
+	return newTestDB(t)
 }
 
 func TestDeriveIsError(t *testing.T) {
@@ -166,9 +145,9 @@ func TestCreate_WithTimestamp(t *testing.T) {
 	customTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
 
 	event := &Event{
-		APIKeyID:   1,
-		Message:    "Custom timestamp",
-		Timestamp:  customTime,
+		APIKeyID:  1,
+		Message:   "Custom timestamp",
+		Timestamp: customTime,
 	}
 
 	Create(db, event)

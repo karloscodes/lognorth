@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"lognorth/internal"
+	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
@@ -242,5 +243,27 @@ func TestSettingsJSONHidesSecrets(t *testing.T) {
 		if strings.Contains(string(out), secret) {
 			t.Errorf("settings JSON contains %q: %s", secret, out)
 		}
+	}
+}
+
+func TestIngestLimitsBatchSize(t *testing.T) {
+	sa := setupSecurityApp(t)
+	var key string
+	if _, k, err := apikeys.Create(sa.db, "shop"); err == nil {
+		key = k
+	}
+	events := strings.Repeat(`{"message":"GET / 200"},`, 1001)
+	body := `{"events":[` + strings.TrimSuffix(events, ",") + `]}`
+
+	req := httptest.NewRequest("POST", "/api/v1/events/batch", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := sa.app.Server.App().Test(req, -1)
+
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if res.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Errorf("status = %d, want 413 for 1,001 events", res.StatusCode)
 	}
 }

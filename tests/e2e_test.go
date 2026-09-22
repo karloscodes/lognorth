@@ -4,17 +4,21 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/sqlite"
 	"gorm.io/gorm"
 
 	"lognorth/internal/apikeys"
+	"lognorth/internal/database"
 	"lognorth/internal/events"
-	"lognorth/internal/settings"
+	"lognorth/internal/jobs"
+	"lognorth/internal/license"
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
@@ -31,20 +35,8 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	if err := apikeys.AutoMigrate(db); err != nil {
-		t.Fatalf("Failed to migrate apikeys: %v", err)
-	}
-	if err := settings.AutoMigrate(db); err != nil {
-		t.Fatalf("Failed to migrate settings: %v", err)
-	}
-	if err := events.AutoMigrate(db); err != nil {
-		t.Fatalf("Failed to migrate events: %v", err)
-	}
-	if err := events.AutoMigrateIngested(db); err != nil {
-		t.Fatalf("Failed to migrate ingested_events: %v", err)
-	}
-	if err := events.AutoMigrateIssues(db); err != nil {
-		t.Fatalf("Failed to migrate issues: %v", err)
+	if err := database.Migrate(db); err != nil {
+		t.Fatalf("Failed to migrate: %v", err)
 	}
 
 	return db
@@ -443,7 +435,7 @@ func TestCompleteSystemFlow(t *testing.T) {
 			Context:    string(contextJSON),
 		}
 
-		if err := events.CreateIngested(db, ingested); err != nil {
+		if err := events.CreateIngested(db, []*events.IngestedEvent{ingested}); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "Failed to create event"})
 		}
 
@@ -497,13 +489,11 @@ func TestCompleteSystemFlow(t *testing.T) {
 		t.Fatalf("Expected status 201 for error event, got %d", resp.StatusCode)
 	}
 
-	// Verify events are in ingested_events table (unprocessed)
-	unprocessedCount, err := events.CountUnprocessed(db)
-	if err != nil {
-		t.Fatalf("Failed to count unprocessed: %v", err)
-	}
-	if unprocessedCount != 2 {
-		t.Errorf("Expected 2 unprocessed events, got %d", unprocessedCount)
+	// Verify events wait in ingested_events
+	var waiting int64
+	db.Model(&events.IngestedEvent{}).Count(&waiting)
+	if waiting != 2 {
+		t.Errorf("Expected 2 waiting events, got %d", waiting)
 	}
 
 	// Verify events table is empty (not processed yet)
@@ -512,26 +502,16 @@ func TestCompleteSystemFlow(t *testing.T) {
 		t.Errorf("Expected 0 processed events before job runs, got %d", total)
 	}
 
-	// Run the event processor job manually
-	ingested, _ := events.GetUnprocessed(db, 100)
-	var processedIDs []uint
-	for _, ie := range ingested {
-		event := &events.Event{
-			APIKeyID:   ie.APIKeyID,
-			Message:    ie.Message,
-			TraceID:    ie.TraceID,
-			DurationMS: ie.DurationMS,
-			IsError:    ie.IsError,
-			Context:    ie.Context,
-			Timestamp:  ie.Timestamp,
-		}
-		if err := events.Create(db, event); err != nil {
-			t.Fatalf("Failed to create processed event: %v", err)
-		}
-		processedIDs = append(processedIDs, ie.ID)
+	// Run the real event processor job
+	license.SetConfigured(true)
+	t.Cleanup(func() { license.SetConfigured(false) })
+	jobCtx := &cartridge.JobContext{Context: t.Context(), Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: db}
+	if err := jobs.NewEventProcessor().ProcessBatch(jobCtx); err != nil {
+		t.Fatalf("Event processor failed: %v", err)
 	}
-	if err := events.MarkProcessed(db, processedIDs); err != nil {
-		t.Fatalf("Failed to mark as processed: %v", err)
+	db.Model(&events.IngestedEvent{}).Count(&waiting)
+	if waiting != 0 {
+		t.Errorf("Expected the processor to empty ingested_events, got %d left", waiting)
 	}
 
 	// Verify events are now in events table

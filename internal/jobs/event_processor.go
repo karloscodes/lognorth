@@ -2,13 +2,14 @@ package jobs
 
 import (
 	"github.com/karloscodes/cartridge"
+	"gorm.io/gorm"
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 	"lognorth/internal/license"
 )
 
-// EventProcessor handles processing of ingested events
+// EventProcessor moves ingested events into the events table
 type EventProcessor struct{}
 
 // NewEventProcessor creates a new event processor
@@ -16,7 +17,12 @@ func NewEventProcessor() *EventProcessor {
 	return &EventProcessor{}
 }
 
-// ProcessBatch processes unprocessed events from the ingested_events table
+const processBatchSize = 100
+
+// ProcessBatch moves every waiting event. Each event moves in its own
+// transaction: insert into events, record endpoint stats, delete the staging
+// row. A crash never processes an event twice, and a row that fails stays for
+// the next run without blocking the rows after it.
 func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 	db := ctx.DB
 
@@ -26,119 +32,86 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		return nil
 	}
 
-	// Count unprocessed events
-	unprocessedCount, err := events.CountUnprocessed(db)
+	// Loaded once per run: settings for alerts, names for alert subjects.
+	alerts, err := events.NewAlertEngine(db)
 	if err != nil {
-		ctx.Logger.Error("Failed to count unprocessed events", "error", err)
 		return err
 	}
+	appNames := map[uint]string{}
 
-	if unprocessedCount == 0 {
-		return nil
-	}
-
-	ctx.Logger.Info("Processing events", "unprocessed", unprocessedCount)
-
-	// Process in batches of 100
-	batchSize := 100
+	var afterID uint
 	processed := 0
-
 	for {
-		count, err := p.processBatch(ctx, batchSize)
+		batch, err := events.NextIngested(db, afterID, processBatchSize)
 		if err != nil {
-			ctx.Logger.Error("Failed to process batch", "error", err)
 			return err
 		}
 
-		processed += count
-		if count < batchSize {
-			break // No more events to process
+		for _, ie := range batch {
+			afterID = ie.ID
+			event, err := moveEvent(db, ie)
+			if err != nil {
+				ctx.Logger.Error("Failed to process event", "ingested_id", ie.ID, "error", err)
+				continue
+			}
+			processed++
+
+			if event.IsError {
+				if err := alerts.CheckNewErrorOrRegression(event, appName(db, appNames, ie.APIKeyID)); err != nil {
+					ctx.Logger.Error("Failed to send error alert", "issue", event.IssueHash, "error", err)
+				}
+			}
+		}
+
+		if len(batch) < processBatchSize {
+			break
 		}
 	}
 
-	ctx.Logger.Info("Finished processing events", "processed", processed)
+	if processed > 0 {
+		ctx.Logger.Info("Processed events", "count", processed)
+	}
 	return nil
 }
 
-func (p *EventProcessor) processBatch(ctx *cartridge.JobContext, batchSize int) (int, error) {
-	db := ctx.DB
-
-	// Fetch unprocessed events
-	ingested, err := events.GetUnprocessed(db, batchSize)
-	if err != nil {
-		return 0, err
+// moveEvent turns one staging row into an event in a single transaction.
+func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, error) {
+	event := &events.Event{
+		APIKeyID:   ie.APIKeyID,
+		Message:    ie.Message,
+		TraceID:    ie.TraceID,
+		DurationMS: ie.DurationMS,
+		IsError:    ie.IsError,
+		Context:    ie.Context,
+		Timestamp:  ie.Timestamp,
+	}
+	eventCtx, _ := event.GetContext()
+	if ie.IsError && eventCtx != nil {
+		events.PopulateErrorFields(event, eventCtx)
 	}
 
-	if len(ingested) == 0 {
-		return 0, nil
-	}
-
-	// Process each event
-	var processedIDs []uint
-	for _, ie := range ingested {
-		event := &events.Event{
-			APIKeyID:   ie.APIKeyID,
-			Message:    ie.Message,
-			TraceID:    ie.TraceID,
-			DurationMS: ie.DurationMS,
-			IsError:    ie.IsError,
-			Context:    ie.Context,
-			Timestamp:  ie.Timestamp,
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := events.Create(tx, event); err != nil {
+			return err
 		}
-
-		// Extract structured error fields and compute hashes
-		if ie.IsError {
-			eventCtx, _ := event.GetContext()
-			if eventCtx != nil {
-				events.PopulateErrorFields(event, eventCtx)
-			}
-		}
-
-		// Backfill: if this is a re-processed error event with no hashes, populate them
-		if ie.IsError && event.ErrorHash1 == "" {
-			eventCtx, _ := event.GetContext()
-			if eventCtx != nil && (eventCtx.Error != "" || eventCtx.ErrorClass != "" || eventCtx.ErrorType != "") {
-				events.PopulateErrorFields(event, eventCtx)
-			}
-		}
-
-		if err := events.Create(db, event); err != nil {
-			ctx.Logger.Error("Failed to create event",
-				"ingested_id", ie.ID,
-				"error", err)
-			continue
-		}
-
-		// Record endpoint stats for spike detection
-		eventCtx, _ := event.GetContext()
 		if eventCtx != nil && eventCtx.Path != "" {
-			events.RecordEndpointStat(db, ie.APIKeyID, eventCtx.Path, ie.IsError, ie.DurationMS, ie.Timestamp)
-		}
-
-		// Check if we need to send notifications for this error
-		if ie.IsError {
-			eventCtx, _ := event.GetContext()
-			if eventCtx != nil && (eventCtx.Error != "" || eventCtx.ErrorClass != "") {
-				appName := "Unknown"
-				if apiKey, err := apikeys.FindByID(db, ie.APIKeyID); err == nil {
-					appName = apiKey.Name
-				}
-				if engine, err := events.NewAlertEngine(db); err == nil {
-					engine.CheckNewErrorOrRegression(eventCtx.ToMap(), ie.APIKeyID, appName)
-				}
+			if err := events.RecordEndpointStat(tx, ie.APIKeyID, eventCtx.Path, ie.IsError, ie.DurationMS, event.Timestamp); err != nil {
+				return err
 			}
 		}
+		return tx.Delete(&events.IngestedEvent{}, ie.ID).Error
+	})
+	return event, err
+}
 
-		processedIDs = append(processedIDs, ie.ID)
+func appName(db *gorm.DB, cache map[uint]string, apiKeyID uint) string {
+	if name, ok := cache[apiKeyID]; ok {
+		return name
 	}
-
-	// Mark as processed
-	if len(processedIDs) > 0 {
-		if err := events.MarkProcessed(db, processedIDs); err != nil {
-			ctx.Logger.Error("Failed to mark events as processed", "error", err)
-			return 0, err
-		}
+	name := "Unknown"
+	if key, err := apikeys.FindByID(db, apiKeyID); err == nil {
+		name = key.Name
 	}
-
-	return len(processedIDs), nil
+	cache[apiKeyID] = name
+	return name
 }
