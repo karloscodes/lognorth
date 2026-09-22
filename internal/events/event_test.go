@@ -218,3 +218,35 @@ func TestGetStats(t *testing.T) {
 		t.Error("expected LastSeen to be set")
 	}
 }
+
+func TestGetEndpointStats(t *testing.T) {
+	t.Run("sums the stored buckets per endpoint, most broken first", func(t *testing.T) {
+		db := setupTestDB(t)
+		now := time.Now().UTC().Truncate(5 * time.Minute)
+		db.Create(&EndpointStat{APIKeyID: 1, Path: "/ok", Bucket: now, Total: 90, Errors: 0, AvgDuration: 10})
+		db.Create(&EndpointStat{APIKeyID: 1, Path: "/pay", Bucket: now, Total: 10, Errors: 2, AvgDuration: 100})
+		db.Create(&EndpointStat{APIKeyID: 1, Path: "/pay", Bucket: now.Add(-time.Hour), Total: 30, Errors: 2, AvgDuration: 200})
+
+		stats, err := GetEndpointStats(db, 1, 10)
+
+		if err != nil || len(stats) != 2 {
+			t.Fatalf("stats = %+v, err = %v, want 2 endpoints", stats, err)
+		}
+		pay := stats[0]
+		if pay.Path != "/pay" || pay.Total != 40 || pay.Errors != 4 || pay.ErrorRate != 10 || pay.AvgDuration != 175 {
+			t.Errorf("/pay = %+v, want 40 requests, 4 errors, 10%%, 175ms weighted average", pay)
+		}
+	})
+
+	t.Run("leaves out buckets older than the window", func(t *testing.T) {
+		db := setupTestDB(t)
+		old := time.Now().UTC().Add(-EndpointStatsWindow - time.Hour)
+		db.Create(&EndpointStat{APIKeyID: 1, Path: "/old", Bucket: old, Total: 5, Errors: 5})
+
+		stats, _ := GetEndpointStats(db, 1, 10)
+
+		if len(stats) != 0 {
+			t.Errorf("stats = %+v, want none: the bucket is outside the window", stats)
+		}
+	})
+}

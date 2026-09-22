@@ -329,7 +329,13 @@ type EndpointStats struct {
 	AvgDuration int     `json:"avg_duration"`
 }
 
-// GetEndpointStats returns health metrics grouped by endpoint
+// EndpointStatsWindow is how far back the Endpoints page looks. It reads the
+// 5-minute buckets in endpoint_stats, which are kept StatsRetention.
+const EndpointStatsWindow = 28 * 24 * time.Hour
+
+// GetEndpointStats returns health metrics per endpoint over the last
+// EndpointStatsWindow, most broken first. It sums endpoint_stats buckets
+// instead of parsing every event's JSON context.
 func GetEndpointStats(db *gorm.DB, apiKeyID uint, limit int) ([]EndpointStats, error) {
 	if limit <= 0 {
 		limit = 20
@@ -337,35 +343,25 @@ func GetEndpointStats(db *gorm.DB, apiKeyID uint, limit int) ([]EndpointStats, e
 
 	query := `
 		SELECT
-			json_extract(context, '$.path') as path,
-			COUNT(*) as total,
-			SUM(CASE WHEN is_error THEN 1 ELSE 0 END) as errors,
-			ROUND(100.0 * SUM(CASE WHEN is_error THEN 1 ELSE 0 END) / COUNT(*), 1) as error_rate,
-			CAST(AVG(duration_ms) AS INTEGER) as avg_duration
-		FROM events
-		WHERE json_extract(context, '$.path') IS NOT NULL
-			AND json_extract(context, '$.path') != ''
+			path,
+			SUM(total) as total,
+			SUM(errors) as errors,
+			ROUND(100.0 * SUM(errors) / SUM(total), 1) as error_rate,
+			CAST(SUM(avg_duration * total) / SUM(total) AS INTEGER) as avg_duration
+		FROM endpoint_stats
+		WHERE bucket >= ? AND total > 0
 	`
-	args := []any{}
-
+	args := []any{time.Now().UTC().Add(-EndpointStatsWindow)}
 	if apiKeyID > 0 {
 		query += " AND api_key_id = ?"
 		args = append(args, apiKeyID)
 	}
-
-	query += `
-		GROUP BY path
-		ORDER BY error_rate DESC, total DESC
-		LIMIT ?
-	`
+	query += " GROUP BY path ORDER BY error_rate DESC, total DESC LIMIT ?"
 	args = append(args, limit)
 
 	var stats []EndpointStats
-	if err := db.Raw(query, args...).Scan(&stats).Error; err != nil {
-		return nil, err
-	}
-
-	return stats, nil
+	err := db.Raw(query, args...).Scan(&stats).Error
+	return stats, err
 }
 
 // GetStats returns event counts

@@ -171,9 +171,9 @@ export default function Endpoints({ endpoints: endpointsProp, appId, appName, ap
         title="Endpoints"
         subtitle={endpoints.length === 0 ? undefined : (
           totalErrors === 0 ? (
-            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · all healthy</>
+            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests in the last 4 weeks · all healthy</>
           ) : (
-            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests · <Mono className="text-[#e11d48] font-black">{overallErrorRate}%</Mono> failing</>
+            <><Mono>{endpoints.length}</Mono> endpoints · <Mono>{totalRequests.toLocaleString()}</Mono> requests in the last 4 weeks · <Mono className="text-[#e11d48] font-black">{overallErrorRate}%</Mono> failing</>
           )
         )}
       />
