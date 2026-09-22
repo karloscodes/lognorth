@@ -189,18 +189,3 @@ func DeleteAPIKeyAction(ctx *cartridge.Context) error {
 	return ctx.Redirect("/apps", fiber.StatusFound)
 }
 
-// ListAPIKeysAction handles GET /api/v1/api-keys (JSON API)
-func ListAPIKeysAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-
-	keys, err := apikeys.List(db)
-	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to fetch API keys",
-		})
-	}
-
-	return ctx.Ctx.JSON(fiber.Map{
-		"apiKeys": keys,
-	})
-}

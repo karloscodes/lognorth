@@ -78,8 +78,8 @@ func NewApp() (*Application, error) {
 
 	// Configure server
 	serverConfig := cartridge.DefaultServerConfig()
-	// Sec-Fetch-Site is enabled per-route for web routes, disabled for API
-	serverConfig.EnableSecFetchSite = false
+	// Sec-Fetch-Site (CSRF protection) stays on for every route. Routes that
+	// non-browser clients call (ingest, OTel, MCP) opt out one by one.
 
 	if cfg.IsDevelopment() {
 		// Development: serve from disk for hot-reload
@@ -191,16 +191,6 @@ func MountRoutes(server *cartridge.Server) {
 	server.Post("/otel/v1/traces", lbhttp.OtelSinkAction, apiConfig)
 	server.Post("/otel/v1/metrics", lbhttp.OtelSinkAction, apiConfig)
 
-	// SSE endpoint (no middleware needed)
-	apiReadConfig := &cartridge.RouteConfig{
-		EnableSecFetchSite: cartridge.Bool(false),
-	}
-	app.Get("/api/v1/events/live", lbhttp.LiveEventsRawAction)
-	server.Get("/api/v1/events", lbhttp.EventsAPIAction, apiReadConfig)
-	server.Get("/api/v1/events/:id", lbhttp.EventDetailAPIAction, apiReadConfig)
-	server.Get("/api/v1/issues", lbhttp.IssuesAPIAction, apiReadConfig)
-	server.Get("/api/v1/api-keys", lbhttp.ListAPIKeysAction, apiReadConfig)
-
 	// MCP endpoint: the only way an agent reads the log. Authenticated with
 	// the agent key, rate limited, read-only tools.
 	agentConfig := &cartridge.RouteConfig{
@@ -256,6 +246,10 @@ func MountRoutes(server *cartridge.Server) {
 		server.Post("/setup/user", lbhttp.OnboardingUserAction, onboardingPostConfig)
 		server.Post("/setup/password", lbhttp.OnboardingPasswordAction, onboardingPostConfig)
 	}
+
+	// Event JSON for the Logs and Endpoints pages. Session only: agents read
+	// through MCP, and there is no public read API.
+	server.Get("/api/v1/events", lbhttp.EventsAPIAction, protectedConfig)
 
 	// Home page
 	server.Get("/", lbhttp.HomePageAction, protectedConfig)

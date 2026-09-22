@@ -28,7 +28,6 @@ internal/
 │   ├── requests.go
 │   ├── issues.go
 │   ├── ingest.go
-│   ├── live.go          # SSE live events
 │   ├── mcp.go           # MCP transport (POST /mcp)
 │   └── render.go        # Inertia rendering helper
 │
@@ -138,11 +137,11 @@ All pages use Inertia.js patterns for server-side rendering with React.
 2. **DATA FLOW**:
    - Server prepares ALL data needed for render
    - Pass data as Inertia props
-   - NO client-side data fetching on page load (except SSE for live)
+   - NO client-side data fetching on page load (the Logs page polls for new events)
 
 3. **EXCEPTION: API endpoints** for:
    - Event ingestion (`POST /api/v1/events`)
-   - SSE live stream (`GET /api/v1/events/live`)
+   - Event polling for the Logs and Endpoints pages (`GET /api/v1/events`, login session only)
    - API key creation (JSON response with full key)
 
 ### Server Handler Pattern

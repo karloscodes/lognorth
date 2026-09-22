@@ -5,7 +5,6 @@ import (
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
-	lbhttp "lognorth/internal/http"
 	"lognorth/internal/license"
 )
 
@@ -115,9 +114,6 @@ func (p *EventProcessor) processBatch(ctx *cartridge.JobContext, batchSize int) 
 		if eventCtx != nil && eventCtx.Path != "" {
 			events.RecordEndpointStat(db, ie.APIKeyID, eventCtx.Path, ie.IsError, ie.DurationMS, ie.Timestamp)
 		}
-
-		// Notify SSE subscribers
-		lbhttp.NotifyEventSubscribers(event)
 
 		// Check if we need to send notifications for this error
 		if ie.IsError {

@@ -88,22 +88,6 @@ async function runTests() {
     console.log('✅ Context event sent\n');
     passed++;
 
-    // Test 5: Verify events via API
-    console.log('📝 Test 5: Verifying events via API...');
-    const response = await fetch(`${LOGNORTH_URL}/api/v1/events`, {
-      headers: {
-        'Authorization': `Bearer ${LOGNORTH_API_KEY}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log(`✅ API accessible, found ${data.total || 0} total events\n`);
-    passed++;
-
   } catch (error) {
     console.error('❌ Test failed:', error.message);
     failed++;

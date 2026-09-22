@@ -56,7 +56,6 @@ go test -v -run TestCompleteSystemFlow ./tests/
 2. **Error logs** - `LogNorth.error()` sends errors with stack traces
 3. **Batching** - Multiple events batched correctly
 4. **Context preservation** - Nested objects, arrays, metadata sent intact
-5. **API access** - Events readable via `/api/v1/events` endpoint
 
 **Prerequisites:**
 

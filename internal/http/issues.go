@@ -52,20 +52,6 @@ func IssuesPageAction(ctx *cartridge.Context) error {
 	})
 }
 
-// IssuesAPIAction handles GET /api/v1/issues
-func IssuesAPIAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-
-	issues, err := events.ListIssuesWithState(db, 0, 100) // 0 = all apps
-	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch issues"})
-	}
-
-	return ctx.Ctx.JSON(fiber.Map{
-		"issues": issues,
-	})
-}
-
 // IssueDetailPageAction handles GET /issues/:hash - redirects to app-scoped issue page
 func IssueDetailPageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()

@@ -89,34 +89,6 @@ func EventDetailPageAction(ctx *cartridge.Context) error {
 	})
 }
 
-// EventDetailAPIAction handles GET /api/v1/events/:id
-func EventDetailAPIAction(ctx *cartridge.Context) error {
-	db := ctx.DB()
-
-	id, err := strconv.ParseUint(ctx.Ctx.Params("id"), 10, 64)
-	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid event ID"})
-	}
-
-	event, err := events.FindByID(db, uint(id))
-	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Event not found"})
-	}
-
-	var relatedEvents []events.Event
-	if event.TraceID != "" {
-		relatedEvents, _ = events.FindByTraceID(db, event.TraceID)
-	}
-
-	eventContext, _ := event.GetContext()
-
-	return ctx.Ctx.JSON(fiber.Map{
-		"event":         event,
-		"eventContext":  eventContext,
-		"relatedEvents": relatedEvents,
-	})
-}
-
 func parseFilters(c *fiber.Ctx) events.ListFilters {
 	filters := events.ListFilters{
 		Search: c.Query("search"),
