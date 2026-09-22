@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
-	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,12 +20,7 @@ import (
 func setupTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	dbPath := "test_" + t.Name() + ".db"
-	t.Cleanup(func() {
-		os.Remove(dbPath)
-		os.Remove(dbPath + "-wal")
-		os.Remove(dbPath + "-shm")
-	})
+	dbPath := filepath.Join(t.TempDir(), "test.db")
 
 	manager := sqlite.NewManager(sqlite.Config{
 		Path:      dbPath,
