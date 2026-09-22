@@ -69,7 +69,7 @@ test.describe("Navigation Tests", () => {
 
 		await page.getByRole("link", { name: "Developer" }).click();
 		await expect(page).toHaveURL(/\/settings\/developer$/);
-		await expect(page.locator("h2", { hasText: "Agent API" })).toBeVisible();
+		await expect(page.locator("h2", { hasText: "AI agents" })).toBeVisible();
 
 		helpers.log("All settings sub-pages reachable via sidebar");
 	});
