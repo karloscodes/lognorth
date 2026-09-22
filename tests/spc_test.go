@@ -7,9 +7,13 @@ import (
 	"lognorth/internal/events"
 )
 
+// manyRequests makes the binomial stddev floor negligible, so a test checks
+// only the learned mean and stddev.
+const manyRequests = 100_000
+
 func TestSPCIsSpike(t *testing.T) {
 	t.Run("returns critical when above 3 sigma", func(t *testing.T) {
-		isSpike, severity := events.SPCIsSpike(10.0, 2.0, 2.0) // z = (10-2)/2 = 4
+		isSpike, severity := events.SPCIsSpike(10.0, 2.0, 2.0, manyRequests) // z = (10-2)/2 = 4
 
 		if !isSpike {
 			t.Error("expected spike to be detected")
@@ -20,7 +24,7 @@ func TestSPCIsSpike(t *testing.T) {
 	})
 
 	t.Run("returns warning when between 2 and 3 sigma", func(t *testing.T) {
-		isSpike, severity := events.SPCIsSpike(6.5, 2.0, 2.0) // z = (6.5-2)/2 = 2.25
+		isSpike, severity := events.SPCIsSpike(6.5, 2.0, 2.0, manyRequests) // z = (6.5-2)/2 = 2.25
 
 		if !isSpike {
 			t.Error("expected spike to be detected")
@@ -31,21 +35,45 @@ func TestSPCIsSpike(t *testing.T) {
 	})
 
 	t.Run("returns false when within normal range", func(t *testing.T) {
-		isSpike, _ := events.SPCIsSpike(3.0, 2.0, 2.0) // z = (3-2)/2 = 0.5
+		isSpike, _ := events.SPCIsSpike(3.0, 2.0, 2.0, manyRequests) // z = (3-2)/2 = 0.5
 
 		if isSpike {
 			t.Error("expected no spike")
 		}
 	})
 
-	t.Run("handles zero stddev", func(t *testing.T) {
-		isSpike, severity := events.SPCIsSpike(5.0, 2.0, 0.0) // Should use 1.0
+	t.Run("uses the binomial stddev when the learned stddev is zero", func(t *testing.T) {
+		isSpike, severity := events.SPCIsSpike(5.0, 2.0, 0.0, manyRequests)
 
 		if !isSpike {
 			t.Error("expected spike with zero stddev fallback")
 		}
 		if severity != "critical" {
 			t.Errorf("expected critical, got %s", severity)
+		}
+	})
+
+	t.Run("ignores buckets with too few requests", func(t *testing.T) {
+		isSpike, _ := events.SPCIsSpike(50.0, 0.0, 0.0, 2) // 1 error in 2 requests
+
+		if isSpike {
+			t.Error("expected no spike below the minimum request count")
+		}
+	})
+
+	t.Run("does not alert on one error for an endpoint that never fails", func(t *testing.T) {
+		isSpike, _ := events.SPCIsSpike(0.1, 0.0, 0.0001, 1000) // 1 error in 1,000 requests
+
+		if isSpike {
+			t.Error("expected no spike: the learned stddev collapsed, the binomial floor applies")
+		}
+	})
+
+	t.Run("alerts on many errors for an endpoint that never fails", func(t *testing.T) {
+		_, severity := events.SPCIsSpike(5.0, 0.0, 0.0001, 1000) // 50 errors in 1,000 requests
+
+		if severity != "critical" {
+			t.Errorf("expected critical, got %q", severity)
 		}
 	})
 }
@@ -142,14 +170,14 @@ func TestMaxSeverity(t *testing.T) {
 func TestSPCIsRecovered(t *testing.T) {
 	t.Run("returns true when below threshold", func(t *testing.T) {
 		// threshold = mean + 1*stddev = 2 + 1*1 = 3
-		if !events.SPCIsRecovered(2.5, 2.0, 1.0) {
+		if !events.SPCIsRecovered(2.5, 2.0, 1.0, manyRequests) {
 			t.Error("expected recovered")
 		}
 	})
 
 	t.Run("returns false when above threshold", func(t *testing.T) {
 		// threshold = mean + 1*stddev = 2 + 1*1 = 3
-		if events.SPCIsRecovered(4.0, 2.0, 1.0) {
+		if events.SPCIsRecovered(4.0, 2.0, 1.0, manyRequests) {
 			t.Error("expected not recovered")
 		}
 	})
@@ -225,20 +253,20 @@ func TestSmallData_ColdStart(t *testing.T) {
 		baseline := &events.BaselineStat{SampleCount: 5}
 		mean, stddev := events.GetEffectiveBaseline(baseline)
 
-		isSpike, severity := events.SPCIsSpike(8.0, mean, stddev)
+		isSpike, severity := events.SPCIsSpike(8.0, mean, stddev, manyRequests)
 
 		if !isSpike || severity != "critical" {
 			t.Errorf("8%% error rate during cold start should be critical, got spike=%v severity=%s", isSpike, severity)
 		}
 	})
 
-	t.Run("5% error rate triggers warning during cold start", func(t *testing.T) {
+	t.Run("5% error rate does not alert during cold start", func(t *testing.T) {
 		// With defaults (mean=2, stddev=2), 5% gives z-score = (5-2)/2 = 1.5
 		// This is below warning threshold (2 sigma), so no alert
 		baseline := &events.BaselineStat{SampleCount: 5}
 		mean, stddev := events.GetEffectiveBaseline(baseline)
 
-		isSpike, _ := events.SPCIsSpike(5.0, mean, stddev)
+		isSpike, _ := events.SPCIsSpike(5.0, mean, stddev, manyRequests)
 
 		if isSpike {
 			t.Error("5% error rate during cold start should NOT trigger spike (z=1.5 < 2)")
@@ -251,7 +279,7 @@ func TestSmallData_ColdStart(t *testing.T) {
 		baseline := &events.BaselineStat{SampleCount: 5}
 		mean, stddev := events.GetEffectiveBaseline(baseline)
 
-		isSpike, severity := events.SPCIsSpike(6.1, mean, stddev)
+		isSpike, severity := events.SPCIsSpike(6.1, mean, stddev, manyRequests)
 
 		if !isSpike || severity != "warning" {
 			t.Errorf("6.1%% error rate during cold start should be warning, got spike=%v severity=%s", isSpike, severity)
@@ -292,7 +320,7 @@ func TestMediumData_LearnedBaseline(t *testing.T) {
 		}
 		mean, stddev := events.GetEffectiveBaseline(baseline)
 
-		isSpike, severity := events.SPCIsSpike(8.1, mean, stddev)
+		isSpike, severity := events.SPCIsSpike(8.1, mean, stddev, manyRequests)
 
 		if !isSpike || severity != "critical" {
 			t.Errorf("8.1%% for 5%%±1%% app should be critical, got spike=%v severity=%s", isSpike, severity)
@@ -309,7 +337,7 @@ func TestMediumData_LearnedBaseline(t *testing.T) {
 		}
 		mean, stddev := events.GetEffectiveBaseline(baseline)
 
-		isSpike, severity := events.SPCIsSpike(7.1, mean, stddev)
+		isSpike, severity := events.SPCIsSpike(7.1, mean, stddev, manyRequests)
 
 		if !isSpike || severity != "warning" {
 			t.Errorf("7.1%% for 5%%±1%% app should be warning, got spike=%v severity=%s", isSpike, severity)
@@ -326,7 +354,7 @@ func TestMediumData_LearnedBaseline(t *testing.T) {
 		}
 		mean, stddev := events.GetEffectiveBaseline(baseline)
 
-		isSpike, _ := events.SPCIsSpike(6.0, mean, stddev)
+		isSpike, _ := events.SPCIsSpike(6.0, mean, stddev, manyRequests)
 
 		if isSpike {
 			t.Error("6% for 5%±1% app should be normal (z=1)")
@@ -349,7 +377,7 @@ func TestHighVarianceApp(t *testing.T) {
 		}
 		mean, stddev := events.GetEffectiveBaseline(baseline)
 
-		isSpike, _ := events.SPCIsSpike(15.9, mean, stddev)
+		isSpike, _ := events.SPCIsSpike(15.9, mean, stddev, manyRequests)
 
 		if isSpike {
 			t.Error("15.9% for 10%±3% app should be normal (z<2)")
@@ -365,7 +393,7 @@ func TestHighVarianceApp(t *testing.T) {
 		}
 		mean, stddev := events.GetEffectiveBaseline(baseline)
 
-		isSpike, severity := events.SPCIsSpike(20.0, mean, stddev)
+		isSpike, severity := events.SPCIsSpike(20.0, mean, stddev, manyRequests)
 
 		if !isSpike || severity != "critical" {
 			t.Errorf("20%% for 10%%±3%% app should be critical, got spike=%v severity=%s", isSpike, severity)

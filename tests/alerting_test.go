@@ -51,9 +51,9 @@ type testDB struct {
 	t  *testing.T
 }
 
-// Helper to create endpoint stats (simulates traffic)
+// Helper to create endpoint stats in the last complete bucket (simulates traffic)
 func (tdb *testDB) createEndpointStats(apiKeyID uint, path string, total, errors int) {
-	bucket := events.TruncateTo5Min(time.Now())
+	bucket := events.LastCompleteBucketTime()
 	stat := events.EndpointStat{
 		APIKeyID: apiKeyID,
 		Path:     path,
@@ -90,20 +90,21 @@ type DetectionResult struct {
 // This is the BLACK-BOX: input is error rate, output is alert state
 func (tdb *testDB) runDetection(apiKeyID uint, path string) DetectionResult {
 	db := tdb.db
-	hourOfWeek := events.HourOfWeek(time.Now())
+	hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
 
-	// Get current error rate from endpoint stats
-	currentRate, _, err := events.GetCurrentErrorRate(db, apiKeyID, path)
+	// Get error rate from the last complete bucket
+	stat, err := events.GetLastCompleteBucket(db, apiKeyID, path)
 	if err != nil {
 		return DetectionResult{}
 	}
+	currentRate := stat.ErrorRate()
 
 	// Get baseline
 	baseline := events.GetOrCreateBaseline(db, apiKeyID, path, hourOfWeek)
 	mean, stddev := events.GetEffectiveBaseline(baseline)
 
 	// Control Chart check (spike)
-	isSpike, spikeSeverity := events.SPCIsSpike(currentRate, mean, stddev)
+	isSpike, spikeSeverity := events.SPCIsSpike(currentRate, mean, stddev, stat.Total)
 
 	// CUSUM check (drift)
 	cusumState := events.GetOrCreateCUSUMState(db, apiKeyID, path)
@@ -115,12 +116,11 @@ func (tdb *testDB) runDetection(apiKeyID uint, path string) DetectionResult {
 
 	// Check recovery
 	state := events.GetOrCreateSpikeState(db, apiKeyID, path)
-	recovered := state.Severity != "" && severity == "" && events.SPCIsRecovered(currentRate, mean, stddev)
+	recovered := state.Severity != "" && severity == "" && events.SPCIsRecovered(currentRate, mean, stddev, stat.Total)
 
 	// Update alert state (as the job would)
 	if severity != "" {
-		errorsDelta := int(currentRate / 100 * 10)
-		events.UpdateSPCSeverity(db, state, severity, errorsDelta)
+		events.UpdateSPCSeverity(db, state, severity, int(stat.Errors))
 	}
 
 	return DetectionResult{
@@ -188,7 +188,7 @@ func TestAlerting_LearnedBaseline_Spike_TriggersCritical(t *testing.T) {
 
 	// Given: Production app normally at 1% ± 0.5% error rate
 	apiKey, _, _ := apikeys.Create(tdb.db, "ProductionApp")
-	tdb.createBaseline(apiKey.ID, "/api/orders", events.HourOfWeek(time.Now()), 1.0, 0.5, 50)
+	tdb.createBaseline(apiKey.ID, "/api/orders", events.HourOfWeek(events.LastCompleteBucketTime()), 1.0, 0.5, 50)
 
 	// When: Error rate jumps to 5%
 	tdb.createEndpointStats(apiKey.ID, "/api/orders", 100, 5)
@@ -207,7 +207,7 @@ func TestAlerting_LearnedBaseline_NormalFluctuation_NoAlert(t *testing.T) {
 
 	// Given: App with high natural variance (5% ± 2%)
 	apiKey, _, _ := apikeys.Create(tdb.db, "VariableApp")
-	tdb.createBaseline(apiKey.ID, "/api/search", events.HourOfWeek(time.Now()), 5.0, 2.0, 50)
+	tdb.createBaseline(apiKey.ID, "/api/search", events.HourOfWeek(events.LastCompleteBucketTime()), 5.0, 2.0, 50)
 
 	// When: Error rate is 8% (within normal variance)
 	tdb.createEndpointStats(apiKey.ID, "/api/search", 100, 8)
@@ -224,11 +224,12 @@ func TestAlerting_LearnedBaseline_Elevated_TriggersWarning(t *testing.T) {
 
 	// Given: Stable app (2% ± 1%)
 	apiKey, _, _ := apikeys.Create(tdb.db, "StableApp")
-	tdb.createBaseline(apiKey.ID, "/api/payments", events.HourOfWeek(time.Now()), 2.0, 1.0, 50)
+	tdb.createBaseline(apiKey.ID, "/api/payments", events.HourOfWeek(events.LastCompleteBucketTime()), 2.0, 1.0, 50)
 
 	// When: Error rate is 4% (elevated but not critical)
-	// z = (4 - 2) / 1 = 2.0, exactly at warning threshold
-	tdb.createEndpointStats(apiKey.ID, "/api/payments", 100, 4)
+	// z = (4 - 2) / 1 = 2.0, exactly at warning threshold.
+	// 1,000 requests keep the binomial stddev (0.44%) below the learned 1%.
+	tdb.createEndpointStats(apiKey.ID, "/api/payments", 1000, 40)
 	result := tdb.runDetection(apiKey.ID, "/api/payments")
 
 	// Then: WARNING (2 sigma, at warning threshold)
@@ -244,7 +245,7 @@ func TestAlerting_LearnedBaseline_Elevated_TriggersWarning(t *testing.T) {
 
 func TestAlerting_GradualDrift_DetectedAfterMultipleReadings(t *testing.T) {
 	tdb := setupAlertingTestDB(t)
-	hourOfWeek := events.HourOfWeek(time.Now())
+	hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
 
 	// Given: App with 2% baseline
 	apiKey, _, _ := apikeys.Create(tdb.db, "DriftingApp")
@@ -269,7 +270,7 @@ func TestAlerting_GradualDrift_DetectedAfterMultipleReadings(t *testing.T) {
 
 func TestAlerting_GradualDrift_WarningBeforeCritical(t *testing.T) {
 	tdb := setupAlertingTestDB(t)
-	hourOfWeek := events.HourOfWeek(time.Now())
+	hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
 
 	// Given: App with 2% baseline
 	apiKey, _, _ := apikeys.Create(tdb.db, "SlowDriftApp")
@@ -292,7 +293,7 @@ func TestAlerting_GradualDrift_ResetsWhenNormalized(t *testing.T) {
 	t.Skip("TODO: endpoint stats accumulation needs cleanup between readings - needs design review")
 
 	tdb := setupAlertingTestDB(t)
-	hourOfWeek := events.HourOfWeek(time.Now())
+	hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
 
 	// Given: App with accumulated drift
 	apiKey, _, _ := apikeys.Create(tdb.db, "RecoveringApp")
@@ -359,19 +360,19 @@ func TestAlerting_Recovery_DetectedWhenBackToNormal(t *testing.T) {
 	stddev := 2.0
 
 	t.Run("6% is recovered", func(t *testing.T) {
-		if !events.SPCIsRecovered(6.0, mean, stddev) {
+		if !events.SPCIsRecovered(6.0, mean, stddev, manyRequests) {
 			t.Error("6% should be considered recovered (below 7%)")
 		}
 	})
 
 	t.Run("8% is not recovered", func(t *testing.T) {
-		if events.SPCIsRecovered(8.0, mean, stddev) {
+		if events.SPCIsRecovered(8.0, mean, stddev, manyRequests) {
 			t.Error("8% should NOT be considered recovered (above 7%)")
 		}
 	})
 
 	t.Run("7% is exactly at threshold", func(t *testing.T) {
-		if !events.SPCIsRecovered(7.0, mean, stddev) {
+		if !events.SPCIsRecovered(7.0, mean, stddev, manyRequests) {
 			t.Error("7% should be considered recovered (at threshold)")
 		}
 	})
@@ -474,16 +475,16 @@ func TestAlerting_Digest_ClearedAfterSending(t *testing.T) {
 
 func TestAlerting_MultipleEndpoints_SameRateDifferentOutcome(t *testing.T) {
 	tdb := setupAlertingTestDB(t)
-	hourOfWeek := events.HourOfWeek(time.Now())
+	hourOfWeek := events.HourOfWeek(events.LastCompleteBucketTime())
 
 	// Given: App with two very different endpoints
 	apiKey, _, _ := apikeys.Create(tdb.db, "MultiEndpointApp")
 	tdb.createBaseline(apiKey.ID, "/api/users", hourOfWeek, 1.0, 0.5, 50)   // Stable endpoint
 	tdb.createBaseline(apiKey.ID, "/api/legacy", hourOfWeek, 10.0, 3.0, 50) // Noisy legacy endpoint
 
-	// When: BOTH hit 3% error rate
-	tdb.createEndpointStats(apiKey.ID, "/api/users", 100, 3)
-	tdb.createEndpointStats(apiKey.ID, "/api/legacy", 100, 3)
+	// When: BOTH hit 3% error rate on 1,000 requests
+	tdb.createEndpointStats(apiKey.ID, "/api/users", 1000, 30)
+	tdb.createEndpointStats(apiKey.ID, "/api/legacy", 1000, 30)
 
 	resultUsers := tdb.runDetection(apiKey.ID, "/api/users")
 	resultLegacy := tdb.runDetection(apiKey.ID, "/api/legacy")

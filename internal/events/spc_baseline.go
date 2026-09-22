@@ -84,7 +84,7 @@ type EndpointAlertStatus struct {
 
 // GetEndpointAlertStatuses returns alerting status for all endpoints of an app.
 func GetEndpointAlertStatuses(db *gorm.DB, apiKeyID uint) []EndpointAlertStatus {
-	hourOfWeek := HourOfWeek(time.Now())
+	hourOfWeek := HourOfWeek(LastCompleteBucketTime())
 
 	// Get all endpoints with any baseline data for this app
 	var baselines []BaselineStat
@@ -122,8 +122,8 @@ func GetEndpointAlertStatuses(db *gorm.DB, apiKeyID uint) []EndpointAlertStatus 
 		status.SampleCount = baseline.SampleCount
 
 		// Get current error rate
-		currentRate, _, _ := GetCurrentErrorRate(db, apiKeyID, path)
-		status.CurrentRate = currentRate
+		stat, _ := GetLastCompleteBucket(db, apiKeyID, path)
+		status.CurrentRate = stat.ErrorRate()
 
 		// Check spike state
 		if spike, ok := spikeByPath[path]; ok && spike.Severity != "" {

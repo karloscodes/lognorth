@@ -66,8 +66,7 @@ func NewApp() (*Application, error) {
 	eventProcessor := cartridge.NewJobDispatcher(logger, dbManager, 5*time.Second, jobs.NewEventProcessor())
 	cleanupProcessor := cartridge.NewJobDispatcher(logger, dbManager, 10*time.Minute, jobs.NewCleanupProcessor())
 
-	// SPC alerting jobs (replaces old spike checker)
-	baselineUpdater := cartridge.NewJobDispatcher(logger, dbManager, 5*time.Minute, jobs.NewBaselineUpdater())
+	// SPC alerting: detection and baseline learning run in one job
 	anomalyChecker := cartridge.NewJobDispatcher(logger, dbManager, 5*time.Minute, jobs.NewAnomalyChecker())
 	digestSender := cartridge.NewJobDispatcher(logger, dbManager, 1*time.Minute, jobs.NewDigestSender())
 
@@ -101,7 +100,7 @@ func NewApp() (*Application, error) {
 		DBManager:         dbManager,
 		ServerConfig:      serverConfig,
 		RouteMountFunc:    MountRoutes,
-		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, baselineUpdater, anomalyChecker, digestSender, uptimeSweeper, licenseChecker},
+		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, anomalyChecker, digestSender, uptimeSweeper, licenseChecker},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create application: %w", err)

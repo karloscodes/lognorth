@@ -72,24 +72,29 @@ func RecordEndpointStat(db *gorm.DB, apiKeyID uint, path string, isError bool, d
 	return db.Save(&stat).Error
 }
 
-// GetCurrentErrorRate returns the error rate for an endpoint in the current bucket
-func GetCurrentErrorRate(db *gorm.DB, apiKeyID uint, path string) (float64, int64, error) {
-	bucket := TruncateTo5Min(time.Now())
+// LastCompleteBucketTime returns the start of the last complete 5-minute bucket.
+// The current bucket is still filling, so its counts are partial.
+func LastCompleteBucketTime() time.Time {
+	return TruncateTo5Min(time.Now()).Add(-5 * time.Minute)
+}
 
+// GetLastCompleteBucket returns the stats for an endpoint in the last complete bucket.
+// It returns an empty stat when the endpoint had no traffic in that bucket.
+func GetLastCompleteBucket(db *gorm.DB, apiKeyID uint, path string) (EndpointStat, error) {
 	var stat EndpointStat
-	result := db.Where("api_key_id = ? AND path = ? AND bucket = ?", apiKeyID, path, bucket).First(&stat)
+	result := db.Where("api_key_id = ? AND path = ? AND bucket = ?", apiKeyID, path, LastCompleteBucketTime()).First(&stat)
 	if result.Error == gorm.ErrRecordNotFound {
-		return 0, 0, nil
+		return EndpointStat{}, nil
 	}
-	if result.Error != nil {
-		return 0, 0, result.Error
-	}
+	return stat, result.Error
+}
 
-	if stat.Total == 0 {
-		return 0, 0, nil
+// ErrorRate returns the error percentage, or 0 when there is no traffic.
+func (s EndpointStat) ErrorRate() float64 {
+	if s.Total == 0 {
+		return 0
 	}
-
-	return float64(stat.Errors) / float64(stat.Total) * 100, stat.Total, nil
+	return float64(s.Errors) / float64(s.Total) * 100
 }
 
 // GetBaselineErrorRate returns the average error rate for an endpoint

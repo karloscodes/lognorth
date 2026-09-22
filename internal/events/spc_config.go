@@ -10,6 +10,10 @@ const (
 	DefaultMean             = 2.0  // Default error rate % during cold start
 	DefaultStdDev           = 2.0  // Conservative stddev during cold start
 
+	// Error rate checks need this many requests in a bucket.
+	// With fewer, one error moves the rate by 5% or more.
+	MinRequestsForErrorRate = 20
+
 	// Control Chart thresholds (z-scores)
 	WarningSigma  = 2.0 // 95% confidence
 	CriticalSigma = 3.0 // 99.7% confidence
