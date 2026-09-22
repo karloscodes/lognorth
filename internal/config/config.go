@@ -147,9 +147,10 @@ func (c *Config) GetSessionTimeout() int {
 	return 1800 // 30 minutes
 }
 
-// GetLoginSessionTimeout returns the login session timeout in seconds
+// GetLoginSessionTimeout returns how long a login lasts, in seconds: 90 days.
+// Rotating LOGNORTH_PRIVATE_KEY signs out every session at once.
 func (c *Config) GetLoginSessionTimeout() int {
-	return 604800 // 1 week
+	return 90 * 24 * 60 * 60
 }
 
 // GetMaxOpenConns returns the max open connections

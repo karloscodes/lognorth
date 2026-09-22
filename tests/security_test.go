@@ -298,3 +298,23 @@ func TestAppPages(t *testing.T) {
 		}
 	})
 }
+
+func TestLoginLastsNinetyDays(t *testing.T) {
+	sa := setupSecurityApp(t)
+	users.CreateUser(sa.db, "owner@example.com", "correct-horse")
+
+	res := sa.do("POST", "/login",
+		url.Values{"email": {"owner@example.com"}, "password": {"correct-horse"}},
+		map[string]string{"Sec-Fetch-Site": "same-origin"})
+
+	for _, c := range res.Cookies() {
+		if c.Name != "lognorth_session" {
+			continue
+		}
+		if days := c.MaxAge / 86400; days != 90 {
+			t.Errorf("session lasts %d days, want 90", days)
+		}
+		return
+	}
+	t.Fatal("login set no session cookie")
+}
