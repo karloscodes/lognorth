@@ -81,6 +81,14 @@ func NewApp() (*Application, error) {
 	// Sec-Fetch-Site (CSRF protection) stays on for every route. Routes that
 	// non-browser clients call (ingest, OTel, MCP) opt out one by one.
 
+	// The installer puts kamal-proxy in front on the Docker network. Take the
+	// client IP from X-Forwarded-For only when the request comes from a
+	// private or loopback address; otherwise every client shares the proxy's
+	// IP in the rate limiters. A client that reaches the app directly cannot
+	// set its own IP this way.
+	serverConfig.ProxyHeader = fiber.HeaderXForwardedFor
+	serverConfig.TrustedProxies = []string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}
+
 	if cfg.IsDevelopment() {
 		// Development: serve from disk for hot-reload
 		serverConfig.PublicDirectory = "web/public"
