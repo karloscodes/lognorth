@@ -1,32 +1,49 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { formatDistanceToNow, format, eachDayOfInterval, subDays, differenceInDays } from 'date-fns'
-import { router } from '@inertiajs/react'
+import { Link, router } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
 import { TraceTree } from '@/components/trace-tree'
-import { Mono, Code, parseContext, getConfig, statusColor } from '@/lib/shared'
+import { Mono, parseContext, statusColor } from '@/lib/shared'
 import type { Application, IssueDetail as IssueDetailType, OccurrencePoint, LogEntry, RelatedLocation } from '@/lib/shared'
+import { pageKey } from '@/lib/keys'
+import { StackTrace } from '@/components/stack-trace'
+
+interface PathCount {
+  path: string
+  count: number
+}
 
 interface Props {
   issue: IssueDetailType
   occurrences: OccurrencePoint[] | null
   traces: Record<string, LogEntry[]> | null
   alsoHappensAt?: RelatedLocation[] | null
+  paths?: PathCount[] | null
   appId: number
   appName: string
   applications?: Application[]
 }
 
-export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt, appId, appName, applications }: Props) {
-  const toggleMute = () => {
-    const url = issue.muted ? `/issues/${issue.hash}/unmute` : `/issues/${issue.hash}/mute`
-    router.post(url, {}, { preserveScroll: true })
-  }
+export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
+  const issuesPath = `/apps/${appId}/issues`
+  const toggleMute = () => router.post(`/issues/${issue.hash}/${issue.muted ? 'unmute' : 'mute'}`, {}, { preserveScroll: true })
+
+  // esc goes back to the list, m mutes.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!pageKey(e)) return
+      if (e.key === 'Escape') router.visit(issuesPath)
+      if (e.key === 'm') toggleMute()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   const entries = issue.entries || []
   const recentEntries = entries.slice(0, 20)
   const logPath = `/apps/${appId}/log`
 
-  // Extract structured error identity from issue or first entry context
+  // Structured error identity, from the issue or the newest entry's context.
   const firstCtx = recentEntries.length > 0 ? parseContext(recentEntries[0].context) : null
   const errorClass = issue.error_class || firstCtx?.error_class || firstCtx?.error_type
   const errorFile = issue.error_file || firstCtx?.error_file
@@ -34,201 +51,161 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
   const errorCaller = firstCtx?.error_caller
   const stackTrace = firstCtx?.stack_trace
 
-  // Latest trace context: find the most recent entry with a trace
+  // The most recent entry that has a trace, for the request context.
   const latestTraced = recentEntries.find((e) => e.trace_id && traces?.[e.trace_id])
   const latestTraceEntries = latestTraced && traces ? traces[latestTraced.trace_id!] : null
 
+  const wherePaths = paths ?? []
+
   return (
     <Layout currentPath="/issues" appId={appId} appName={appName} applications={applications}>
-      {/* Header Card */}
-      <div className="border border-foreground/10 overflow-hidden mb-8">
-        <div className="p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="bg-[#e11d48] text-white px-2 py-0.5 text-xs font-black uppercase">Error</span>
-                {issue.active && (
-                  <span className="bg-[#e11d48]/10 text-[#e11d48] px-2 py-0.5 text-xs font-black">Active</span>
-                )}
-                {issue.muted && (
-                  <span className="bg-foreground/10 text-foreground px-2 py-0.5 text-xs font-black">Muted</span>
-                )}
-              </div>
-              <Code className="text-lg leading-snug block text-foreground font-bold break-all">{issue.error}</Code>
-              {(errorClass || errorFile) && (
-                <div className="mt-2 text-sm font-mono">
-                  {errorClass && <span className="text-foreground font-semibold">{errorClass}</span>}
-                  {errorFile && (
-                    <span className="text-foreground/60">
-                      {errorClass ? ' at ' : ''}{errorFile}{errorLine ? `:${errorLine}` : ''}
-                    </span>
-                  )}
-                  {errorCaller && <span className="text-foreground/40"> in {errorCaller}</span>}
-                </div>
+      <p className="text-xs text-dim">
+        <Link href={issuesPath} className="hover:text-foreground">
+          issues
+        </Link>{' '}
+        / {errorClass || 'Error'}
+        <span className="ml-3">esc back</span>
+      </p>
+
+      <div className="mt-4 grid gap-6 md:grid-cols-[1fr_auto] md:items-start">
+        <div className="min-w-0">
+          <div className="flex gap-2 text-[11px] font-bold">
+            <span className="bg-error px-[7px] text-foreground">ERROR</span>
+            {issue.active && <span className="border border-error px-[7px] font-medium text-error">active</span>}
+            {issue.muted && <span className="border border-border px-[7px] font-medium text-subtle">muted</span>}
+          </div>
+          <p className="mt-3 max-w-[60ch] break-words text-[21px] font-bold leading-snug text-foreground">{issue.error}</p>
+          {(errorClass || errorFile) && (
+            <p className="mt-2.5 text-[13px] text-dim">
+              {errorClass && <span className="font-bold text-foreground">{errorClass}</span>}
+              {errorFile && (
+                <>
+                  {errorClass ? ' at ' : ''}
+                  <span className="text-subtle">
+                    {errorFile}
+                    {errorLine ? `:${errorLine}` : ''}
+                  </span>
+                </>
               )}
-              {alsoHappensAt && alsoHappensAt.length > 0 && (() => {
-                const sameFile = alsoHappensAt.filter((l) => l.same_file)
-                const diffFile = alsoHappensAt.filter((l) => !l.same_file)
-                const parts: React.ReactNode[] = []
-
-                if (sameFile.length > 0) {
-                  parts.push(
-                    <span key="sf">
-                      also at line{sameFile.length > 1 ? 's' : ''}{' '}
-                      {sameFile.slice(0, 2).map((loc, i) => (
-                        <React.Fragment key={loc.hash}>
-                          {i > 0 && ', '}
-                          <a href={`/apps/${appId}/issues/${loc.hash}`} className="underline hover:text-foreground/60">
-                            {loc.line}
-                          </a>
-                          {' '}({loc.count}x)
-                        </React.Fragment>
-                      ))}
-                      {sameFile.length > 2 && <span> (+{sameFile.length - 2} more)</span>}
-                    </span>
-                  )
-                }
-                if (diffFile.length > 0) {
-                  parts.push(
-                    <span key="df">
-                      {sameFile.length > 0 ? 'and in ' : 'same error in '}
-                      {diffFile.slice(0, 2).map((loc, i) => (
-                        <React.Fragment key={loc.hash}>
-                          {i > 0 && ', '}
-                          <a href={`/apps/${appId}/issues/${loc.hash}`} className="underline hover:text-foreground/60">
-                            {loc.file}{loc.line > 0 ? `:${loc.line}` : ''}
-                          </a>
-                          {' '}({loc.count}x)
-                        </React.Fragment>
-                      ))}
-                      {diffFile.length > 2 && <span> (+{diffFile.length - 2} more)</span>}
-                    </span>
-                  )
-                }
-
-                return (
-                  <div className="mt-1 text-sm font-mono text-foreground/40">
-                    {parts.map((p, i) => <React.Fragment key={i}>{i > 0 ? ', ' : ''}{p}</React.Fragment>)}
-                  </div>
-                )
-              })()}
-            </div>
-            <button
-              onClick={toggleMute}
-              className="shrink-0 px-4 py-2 text-sm font-bold border border-foreground/10 hover:border-foreground/20 text-foreground/70 hover:text-foreground transition-colors"
-            >
-              {issue.muted ? 'Unmute' : 'Mute'}
-            </button>
-          </div>
+              {errorCaller && (
+                <>
+                  {' '}in <span className="text-subtle">{errorCaller}</span>
+                </>
+              )}
+            </p>
+          )}
+          <AlsoHappensAt locations={alsoHappensAt} appId={appId} />
         </div>
-
-        <div className="grid grid-cols-3 border-t border-foreground/10 divide-x divide-foreground/10 bg-foreground/[0.02]">
-          <div className="px-5 py-3">
-            <div className="text-xs text-foreground/70 font-bold mb-1">Times</div>
-            <Mono className="text-2xl font-black text-[#e11d48]">{issue.count}</Mono>
-          </div>
-          <div className="px-5 py-3">
-            <div className="text-xs text-foreground/70 font-bold mb-1">First seen</div>
-            <Mono className="text-sm text-foreground font-semibold">{formatDistanceToNow(new Date(issue.first_seen), { addSuffix: true })}</Mono>
-          </div>
-          <div className="px-5 py-3">
-            <div className="text-xs text-foreground/70 font-bold mb-1">Last seen</div>
-            <Mono className="text-sm text-foreground font-semibold">{formatDistanceToNow(new Date(issue.last_seen), { addSuffix: true })}</Mono>
-          </div>
-        </div>
+        <button onClick={toggleMute} className="key justify-self-start">
+          <kbd>m</kbd> {issue.muted ? 'unmute' : 'mute'}
+        </button>
       </div>
 
-      {/* Stack Trace */}
-      {stackTrace && (
-        <details className="mb-8 border border-foreground/10">
-          <summary className="px-4 py-3 text-sm font-black text-foreground uppercase tracking-wider cursor-pointer hover:bg-foreground/[0.02]">
-            Stack Trace
-          </summary>
-          <pre className="px-4 py-3 text-xs font-mono text-foreground/80 overflow-x-auto whitespace-pre border-t border-foreground/10 bg-foreground/[0.02]">
-            {stackTrace}
-          </pre>
-        </details>
-      )}
+      <div className="mt-7 grid grid-cols-2 border border-border md:grid-cols-4 [&>div:nth-child(n+3)]:max-md:border-t [&>div:nth-child(odd)]:max-md:border-l-0 [&>div]:border-l [&>div]:border-line [&>div:first-child]:border-l-0">
+        <Stat label="times" value={<Mono className="text-[30px] font-bold leading-none text-error">{issue.count}×</Mono>} />
+        <Stat label="first seen" value={formatDistanceToNow(new Date(issue.first_seen), { addSuffix: true })} />
+        <Stat label="last seen" value={formatDistanceToNow(new Date(issue.last_seen), { addSuffix: true })} />
+        <Stat label="where it happened" value={wherePaths.length ? `${wherePaths.length} endpoint${wherePaths.length !== 1 ? 's' : ''}` : 'no requests'} />
+      </div>
 
-      {/* Frequency Heatmap */}
+      {stackTrace && <StackTrace trace={stackTrace} errorFile={errorFile} />}
+
       <FrequencyHeatmap occurrences={occurrences} firstSeen={issue.first_seen} />
 
-      {/* In Context — surrounding log lines from the same trace (hidden when solo entry) */}
-      {latestTraced && latestTraceEntries && latestTraceEntries.length > 1 &&
-        latestTraceEntries.some(e => e.id === latestTraced.id) && (
-          <TraceTree
-            title="Request Context"
-            entries={latestTraceEntries}
-            currentId={latestTraced.id}
-            logPath={logPath}
-            grouped
-            traceId={latestTraced.trace_id}
-          />
-        )}
-
-      {/* Recent Occurrences Timeline */}
-      {recentEntries.length > 0 && (
-        <div className="mb-8">
-          <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-4">
-            Last {recentEntries.length} times
-          </h3>
-          <div className="relative pl-6">
-            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-foreground/20" />
-            {recentEntries.map((entry, idx) => (
-              <TimelineEntry key={entry.id} entry={entry} appId={appId} isFirst={idx === 0} />
+      {wherePaths.length > 0 && (
+        <div className="pane mt-7 px-4 pb-4 pt-6">
+          <span className="pane-title">where it happened</span>
+          <div className="flex flex-wrap gap-x-7 gap-y-2 text-[13px]">
+            {wherePaths.map((p) => (
+              <a key={p.path} href={`${logPath}?search=${encodeURIComponent(p.path)}&is_error=true`} className="text-foreground hover:underline">
+                {p.path}
+                <Mono className="ml-1.5 text-dim">{p.count}</Mono>
+              </a>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Request context: the log lines around the newest traced error. */}
+      {latestTraced && latestTraceEntries && latestTraceEntries.length > 1 && latestTraceEntries.some((e) => e.id === latestTraced.id) && (
+        <div className="mt-7">
+          <TraceTree title="Request Context" entries={latestTraceEntries} currentId={latestTraced.id} logPath={logPath} grouped traceId={latestTraced.trace_id} />
+        </div>
+      )}
+
+      {recentEntries.length > 0 && (
+        <div className="pane mt-7 pb-1.5 pt-3.5">
+          <span className="pane-title">last {recentEntries.length} times</span>
+          {recentEntries.map((entry) => (
+            <Occurrence key={entry.id} entry={entry} href={`${logPath}/${entry.id}`} />
+          ))}
         </div>
       )}
     </Layout>
   )
 }
 
-// --- Timeline Entry (occurrences) ---
-function TimelineEntry({ entry, appId, isFirst }: { entry: LogEntry; appId: number; isFirst: boolean }) {
-  const ctx = parseContext(entry.context)
-  const isJob = !!ctx.job
-  const logPath = `/apps/${appId}/log`
-
+function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <a href={`${logPath}/${entry.id}`} className="relative flex items-start gap-3 pb-5 last:pb-0 group block">
-      <div className={`absolute left-[-17px] top-1.5 w-[9px] h-[9px] border-2 ${
-        isFirst ? 'bg-[#e11d48] border-[#e11d48]' : 'bg-card border-foreground/40 group-hover:border-foreground/60'
-      }`} />
-      <div className="flex-1 min-w-0 py-0.5">
-        <div className="flex items-center gap-2">
-          {isJob ? (
-            <span className="font-mono text-sm font-black text-foreground">{ctx.job}</span>
-          ) : (
-            <>
-              {ctx.method && (
-                <span className={`font-mono text-sm font-black text-foreground/50`}>{ctx.method}</span>
-              )}
-              {ctx.status && (
-                <span className={`font-mono text-sm font-black ${statusColor(ctx.status)}`}>{ctx.status}</span>
-              )}
-              <Code className="text-sm text-foreground/80 font-semibold truncate group-hover:text-foreground">{ctx.path || entry.message}</Code>
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 text-xs text-foreground/60 font-mono">
-          <span className="font-semibold">{format(new Date(entry.timestamp), 'MMM d, HH:mm:ss')}</span>
-          <span>·</span>
-          <span>{entry.duration_ms}ms</span>
-          {entry.trace_id && (
-            <>
-              <span>·</span>
-              <span className="text-foreground/40">trace:{entry.trace_id.slice(0, 8)}</span>
-            </>
-          )}
-        </div>
-      </div>
+    <div className="px-[18px] py-3.5">
+      <p className="text-xs text-dim">{label}</p>
+      <div className="mt-0.5 text-[15px] text-foreground">{value}</div>
+    </div>
+  )
+}
+
+// "also at line 45 (12×), and in other.rb:10 (3×)": the same error elsewhere.
+function AlsoHappensAt({ locations, appId }: { locations?: RelatedLocation[] | null; appId: number }) {
+  if (!locations?.length) return null
+  const sameFile = locations.filter((l) => l.same_file)
+  const diffFile = locations.filter((l) => !l.same_file)
+  const link = (loc: RelatedLocation, label: string) => (
+    <React.Fragment key={loc.hash}>
+      <a href={`/apps/${appId}/issues/${loc.hash}`} className="underline hover:text-foreground">
+        {label}
+      </a>{' '}
+      ({loc.count}×)
+    </React.Fragment>
+  )
+  const join = (nodes: React.ReactNode[]) => nodes.map((n, i) => <React.Fragment key={i}>{i > 0 && ', '}{n}</React.Fragment>)
+  return (
+    <p className="mt-1 text-[13px] text-dim">
+      {sameFile.length > 0 && (
+        <>
+          also at line{sameFile.length > 1 ? 's' : ''} {join(sameFile.slice(0, 2).map((l) => link(l, String(l.line))))}
+          {sameFile.length > 2 && ` (+${sameFile.length - 2} more)`}
+        </>
+      )}
+      {diffFile.length > 0 && (
+        <>
+          {sameFile.length > 0 ? ', and in ' : 'same error in '}
+          {join(diffFile.slice(0, 2).map((l) => link(l, `${l.file}${l.line > 0 ? `:${l.line}` : ''}`)))}
+          {diffFile.length > 2 && ` (+${diffFile.length - 2} more)`}
+        </>
+      )}
+    </p>
+  )
+}
+
+function Occurrence({ entry, href }: { entry: LogEntry; href: string }) {
+  const ctx = parseContext(entry.context)
+  return (
+    <a
+      href={href}
+      className="grid grid-cols-[6ch_5ch_1fr_16ch_9ch_14ch] gap-3.5 whitespace-nowrap border-t border-line px-[18px] py-1.5 text-[13px] first-of-type:border-t-0 hover:bg-raise max-md:grid-cols-[5ch_4ch_1fr_9ch]"
+    >
+      <span className="text-dim">{ctx.job ? 'JOB' : ctx.method}</span>
+      <span className={ctx.status ? statusColor(ctx.status) : 'text-dim'}>{ctx.status}</span>
+      <span className="truncate text-foreground">{ctx.job || ctx.path || entry.message}</span>
+      <span className="text-dim max-md:hidden">{format(new Date(entry.timestamp), 'MMM d HH:mm:ss').toLowerCase()}</span>
+      <Mono className="text-right text-subtle">{entry.duration_ms.toLocaleString()}ms</Mono>
+      <span className="truncate text-dim max-md:hidden">{entry.trace_id ? `trace:${entry.trace_id.slice(0, 8)}` : ''}</span>
     </a>
   )
 }
 
-// --- Frequency Heatmap ---
-// Full width, right edge = today, fills backwards. Data placed at correct position relative to now.
+// --- Frequency heatmap ---
+// Full width, right edge = today, filling backwards. 12 two-hour rows per day.
 
 const TIME_BUCKETS = [
   { label: '8am', start: 8, end: 9 },
@@ -246,195 +223,129 @@ const TIME_BUCKETS = [
 ]
 
 const LABEL_WIDTH = 40
+const CELL = 11 // px, with a 2px gap
+const EMPTY = 'hsl(var(--raise))'
+const errorShade = (alpha: number) => `hsl(var(--error) / ${alpha})`
 
 function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrencePoint[] | null; firstSeen: string }) {
   const containerRef = React.useRef<HTMLDivElement>(null)
-  const [numCols, setNumCols] = React.useState(0) // Start at 0, measure before render
-  const [hoveredCell, setHoveredCell] = React.useState<{ day: Date; bucket: typeof TIME_BUCKETS[number]; count: number } | null>(null)
+  const [numCols, setNumCols] = React.useState(0)
+  const [hovered, setHovered] = React.useState<{ day: Date; bucket: (typeof TIME_BUCKETS)[number]; count: number } | null>(null)
 
-  // Measure container to fill full width - useLayoutEffect to measure before paint
+  // Measure before paint so the grid fills the full width.
   React.useLayoutEffect(() => {
     const measure = () => {
       if (!containerRef.current) return
-      const availableWidth = containerRef.current.clientWidth - LABEL_WIDTH - 32 // 32 = padding
-      const colWidth = 13 // cell + gap
-      setNumCols(Math.max(7, Math.floor(availableWidth / colWidth)))
+      const available = containerRef.current.clientWidth - LABEL_WIDTH - 40
+      setNumCols(Math.max(7, Math.floor(available / (CELL + 2))))
     }
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
   }, [])
 
-  // Server returns each bucket as RFC3339 UTC ("2026-04-14T11:00:00Z").
-  // Convert to a local Date and key by local "YYYY-MM-DD HH" so the heatmap
-  // axes (day columns, hour rows) reflect the viewer's timezone.
+  // Buckets arrive as RFC3339 UTC hours; key them by local "YYYY-MM-DD HH" so
+  // the axes follow the viewer's timezone.
   const countMap = new Map<string, number>()
-  if (occurrences) {
-    for (const p of occurrences) {
-      const d = new Date(p.hour)
-      if (isNaN(d.getTime())) continue
-      const key = `${format(d, 'yyyy-MM-dd')} ${String(d.getHours()).padStart(2, '0')}`
-      countMap.set(key, (countMap.get(key) || 0) + p.count)
-    }
+  for (const p of occurrences ?? []) {
+    const d = new Date(p.hour)
+    if (isNaN(d.getTime())) continue
+    const key = `${format(d, 'yyyy-MM-dd')} ${String(d.getHours()).padStart(2, '0')}`
+    countMap.set(key, (countMap.get(key) || 0) + p.count)
   }
-
-  const bucketCount = (dayStr: string, bucket: typeof TIME_BUCKETS[number]) => {
+  const bucketCount = (dayStr: string, bucket: (typeof TIME_BUCKETS)[number]) => {
     let total = 0
-    for (let h = bucket.start; h <= bucket.end; h++) {
-      total += countMap.get(`${dayStr} ${String(h).padStart(2, '0')}`) || 0
-    }
+    for (let h = bucket.start; h <= bucket.end; h++) total += countMap.get(`${dayStr} ${String(h).padStart(2, '0')}`) || 0
     return total
   }
 
-  // Right edge = today. Always show numCols days. If data is older, scroll.
-  const now = new Date()
-  const end = now
-
-  let dataStart = subDays(now, numCols - 1)
-  if (firstSeen) {
-    const d = new Date(firstSeen)
-    if (!isNaN(d.getTime()) && d < dataStart) {
-      dataStart = d
-    }
-  }
-
+  const end = new Date()
+  let dataStart = subDays(end, numCols - 1)
+  const first = new Date(firstSeen)
+  if (!isNaN(first.getTime()) && first < dataStart) dataStart = first
   const totalDays = Math.max(numCols, differenceInDays(end, dataStart) + 1)
-  const start = subDays(end, totalDays - 1)
-  const days = eachDayOfInterval({ start, end })
+  const days = eachDayOfInterval({ start: subDays(end, totalDays - 1), end })
 
   let maxBucket = 1
   for (const day of days) {
     const dayStr = format(day, 'yyyy-MM-dd')
-    for (const bucket of TIME_BUCKETS) {
-      const c = bucketCount(dayStr, bucket)
-      if (c > maxBucket) maxBucket = c
-    }
+    for (const bucket of TIME_BUCKETS) maxBucket = Math.max(maxBucket, bucketCount(dayStr, bucket))
   }
-
   const needsScroll = days.length > numCols
-
-  // Don't render grid until container is measured
-  if (numCols === 0) {
-    return (
-      <div className="mb-8" ref={containerRef}>
-        <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-4">
-          Frequency
-        </h3>
-        <div className="border border-foreground/10 p-4 h-[200px]" />
-      </div>
-    )
-  }
+  const weeks = Math.max(1, Math.round(days.length / 7))
 
   return (
-    <div className="mb-8" ref={containerRef}>
-      <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-4">
-        Frequency
-      </h3>
-      <div className="border border-foreground/10 p-4 relative">
-        <div className="flex">
-          {/* Row labels */}
-          <div className="shrink-0 pr-2" style={{ width: LABEL_WIDTH }}>
-            {TIME_BUCKETS.map((bucket, i) => (
-              <div
-                key={bucket.label}
-                className="text-[9px] font-mono text-foreground/70 font-bold text-right flex items-center justify-end"
-                style={{ height: 13 }}
-              >
-                {i % 2 === 0 ? bucket.label : ''}
-              </div>
-            ))}
-          </div>
-
-          {/* Grid — uses CSS grid to fill available width */}
-          <div
-            className="overflow-x-auto flex-1 scrollbar-hide"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            ref={(el) => {
-              if (el && needsScroll) el.scrollLeft = el.scrollWidth
-            }}
-          >
+    <div className="pane mt-7 px-4 pb-4 pt-6" ref={containerRef}>
+      <span className="pane-title">
+        frequency · {weeks} week{weeks !== 1 ? 's' : ''}
+      </span>
+      <span className="pane-right">
+        less
+        {[0, 0.35, 0.65, 1].map((a) => (
+          <i key={a} className="inline-block h-2.5 w-1" style={{ background: a === 0 ? EMPTY : errorShade(a) }} />
+        ))}
+        more
+      </span>
+      {numCols === 0 ? (
+        <div className="h-[170px]" />
+      ) : (
+        <>
+          <div className="flex">
+            <div className="shrink-0 pr-2" style={{ width: LABEL_WIDTH }}>
+              {TIME_BUCKETS.map((bucket, i) => (
+                <div key={bucket.label} className="flex items-center justify-end text-[10px] text-dim" style={{ height: CELL + 2 }}>
+                  {i % 2 === 0 ? bucket.label : ''}
+                </div>
+              ))}
+            </div>
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(${days.length}, 1fr)`,
-                gap: 2,
-                minWidth: needsScroll ? days.length * 13 : undefined,
+              className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-hide"
+              ref={(el) => {
+                if (el && needsScroll) el.scrollLeft = el.scrollWidth
               }}
             >
-              {/* Grid cells — row by row, 12 rows × N columns */}
-              {TIME_BUCKETS.flatMap((bucket) =>
-                days.map((day, i) => {
-                  const dayStr = format(day, 'yyyy-MM-dd')
-                  const count = bucketCount(dayStr, bucket)
-                  const intensity = count > 0 ? Math.max(0.4, count / maxBucket) : 0
-                  const isHovered = hoveredCell?.day === day && hoveredCell?.bucket === bucket
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${days.length}, 1fr)`, gap: 2, minWidth: needsScroll ? days.length * (CELL + 2) : undefined }}>
+                {TIME_BUCKETS.flatMap((bucket) =>
+                  days.map((day, i) => {
+                    const count = bucketCount(format(day, 'yyyy-MM-dd'), bucket)
+                    const isHovered = hovered?.day === day && hovered?.bucket === bucket
+                    return (
+                      <div
+                        key={`${bucket.label}-${i}`}
+                        className={`cursor-crosshair ${hovered && !isHovered ? 'opacity-40' : ''}`}
+                        style={{ aspectRatio: '1', background: count > 0 ? errorShade(Math.max(0.35, count / maxBucket)) : EMPTY }}
+                        onMouseEnter={() => setHovered({ day, bucket, count })}
+                        onMouseLeave={() => setHovered(null)}
+                      />
+                    )
+                  }),
+                )}
+              </div>
+              <div className="relative mt-1.5 h-3.5" style={{ minWidth: needsScroll ? days.length * (CELL + 2) : undefined }}>
+                {days.map((day, i) => {
+                  const spacing = Math.max(10, Math.floor(days.length / 8))
+                  if (i !== 0 && i % spacing !== 0) return null
                   return (
-                    <div
-                      key={`${bucket.label}-${i}`}
-                      className={`cursor-crosshair transition-opacity ${hoveredCell && !isHovered ? 'opacity-40' : ''}`}
-                      style={{
-                        aspectRatio: '1',
-                        borderRadius: 2,
-                        backgroundColor: count > 0 ? `rgba(225, 29, 72, ${intensity})` : 'rgba(255,255,255,0.06)',
-                      }}
-                      onMouseEnter={() => setHoveredCell({ day, bucket, count })}
-                      onMouseLeave={() => setHoveredCell(null)}
-                    />
+                    <span key={i} className="absolute whitespace-nowrap text-[10px] text-dim" style={{ left: `${(i / days.length) * 100}%` }}>
+                      {format(day, 'MMM d').toLowerCase()}
+                    </span>
                   )
-                })
-              )}
-            </div>
-
-            {/* Day labels — spaced every ~10 columns, positioned to not clip */}
-            <div style={{ position: 'relative', height: 14, marginTop: 4, minWidth: needsScroll ? days.length * 13 : undefined }}>
-              {days.map((day, i) => {
-                // Show a label roughly every 10 columns
-                const spacing = Math.max(10, Math.floor(days.length / 8))
-                if (i !== 0 && i % spacing !== 0) return null
-                // Position as percentage of total width
-                const left = `${(i / days.length) * 100}%`
-                return (
-                  <span
-                    key={i}
-                    className="text-[9px] font-mono text-foreground/60 font-bold whitespace-nowrap absolute"
-                    style={{ left }}
-                  >
-                    {format(day, 'MMM d')}
-                  </span>
-                )
-              })}
+                })}
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Hover tooltip - floating */}
-        {hoveredCell && (
-          <div className="absolute bottom-2 left-0 right-0 text-xs text-center pointer-events-none">
-            <span className="bg-foreground text-background px-2 py-1">
-              {format(hoveredCell.day, 'EEE, MMM d')} {hoveredCell.bucket.label}
-              <span className="mx-2">·</span>
-              <span className="font-mono font-semibold">{hoveredCell.count} error{hoveredCell.count !== 1 ? 's' : ''}</span>
-            </span>
-          </div>
-        )}
-
-        {/* Legend */}
-        <div className="flex items-center gap-1.5 mt-3 text-[10px] text-foreground/60 font-mono font-bold">
-          <span>Less</span>
-          {[0, 0.25, 0.5, 0.75, 1].map((opacity, i) => (
-            <div
-              key={i}
-              style={{
-                width: 11,
-                height: 11,
-                borderRadius: 2,
-                backgroundColor: i === 0 ? 'rgba(255,255,255,0.06)' : `rgba(225,29,72,${opacity})`,
-              }}
-            />
-          ))}
-          <span>More</span>
-        </div>
-      </div>
+          <p className="mt-2 h-4 text-center text-xs text-subtle">
+            {hovered && (
+              <>
+                {format(hovered.day, 'EEE, MMM d')} {hovered.bucket.label} ·{' '}
+                <span className="text-foreground">
+                  {hovered.count} error{hovered.count !== 1 ? 's' : ''}
+                </span>
+              </>
+            )}
+          </p>
+        </>
+      )}
     </div>
   )
 }

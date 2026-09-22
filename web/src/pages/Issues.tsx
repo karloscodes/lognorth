@@ -1,10 +1,10 @@
-import { useEffect } from 'react'
-import { formatDistanceToNow } from 'date-fns'
-import { Clock, Check, TrendingUp, TrendingDown } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { formatDistanceToNowStrict } from 'date-fns'
 import { router } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
-import { Mono, Code, PageHeader, EmptyState } from '@/lib/shared'
+import { Mono, PageHeader, EmptyState } from '@/lib/shared'
 import type { Application, Issue } from '@/lib/shared'
+import { pageKey } from '@/lib/keys'
 
 interface Props {
   issues?: Issue[]
@@ -13,30 +13,34 @@ interface Props {
   applications?: Application[]
 }
 
+// "15h ago", "2mo ago": short enough for a meta line.
+const ago = (iso: string) =>
+  formatDistanceToNowStrict(new Date(iso))
+    .replace(/ seconds?/, 's')
+    .replace(/ minutes?/, 'm')
+    .replace(/ hours?/, 'h')
+    .replace(/ days?/, 'd')
+    .replace(/ months?/, 'mo')
+    .replace(/ years?/, 'y') + ' ago'
+
 export default function Issues({ issues = [], appId, appName, applications }: Props) {
-  // Click issue → go to issue detail page
-  const issuePath = (issue: Issue) => {
-    const id = appId || issue.api_key_id
-    return `/apps/${id}/issues/${issue.hash}`
-  }
+  const issuePath = (issue: Issue) => `/apps/${appId || issue.api_key_id}/issues/${issue.hash}`
   const activeIssues = issues.filter((i) => i.active)
   const staleIssues = issues.filter((i) => !i.active)
-  const hasUnseen = issues.some((i) => i.unseen)
+  const ordered = [...activeIssues, ...staleIssues]
   const unseenCount = issues.filter((i) => i.unseen).length
 
-  // Build app name lookup for global view
   const appNameById = new Map<number, string>()
-  applications?.forEach(app => appNameById.set(app.id, app.name))
+  applications?.forEach((app) => appNameById.set(app.id, app.name))
   const showAppName = !appId
 
-  const markAllSeen = () => {
-    const url = appId ? `/issues/seen?app_id=${appId}` : '/issues/seen'
-    router.post(url)
-  }
+  const markAllSeen = () => router.post(appId ? `/issues/seen?app_id=${appId}` : '/issues/seen', {}, { preserveScroll: true })
+  const markSeen = (issue: Issue) => router.post(`/issues/${issue.hash}/seen`, {}, { preserveScroll: true })
+  const toggleMute = (issue: Issue) =>
+    router.post(`/issues/${issue.hash}/${issue.muted ? 'unmute' : 'mute'}`, {}, { preserveScroll: true })
 
-  // Browsers may restore /issues from bfcache when the user clicks "back" from
-  // an issue detail page — that hides the seen-state update the server already
-  // applied. Force a fresh fetch so unseen badges clear.
+  // Browsers may restore /issues from bfcache on "back" from an issue page. That
+  // hides the seen state the server already applied, so fetch fresh.
   useEffect(() => {
     const onPageShow = (e: PageTransitionEvent) => {
       if (e.persisted) router.reload()
@@ -45,24 +49,65 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
     return () => window.removeEventListener('pageshow', onPageShow)
   }, [])
 
+  // Keys on the list: j/k move, enter opens, m mutes, e marks seen, E marks all seen.
+  const [sel, setSel] = useState(0)
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!pageKey(e) || !ordered.length) return
+      const current = ordered[Math.min(sel, ordered.length - 1)]
+      const move = (to: number) => {
+        setSel(to)
+        rowRefs.current[to]?.scrollIntoView({ block: 'nearest' })
+      }
+      if (e.key === 'j') move(Math.min(ordered.length - 1, sel + 1))
+      if (e.key === 'k') move(Math.max(0, sel - 1))
+      if (e.key === 'Enter') router.visit(issuePath(current))
+      if (e.key === 'm') toggleMute(current)
+      if (e.key === 'e') markSeen(current)
+      if (e.key === 'E') markAllSeen()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  const row = (issue: Issue, stale = false) => {
+    const i = ordered.indexOf(issue)
+    return (
+      <IssueRow
+        key={issue.hash}
+        ref={(el) => (rowRefs.current[i] = el)}
+        issue={issue}
+        href={issuePath(issue)}
+        appName={showAppName ? appNameById.get(issue.api_key_id) : undefined}
+        stale={stale}
+        selected={i === sel}
+        onSelect={() => setSel(i)}
+        onMute={() => toggleMute(issue)}
+      />
+    )
+  }
+
   return (
     <Layout currentPath="/issues" appId={appId} appName={appName} applications={applications}>
       <PageHeader
         title="Issues"
-        subtitle={issues.length === 0 ? undefined : (
-          <>
-            <Mono>{issues.length}</Mono> issue{issues.length !== 1 ? 's' : ''}
-            {unseenCount > 0 && <> · <Mono>{unseenCount}</Mono> new</>}
-          </>
-        )}
+        subtitle={
+          issues.length === 0 ? undefined : (
+            <>
+              <Mono>{issues.length}</Mono> issue{issues.length !== 1 ? 's' : ''}
+              {unseenCount > 0 && (
+                <>
+                  {' '}· <Mono>{unseenCount}</Mono> new
+                </>
+              )}
+            </>
+          )
+        }
       >
-        {hasUnseen && (
-          <button
-            onClick={markAllSeen}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-foreground/70 hover:text-foreground bg-card border border-foreground/10 hover:border-foreground/20 transition-colors"
-          >
-            <Check className="w-4 h-4" />
-            Mark all seen
+        {unseenCount > 0 && (
+          <button onClick={markAllSeen} className="key">
+            <kbd>E</kbd> mark all seen
           </button>
         )}
       </PageHeader>
@@ -70,51 +115,21 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
       {issues.length === 0 ? (
         <EmptyState title="No issues" description="Enjoy your day." />
       ) : (
-        <div className="space-y-8">
-          {/* Active Issues */}
+        <div className="space-y-9">
           {activeIssues.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-2 h-2 rounded-full bg-[#e11d48]" />
-                <h2 className="text-sm font-bold text-foreground/50 uppercase tracking-wide">
-                  Active
-                </h2>
-                <span className="text-xs text-foreground/40">Last 7 days</span>
-              </div>
-              <div className="bg-card border border-foreground/10 divide-y divide-foreground/10 overflow-hidden">
-                {activeIssues.map((issue) => (
-                  <IssueRow
-                    key={issue.hash}
-                    issue={issue}
-                    issuePath={issuePath(issue)}
-                    appName={showAppName ? appNameById.get(issue.api_key_id) : undefined}
-                  />
-                ))}
-              </div>
+              <p className="rule-label mb-3">
+                <b>active</b> last 7 days
+              </p>
+              <div className="border border-border">{activeIssues.map((issue) => row(issue))}</div>
             </section>
           )}
-
-          {/* Stale Issues */}
           {staleIssues.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-3.5 h-3.5 text-foreground/40" />
-                <h2 className="text-sm font-bold text-foreground/50 uppercase tracking-wide">
-                  Stale
-                </h2>
-                <span className="text-xs text-foreground/40">No recent occurrences</span>
-              </div>
-              <div className="bg-card border border-foreground/10 divide-y divide-foreground/10 overflow-hidden">
-                {staleIssues.map((issue) => (
-                  <IssueRow
-                    key={issue.hash}
-                    issue={issue}
-                    issuePath={issuePath(issue)}
-                    appName={showAppName ? appNameById.get(issue.api_key_id) : undefined}
-                    stale
-                  />
-                ))}
-              </div>
+              <p className="rule-label mb-3">
+                <b>stale</b> nothing new in 7 days
+              </p>
+              <div className="border border-border">{staleIssues.map((issue) => row(issue, true))}</div>
             </section>
           )}
         </div>
@@ -123,113 +138,80 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
   )
 }
 
-function IssueRow({ issue, issuePath, appName, stale }: { issue: Issue; issuePath: string; appName?: string; stale?: boolean }) {
-  const isUnseen = issue.unseen && !stale
+// 14 bars, one per day. The last two days turn red when they have errors.
+function Sparkline({ daily = [], hot }: { daily?: number[]; hot: boolean }) {
+  const max = Math.max(1, ...daily)
+  return (
+    <span className="hidden h-[18px] items-end gap-[2px] md:inline-flex" aria-hidden="true">
+      {daily.map((n, i) => (
+        <i
+          key={i}
+          className={`w-1 ${hot && n > 0 && i >= daily.length - 2 ? 'bg-error' : 'bg-border'}`}
+          style={{ height: n > 0 ? Math.max(3, Math.round((n / max) * 18)) : 1 }}
+        />
+      ))}
+    </span>
+  )
+}
 
-  const toggleMute = () => {
-    const url = issue.muted ? `/issues/${issue.hash}/unmute` : `/issues/${issue.hash}/mute`
-    router.post(url, {}, { preserveScroll: true })
-  }
+interface RowProps {
+  issue: Issue
+  href: string
+  appName?: string
+  stale: boolean
+  selected: boolean
+  onSelect: () => void
+  onMute: () => void
+  ref: (el: HTMLDivElement | null) => void
+}
+
+function IssueRow({ issue, href, appName, stale, selected, onSelect, onMute, ref }: RowProps) {
+  const unseen = issue.unseen && !stale && !issue.muted
+  const extraPaths = (issue.paths?.length ?? 0) - 1
+  const where = issue.error_file ? `${issue.error_file}${issue.error_line ? `:${issue.error_line}` : ''}` : ''
 
   return (
     <div
-      className={`flex items-center gap-4 p-5 transition-colors hover:bg-foreground/[0.02] ${
-        isUnseen && !issue.muted ? 'shadow-[inset_3px_0_0_0_#e11d48] bg-[#e11d48]/[0.06]' : ''
-      } ${issue.muted ? 'opacity-50' : ''}`}
+      ref={ref}
+      onMouseEnter={onSelect}
+      className={`group grid scroll-my-24 grid-cols-[1fr_auto] gap-5 border-l-[3px] border-t border-t-line py-3.5 pl-4 pr-5 first:border-t-0 ${
+        unseen ? 'border-l-error' : 'border-l-transparent'
+      } ${selected ? 'bg-raise' : ''} ${issue.muted ? 'opacity-40' : stale ? 'opacity-60' : ''}`}
     >
-      {/* Main content - clickable link */}
-      <a href={issuePath} className="flex-1 min-w-0 py-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Error class if available */}
-          {issue.error_class && (
-            <span className={`font-mono text-sm font-bold ${
-              isUnseen && !issue.muted
-                ? 'text-[#e11d48]'
-                : stale || issue.muted
-                  ? 'text-foreground/40'
-                  : 'text-[#e11d48]/80'
-            }`}>
-              {issue.error_class}
-            </span>
-          )}
-          {/* Error message */}
-          <Code className={`leading-snug ${
-            isUnseen && !issue.muted
-              ? 'font-semibold text-foreground'
-              : stale || issue.muted
-                ? 'text-foreground/50'
-                : 'text-foreground/80'
-          }`}>
-            {issue.error}
-          </Code>
-          {/* Location: file:line */}
-          {issue.error_file && (
-            <span className={`font-mono text-xs ${
-              stale || issue.muted ? 'text-foreground/30' : 'text-foreground/50'
-            }`}>
-              in {issue.error_file}{issue.error_line ? `:${issue.error_line}` : ''}
-            </span>
-          )}
-          {issue.is_new && !stale && (
-            <span className="text-[10px] font-bold text-[#e11d48] uppercase tracking-wide">
-              New
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-2 text-xs text-foreground/40">
-          {appName && (
-            <>
-              <span className="bg-foreground/5 text-foreground/60 px-1.5 py-0.5 font-medium">
-                {appName}
-              </span>
-              <span>·</span>
-            </>
-          )}
-          <span>{formatDistanceToNow(new Date(issue.last_seen), { addSuffix: true })}</span>
+      <a href={href} className="min-w-0">
+        <p className="text-xs text-error">
+          {appName && <span className="mr-2 text-subtle">[{appName}]</span>}
+          {issue.error_class || 'Error'}
+          {issue.is_new && !stale && <span className="ml-2 font-bold uppercase text-error">new</span>}
+        </p>
+        <p className={`mt-0.5 truncate text-[15px] ${unseen ? 'font-medium text-foreground' : 'text-text'}`}>{issue.error}</p>
+        <p className="mt-1 truncate text-xs text-dim">
+          last <span className="text-subtle">{ago(issue.last_seen)}</span> · first {ago(issue.first_seen)}
           {issue.paths?.length > 0 && (
             <>
-              <span>·</span>
-              <Code>{issue.paths[0]}</Code>
+              {' '}· <span className="text-subtle">{issue.paths[0]}</span>
+              {extraPaths > 0 && ` +${extraPaths}`}
             </>
           )}
-          {issue.paths?.length > 1 && (
-            <span className="text-foreground/30">+{issue.paths.length - 1}</span>
-          )}
-        </div>
+          {where && ` · ${where}`}
+        </p>
       </a>
 
-      {/* Right side: mute + count aligned */}
-      <div className="flex items-center gap-4 shrink-0">
+      <div className="flex items-center gap-5">
+        <Sparkline daily={issue.daily} hot={!stale && !issue.muted} />
         <button
           type="button"
-          onClick={toggleMute}
-          className="text-xs font-semibold text-foreground/50 hover:text-foreground transition-colors w-12 text-right"
+          onClick={onMute}
+          className={`w-[7ch] text-left text-xs text-dim hover:text-foreground ${selected || issue.muted ? 'visible' : 'invisible group-hover:visible'}`}
         >
-          {issue.muted ? 'Unmute' : 'Mute'}
+          <kbd className="font-[inherit]">m</kbd> {issue.muted ? 'unmute' : 'mute'}
         </button>
-
-        <div className="flex items-center">
-          <span className="w-5 flex justify-center">
-            {issue.trend === 'up' && !stale && (
-              <TrendingUp className="w-4 h-4 text-[#e11d48]" />
-            )}
-            {issue.trend === 'down' && !stale && (
-              <TrendingDown className="w-4 h-4 text-foreground/30" />
-            )}
-          </span>
-          <Mono
-            className={`text-xl font-black w-16 text-right ${
-              isUnseen && !issue.muted
-                ? 'text-[#e11d48]'
-                : stale || issue.muted
-                  ? 'text-foreground/30'
-                  : 'text-foreground'
-            }`}
-            title={`${issue.count} occurrences`}
-          >
-            {issue.count}×
-          </Mono>
-        </div>
+        <Mono
+          className={`min-w-[6ch] text-right text-xl font-bold ${unseen ? 'text-error' : stale || issue.muted ? 'text-subtle' : 'text-foreground'}`}
+          title={`${issue.count} times`}
+        >
+          {issue.count}×
+        </Mono>
       </div>
     </div>
   )

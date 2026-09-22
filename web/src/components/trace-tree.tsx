@@ -1,4 +1,4 @@
-import { getConfig, parseContext, statusColor } from '@/lib/shared'
+import { parseContext, statusColor } from '@/lib/shared'
 import type { LogEntry } from '@/lib/shared'
 
 interface TraceTreeProps {
@@ -21,90 +21,53 @@ const isRequest = (e: LogEntry) => {
 // to, and what else happened in that request.
 export function TraceTree({ title, entries, currentId, logPath, grouped, traceId }: TraceTreeProps) {
   const requestEntry = grouped ? entries.find(isRequest) : undefined
-  const childEntries = requestEntry
-    ? entries.filter(e => e.id !== requestEntry.id)
-    : entries.filter(e => e.id !== currentId)
+  const childEntries = requestEntry ? entries.filter((e) => e.id !== requestEntry.id) : entries.filter((e) => e.id !== currentId)
 
   return (
-    <div className="mb-8">
-      <h3 className="text-sm font-black text-foreground uppercase tracking-wider mb-4">{title}</h3>
-      <div className="border-2 border-foreground/10 overflow-hidden font-mono text-xs">
-        {requestEntry && <RequestHeader entry={requestEntry} isCurrent={requestEntry.id === currentId} logPath={logPath} />}
-
-        {childEntries.map((e, i) => {
-          const isCurrent = e.id === currentId
-          const borderClass = i < childEntries.length - 1 ? 'border-b border-foreground/5' : ''
-          const indent = requestEntry ? 'pl-8' : 'pl-4'
-
-          if (isCurrent) {
-            return (
-              <div key={e.id} className={`relative flex items-center gap-2 ${indent} pr-4 py-2.5 bg-foreground/[0.04] ${borderClass}`}>
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-foreground" />
-                <ChildRow entry={e} isCurrent />
-              </div>
-            )
-          }
-          return (
-            <a
-              key={e.id}
-              href={`${logPath}/${e.id}`}
-              className={`flex items-center gap-2 ${indent} pr-4 py-2.5 hover:bg-foreground/[0.02] transition-colors ${borderClass}`}
-            >
-              <ChildRow entry={e} isCurrent={false} />
-            </a>
-          )
-        })}
-
-        {grouped && traceId && (
-          <a
-            href={`${logPath}?trace=${traceId}`}
-            className="flex items-center justify-between px-4 py-2.5 border-t border-foreground/10 font-mono text-xs font-bold text-foreground/60 hover:text-foreground transition-colors"
-          >
-            <span>{entries.length} {entries.length === 1 ? 'entry' : 'entries'} in this trace</span>
-            <span>View full trace →</span>
-          </a>
-        )}
-      </div>
+    <div className="pane mb-8 pb-1.5 pt-3.5 text-[13px]">
+      <span className="pane-title">{title.toLowerCase()}</span>
+      {grouped && traceId && (
+        <a href={`${logPath}?trace=${traceId}`} className="pane-right hover:text-foreground">
+          {entries.length} {entries.length === 1 ? 'request' : 'lines'} · full trace →
+        </a>
+      )}
+      {requestEntry && <Row entry={requestEntry} isCurrent={requestEntry.id === currentId} logPath={logPath} />}
+      {childEntries.map((e) => (
+        <Row key={e.id} entry={e} isCurrent={e.id === currentId} logPath={logPath} child={Boolean(requestEntry)} />
+      ))}
     </div>
   )
 }
 
-function RequestHeader({ entry, isCurrent, logPath }: { entry: LogEntry; isCurrent: boolean; logPath: string }) {
+function Row({ entry, isCurrent, logPath, child }: { entry: LogEntry; isCurrent: boolean; logPath: string; child?: boolean }) {
   const ctx = parseContext(entry.context)
-  const config = getConfig(entry.is_error)
-  const Icon = config.icon
-
-  return (
-    <a
-      href={isCurrent ? undefined : `${logPath}/${entry.id}`}
-      className={`flex items-center gap-2 px-4 py-2.5 bg-foreground/[0.02] border-b border-foreground/10 ${isCurrent ? 'font-bold' : 'hover:bg-foreground/[0.04] transition-colors'}`}
-    >
-      <div className={`p-1 ${config.colors}`}>
-        <Icon className="w-3 h-3" />
-      </div>
-      {ctx.method && <span className="font-bold text-foreground/50">{ctx.method}</span>}
-      <span className="text-foreground/70">{ctx.path}</span>
-      {ctx.status && <span className={`font-bold ${statusColor(ctx.status)}`}>{ctx.status}</span>}
-      <span className="text-foreground/40 ml-auto shrink-0">{entry.duration_ms}ms</span>
-    </a>
-  )
-}
-
-function ChildRow({ entry, isCurrent }: { entry: LogEntry; isCurrent: boolean }) {
-  const ctx = parseContext(entry.context)
-  const config = getConfig(entry.is_error)
-  const Icon = config.icon
-
-  return (
+  const label = ctx.method && ctx.path ? ctx.path : ctx.job || entry.message
+  const body = (
     <>
-      <div className={`p-1 ${config.colors}`}>
-        <Icon className="w-3 h-3" />
-      </div>
-      <span className={`truncate ${isCurrent ? 'text-foreground font-bold' : 'text-foreground/70'}`}>{ctx.path || entry.message}</span>
-      {ctx.error_file && <span className="text-foreground/40">{ctx.error_file}{ctx.error_line ? `:${ctx.error_line}` : ''}</span>}
-      {ctx.method && <span className="font-bold text-foreground/50">{ctx.method}</span>}
-      {ctx.status && <span className={`font-bold ${statusColor(ctx.status)}`}>{ctx.status}</span>}
-      {entry.duration_ms > 0 && <span className="text-foreground/40 ml-auto shrink-0">{entry.duration_ms}ms</span>}
+      <span className="text-dim">{ctx.job ? 'JOB' : ctx.method}</span>
+      <span className={`relative truncate ${child ? 'pl-[3ch]' : ''} ${entry.is_error ? 'font-bold text-error' : child ? 'text-subtle' : 'text-foreground'}`}>
+        {child && <i className="absolute left-[1ch] top-[-0.8em] bottom-1/2 w-[1.2ch] border-b border-l border-border" />}
+        {label}
+        {ctx.error_file && (
+          <span className="ml-2 font-normal text-dim">
+            {ctx.error_file}
+            {ctx.error_line ? `:${ctx.error_line}` : ''}
+          </span>
+        )}
+      </span>
+      <span className={`text-right ${ctx.status ? statusColor(ctx.status) : ''}`}>{ctx.status}</span>
+      <span className="text-right text-subtle">{entry.duration_ms > 0 ? `${entry.duration_ms}ms` : ''}</span>
     </>
+  )
+  const cls = `grid grid-cols-[5ch_1fr_5ch_9ch] gap-3.5 whitespace-nowrap px-[18px] py-1 ${
+    entry.is_error ? 'shadow-[inset_3px_0_0_0_hsl(var(--error))]' : ''
+  } ${isCurrent ? 'bg-raise' : 'hover:bg-raise'}`
+
+  return isCurrent ? (
+    <div className={cls}>{body}</div>
+  ) : (
+    <a href={`${logPath}/${entry.id}`} className={cls}>
+      {body}
+    </a>
   )
 }
