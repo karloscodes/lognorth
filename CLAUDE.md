@@ -46,10 +46,28 @@ SDK → POST /api/v1/events → IngestedEvent table (fast write)
 ### Agent Access
 
 Agents read the log through MCP only. `POST /mcp` speaks JSON-RPC over HTTP,
-authenticated with the agent key from Settings > Developer, and exposes four
-read-only tools: `list_apps`, `search_logs`, `get_event`, `list_issues`. There
-is no REST read API. The protocol lives in `internal/mcp`; the handler is
-`internal/http/mcp.go`.
+authenticated with the agent key from Settings > Developer, and exposes six
+read-only tools: `list_apps`, `list_alerts`, `endpoint_timeline`,
+`list_issues`, `search_logs`, `get_event`. There is no REST read API. The
+protocol lives in `internal/mcp`; the handler is `internal/http/mcp.go`.
+
+Every alert email ends with `/lognorth:investigate <path or issue hash>`, a
+command in the plugin repo (`lognorth-releases`). Keep the tool names in sync
+with that plugin's skill.
+
+### Alerting
+
+Per-error alerts (new error, regression) are in `internal/events/alerting.go`.
+Rate alerts (spike, drift, silence) are SPC, run by `jobs/anomaly_checker.go`
+every 5 minutes on the last complete bucket of `endpoint_stats`:
+
+- Baselines are computed from stored history, never learned or saved
+  (`internal/events/spc_history.go`). Stats are kept 29 days, in UTC.
+- Error rate: p-chart against the pooled rate at the same time of day over 7
+  days, widened by measured dispersion. Drift: the same check on the last hour.
+- Volume: median and MAD at the same time of week over 4 weeks.
+- Warning (3σ) goes to the daily digest. Critical (5σ) sends one email per
+  path per hour. An alert clears after 2 clean checks.
 
 ### Event Model
 

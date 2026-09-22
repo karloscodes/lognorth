@@ -118,7 +118,9 @@ func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB, at time.Time) {
 		body := fmt.Sprintf(`%s is at %.1f%% errors — normally %.1f%%.
 %d errors in the last %d min.
 
-%s/apps/%d/issues`,
+%s/apps/%d/issues
+
+Ask your agent: /lognorth:investigate %s`,
 			spike.Path,
 			currentRate,
 			baseline.Rate,
@@ -126,6 +128,7 @@ func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB, at time.Time) {
 			int(time.Since(spike.SpikeStartAt).Minutes())+5, // The first bad bucket started 5 min before detection
 			s.BaseURL,
 			spike.APIKeyID,
+			spike.Path,
 		)
 
 		if err := s.SendNotification(subject, body); err == nil {
@@ -144,12 +147,15 @@ func (j *AnomalyChecker) sendCriticalAlerts(db *gorm.DB, at time.Time) {
 		body := fmt.Sprintf(`%s has been silent for %d min.
 Normally ~%.0f requests.
 
-%s/apps/%d/issues`,
+%s/apps/%d/issues
+
+Ask your agent: /lognorth:investigate %s`,
 			silence.Path,
 			silentMin,
 			baseline.Median,
 			s.BaseURL,
 			silence.APIKeyID,
+			silence.Path,
 		)
 
 		if err := s.SendNotification(subject, body); err == nil {

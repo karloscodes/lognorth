@@ -186,6 +186,7 @@ func (e *AlertEngine) sendAlert(typ alertType, appName, errorClass, errorMsg, er
 	if e.settings.BaseURL != "" {
 		body += fmt.Sprintf("\n\n%s/issues/%s", e.settings.BaseURL, hash)
 	}
+	body += "\n\nAsk your agent: /lognorth:investigate " + hash
 
 	e.settings.SendEmail(subject, body)
 }
