@@ -36,8 +36,8 @@ github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jinzhu/now v1.1.5 h1:/o9tlHleP7gOFmsnYNz3RGnqzefHA47wQpKrrdTIwXQ=
 github.com/jinzhu/now v1.1.5/go.mod h1:d3SSVoowX0Lcu0IBviAWJpolVfI5UJVZZ7cO71lE/z8=
-github.com/karloscodes/cartridge v0.15.3 h1:dLbgvN3ZvkQJn03wtex9GDDImUtLvj4sSAuC2SkKpq8=
-github.com/karloscodes/cartridge v0.15.3/go.mod h1:LBNAhX1PSSQl5BnAtlLbVkF8RMSIk+QEeYA/Ri8b4Nk=
+github.com/karloscodes/cartridge v0.15.4 h1:1u6y9LoK+830Z4ijR2MO36n7G8IAQ7vO8LkgN581BNA=
+github.com/karloscodes/cartridge v0.15.4/go.mod h1:LBNAhX1PSSQl5BnAtlLbVkF8RMSIk+QEeYA/Ri8b4Nk=
 github.com/karloscodes/matcha v0.12.18 h1:4A7pocr2KuPp+ZySy3eCuoPGybzCllbvgxrRSns9BGs=
 github.com/karloscodes/matcha v0.12.18/go.mod h1:Zpy+ZfP/5OQMfdChOxzxP++m1mBFWJiXPjt3yYsCb9g=
 github.com/klauspost/compress v1.19.1 h1:VsB4HPswih7mmZ8WleSFQ75c/Ui1M4trX5oAsJnhSlk=
