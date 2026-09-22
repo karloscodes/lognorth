@@ -1,7 +1,7 @@
 // Shared types and components for LogNorth
 // See docs/EVENT_MODEL.md for the full specification
 
-import { AlertTriangle, CheckCircle, Inbox } from 'lucide-react'
+import { AlertTriangle, CheckCircle } from 'lucide-react'
 import { ReactNode } from 'react'
 
 // === UI Components ===
@@ -27,10 +27,10 @@ export function PageHeader({
   children?: ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between mb-8">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-        {subtitle && <p className="text-sm text-foreground/50 mt-1">{subtitle}</p>}
+        <h1 className="text-[26px] font-bold leading-tight tracking-tight text-foreground">{title}</h1>
+        {subtitle && <p className="mt-1 text-[13px] text-subtle">{subtitle}</p>}
       </div>
       {children}
     </div>
@@ -48,10 +48,9 @@ export function EmptyState({
   children?: ReactNode
 }) {
   return (
-    <div className="border border-foreground/10 py-16 text-center">
-      <Inbox className="w-10 h-10 text-foreground/20 mx-auto mb-4" />
-      <p className="font-semibold text-foreground mb-1">{title}</p>
-      {description && <p className="text-sm text-foreground/50">{description}</p>}
+    <div className="border border-dashed border-border py-16 text-center">
+      <p className="mb-1 font-bold text-foreground">{title}</p>
+      {description && <p className="text-sm text-subtle">{description}</p>}
       {children}
     </div>
   )
@@ -150,6 +149,7 @@ export interface Issue {
   muted: boolean   // User muted this issue
   is_new: boolean  // First seen < 24h ago
   trend: 'up' | 'down' | 'stable'  // Trend direction
+  daily?: number[] // Errors per UTC day, last 14 days, oldest first
 }
 
 // === Error Config ===

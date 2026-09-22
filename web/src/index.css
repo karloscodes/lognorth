@@ -2,36 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+/* IBM Plex Mono, bundled with the app (OFL 1.1, see fonts/OFL.txt).
+   Vite hashes these into /assets, so a self-hosted install makes no
+   third-party font requests. */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/ibm-plex-mono-latin-700-normal.woff2') format('woff2');
+}
+
 @layer base {
+  /* Terminal theme: warm stone neutrals, one lime accent, rose for errors.
+     Same palette as lognorth.com. */
   :root {
-    /* EXPERIMENT: dark terminal theme. Original light values in git history. */
-    --background: 0 0% 4%;
-    --foreground: 0 0% 98%;
+    --background: 20 14% 4%;       /* #0c0a09 */
+    --foreground: 60 9% 98%;       /* #fafaf9 */
 
-    --card: 0 0% 8%;
-    --card-foreground: 0 0% 98%;
+    --card: 20 14% 4%;
+    --card-foreground: 60 9% 98%;
 
-    --popover: 0 0% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 20 14% 4%;
+    --popover-foreground: 60 9% 98%;
 
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 4%;
+    --primary: 60 9% 98%;
+    --primary-foreground: 20 14% 4%;
 
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 24 10% 10%;       /* #1c1917 raised surface */
+    --secondary-foreground: 60 9% 98%;
 
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 64%;
+    --muted: 24 10% 10%;
+    --muted-foreground: 24 5% 64%; /* #a8a29e */
 
-    --accent: 81 82% 55%; /* #a3e635 lime */
-    --accent-foreground: 0 0% 4%;
+    --accent: 81 78% 55%;          /* #a3e635 lime */
+    --accent-foreground: 24 10% 10%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 347 77% 50%;    /* #e11d48 */
+    --destructive-foreground: 60 9% 98%;
 
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 0 0% 80%;
+    --border: 30 6% 25%;           /* #44403c strong line */
+    --input: 30 6% 25%;
+    --ring: 60 9% 98%;
+
+    /* text levels and hairlines */
+    --text: 24 6% 83%;             /* #d6d3d1 body copy */
+    --subtle: 24 5% 64%;           /* #a8a29e secondary */
+    --dim: 25 5% 52%;              /* #8a837e tertiary, ~5.3:1 */
+    --line: 12 6% 15%;             /* #292524 hairline */
+    --raise: 24 10% 10%;           /* #1c1917 */
+    --error: 347 77% 50%;          /* #e11d48 */
 
     --radius: 0;
   }
@@ -44,19 +78,76 @@
   html {
     overflow-y: scroll; /* Prevent layout shift from scrollbar */
     scrollbar-width: thin;
-    scrollbar-color: gray transparent;
+    scrollbar-color: hsl(var(--border)) transparent;
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    font-variant-ligatures: none; /* keep -> and != literal in log lines */
+    -webkit-font-smoothing: antialiased;
   }
-  /* Form controls default to white in browsers — give them a dark surface */
+  ::selection {
+    background: hsl(var(--accent));
+    color: hsl(var(--accent-foreground));
+  }
+  /* Form controls default to white in browsers: give them a dark surface */
   input, textarea, select {
     @apply bg-background text-foreground;
   }
+  /* Square radios and checkboxes: a lime block when on, like a TUI. */
+  input[type='radio'],
+  input[type='checkbox'] {
+    appearance: none;
+    display: inline-grid;
+    place-content: center;
+    width: 14px;
+    height: 14px;
+    border: 1px solid hsl(var(--subtle));
+    background: transparent;
+  }
+  input[type='radio']:checked::before,
+  input[type='checkbox']:checked::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: hsl(var(--accent));
+  }
+  input[type='radio']:focus-visible,
+  input[type='checkbox']:focus-visible {
+    outline: 1px solid hsl(var(--foreground));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Bordered panel with its title set into the top border, like a TUI pane. */
+  .pane { position: relative; border: 1px solid hsl(var(--border)); }
+  .pane-title,
+  .pane-right {
+    position: absolute; top: -0.8em; padding: 0 8px;
+    background: hsl(var(--background)); font-size: 12px; line-height: 1.6; color: hsl(var(--subtle));
+  }
+  .pane-title { left: 12px; }
+  .pane-right { right: 12px; display: flex; align-items: center; gap: 6px; }
+
+  /* "active  last 7 days ─────────" */
+  .rule-label { display: flex; align-items: center; gap: 12px; font-size: 12px; color: hsl(var(--dim)); }
+  .rule-label::after { content: ""; flex: 1; height: 1px; background: hsl(var(--line)); }
+  .rule-label b { color: hsl(var(--foreground)); font-weight: 700; }
+
+  /* keyboard hint chip: "e mark all seen" */
+  .key {
+    display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+    border: 1px solid hsl(var(--border)); padding: 5px 12px; font-size: 12px; color: hsl(var(--foreground));
+  }
+  .key:hover { border-color: hsl(var(--foreground)); }
+  .key kbd { font-family: inherit; color: hsl(var(--dim)); }
 }
 
 @layer utilities {
+  .scrollbar-hide {
+    scrollbar-width: none; /* Chrome ignores the webkit rule once scrollbar-color is set */
+  }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }

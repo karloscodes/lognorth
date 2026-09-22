@@ -7,10 +7,11 @@ export default {
 	],
 	prefix: "",
 	theme: {
+		// One family everywhere: IBM Plex Mono, bundled via @font-face in index.css.
 		fontFamily: {
-			sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-			mono: ['JetBrains Mono', 'SF Mono', 'Monaco', 'Consolas', 'monospace'],
-			wordmark: ['Geist Mono', 'monospace'],
+			sans: ['IBM Plex Mono', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
+			mono: ['IBM Plex Mono', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
+			wordmark: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
 		},
 		extend: {
 			colors: {
@@ -47,6 +48,12 @@ export default {
 					DEFAULT: "hsl(var(--card) / <alpha-value>)",
 					foreground: "hsl(var(--card-foreground) / <alpha-value>)",
 				},
+				text: "hsl(var(--text) / <alpha-value>)",
+				subtle: "hsl(var(--subtle) / <alpha-value>)",
+				dim: "hsl(var(--dim) / <alpha-value>)",
+				line: "hsl(var(--line) / <alpha-value>)",
+				raise: "hsl(var(--raise) / <alpha-value>)",
+				error: "hsl(var(--error) / <alpha-value>)",
 			},
 			borderRadius: {
 				lg: "var(--radius)",
