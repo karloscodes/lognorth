@@ -10,7 +10,9 @@ interface Props {
   recentIssues?: Issue[]
 }
 
-const APP_COLS = 'grid grid-cols-[1fr_7ch_5ch_11ch_9ch_22ch] gap-4 max-md:grid-cols-[1fr_7ch]'
+// Widths in px, not ch: the header row is 11px and the rows 13px, and ch would
+// size the same column differently in each.
+const APP_COLS = 'grid grid-cols-[1fr_56px_40px_88px_72px_176px] gap-4 max-md:grid-cols-[1fr_56px]'
 
 // Uptime at a glance: "up 84ms · 99.98%" or "down 12m".
 function PingCell({ app }: { app: Application }) {

@@ -38,7 +38,9 @@ interface Props {
   applications?: Application[]
 }
 
-const COLS = 'grid grid-cols-[1fr_9ch_150px_8ch_8ch] items-center gap-4 max-md:grid-cols-[1fr_7ch_7ch]'
+// Widths in px, not ch: the header row is 11px and the rows 13px, and ch would
+// size the same column differently in each.
+const COLS = 'grid grid-cols-[1fr_72px_150px_64px_64px] items-center gap-4 max-md:grid-cols-[1fr_56px_56px]'
 
 function EndpointRow({ endpoint, alert, maxRate, appId }: { endpoint: EndpointStats; alert?: Alert; maxRate: number; appId: number }) {
   const [expanded, setExpanded] = useState(false)

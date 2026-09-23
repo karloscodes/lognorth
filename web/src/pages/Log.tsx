@@ -109,7 +109,9 @@ const groupByTraceId = (entries: LogEntry[]): LogGroup[] => {
 }
 
 // Columns: time, method, path or message, status, duration.
-const ROW = 'grid grid-cols-[19ch_5ch_1fr_5ch_8ch] items-center gap-3.5 max-md:grid-cols-[5ch_1fr_4ch_7ch]'
+// Widths in px, not ch: the header row is 11px and the rows 13px, and ch would
+// size the same column differently in each.
+const ROW = 'grid grid-cols-[148px_40px_1fr_40px_64px] items-center gap-3.5 max-md:grid-cols-[40px_1fr_32px_56px]'
 
 function LogRow({ entry, appId, child, inGroup }: { entry: LogEntry; appId?: number; child?: boolean; inGroup?: boolean }) {
   const ctx = parseContext(entry.context)
