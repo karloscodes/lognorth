@@ -6,6 +6,7 @@ import { TraceTree } from '@/components/trace-tree'
 import { Mono, parseContext, statusColor } from '@/lib/shared'
 import type { Application, IssueDetail as IssueDetailType, OccurrencePoint, LogEntry, RelatedLocation } from '@/lib/shared'
 import { pageKey } from '@/lib/keys'
+import { usePageCommand } from '@/lib/commands'
 import { StackTrace } from '@/components/stack-trace'
 
 interface PathCount {
@@ -27,6 +28,7 @@ interface Props {
 export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
   const issuesPath = `/apps/${appId}/issues`
   const toggleMute = () => router.post(`/issues/${issue.hash}/${issue.muted ? 'unmute' : 'mute'}`, {}, { preserveScroll: true })
+  usePageCommand('mute', () => toggleMute())
 
   // esc goes back to the list, m mutes.
   useEffect(() => {

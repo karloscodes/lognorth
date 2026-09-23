@@ -42,6 +42,55 @@ test.describe("Navigation Tests", () => {
 		helpers.log(`Home page: ${hasIssues ? "has issues" : "all clear"}`);
 	});
 
+	test("The : command line completes and runs commands", async ({ page }) => {
+		helpers.log("Testing the command line");
+
+		// An app to act on
+		await helpers.navigateTo("/apps");
+		const nameInput = page.locator('input[name="name"]');
+		if (await nameInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+			await nameInput.fill("Command Line App");
+			await page.click('button[type="submit"]');
+			await page.waitForLoadState("networkidle");
+		}
+		await helpers.navigateTo("/");
+		const line = page.getByRole("textbox", { name: "Command" });
+
+		// Tab completes the command, then the app name
+		await page.keyboard.press(":");
+		await expect(line).toBeFocused();
+		await page.keyboard.type("ap");
+		await page.keyboard.press("Tab");
+		await expect(line).toHaveValue("app");
+		await page.keyboard.type(" ");
+		await page.keyboard.press("Tab");
+		await expect(line).toHaveValue(/^app \S+/);
+		await page.keyboard.press("Enter");
+		await expect(page).toHaveURL(/\/apps\/\d+\/issues$/);
+
+		// :since opens the logs from that time, :search keeps it
+		await page.keyboard.press(":");
+		await page.keyboard.type("since 2h");
+		await page.keyboard.press("Enter");
+		await expect(page).toHaveURL(/\/log\?start_time=/);
+		await page.keyboard.press(":");
+		await page.keyboard.type("search 503");
+		await page.keyboard.press("Enter");
+		await expect(page).toHaveURL(/start_time=.*search=503/);
+
+		// An unknown command says so, like vim
+		await page.keyboard.press(":");
+		await page.keyboard.type("wq");
+		await page.keyboard.press("Enter");
+		await expect(page.getByRole("status")).toHaveText("E492: Not an editor command: wq");
+
+		// :q goes home
+		await page.keyboard.press(":");
+		await page.keyboard.type("q");
+		await page.keyboard.press("Enter");
+		await expect(page).toHaveURL(/\/$/);
+	});
+
 	test("Settings is split into sub-pages with sidebar nav", async ({ page }) => {
 		helpers.log("Testing settings sub-pages");
 

@@ -4,6 +4,8 @@ import { Link, router, usePage } from '@inertiajs/react'
 import type { Application } from '@/lib/shared'
 import { typing } from '@/lib/keys'
 import { uptimeLabel } from '@/lib/uptime'
+import { COMMAND_HELP, sectionPath } from '@/lib/commands'
+import { CommandLine } from '@/components/command-line'
 
 interface LayoutProps {
   children: ReactNode
@@ -40,14 +42,6 @@ function Logo() {
       <span className="text-accent">[</span>lognorth<span className="text-accent">]</span>
     </span>
   )
-}
-
-// Where switching apps lands: the same section, if the app has it.
-function sectionPath(appId: number): string {
-  const path = window.location.pathname
-  if (path.includes('/log')) return `/apps/${appId}/log`
-  if (path.includes('/endpoints')) return `/apps/${appId}/endpoints`
-  return `/apps/${appId}/issues`
 }
 
 function FeedbackPanel({ onClose }: { onClose: () => void }) {
@@ -99,8 +93,11 @@ function HelpOverlay({ onClose, appScoped }: { onClose: () => void; appScoped: b
           ['m', 'mute issue'],
           ['e / E', 'mark seen, mark all seen'],
           ['/', 'search logs'],
+          [':', 'command line'],
           ['?', 'these keys'],
         ])}
+        <h4 className="mb-2 mt-4 text-xs text-dim">command line · :, then</h4>
+        {rows(COMMAND_HELP)}
       </div>
     </div>
   )
@@ -130,6 +127,8 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
   const [tabSel, setTabSel] = useState(-1)
   const [help, setHelp] = useState(false)
   const [feedback, setFeedback] = useState(false)
+  const [command, setCommand] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
   const [hints, setHints] = useState<{ key: string; left: number; top: number }[]>([])
   const pickerRef = useRef<HTMLDivElement>(null)
 
@@ -138,6 +137,19 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
     c.toggle('prefix', prefix)
     c.toggle('picking', picking)
   }, [prefix, picking])
+
+  // What the last command said stays in the status bar for a few seconds.
+  useEffect(() => {
+    if (!message) return
+    const t = setTimeout(() => setMessage(null), 4000)
+    return () => clearTimeout(t)
+  }, [message])
+  const openCommand = () => {
+    setHelp(false)
+    setFeedback(false)
+    setMessage(null)
+    setCommand(true)
+  }
 
   // Hint badges on everything with a data-key, placed from their screen position.
   const placeHints = () => {
@@ -214,6 +226,10 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
         return openPrefix()
       }
       if (typing(e)) return
+      if (e.key === ':' && !command) {
+        e.preventDefault()
+        return openCommand()
+      }
       if (e.key === 'Escape') {
         if (help) return setHelp(false)
         if (feedback) return setFeedback(false)
@@ -371,53 +387,74 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
 
       {/* Status bar: mode, screen, and the keys that work right now. Hidden on phones. */}
       <div className="status-bar fixed inset-x-0 bottom-0 z-40 hidden h-7 border-t border-line bg-raise text-xs text-subtle md:flex">
-        <span className={`flex items-center px-3 font-bold uppercase ${prefix || picking ? 'bg-accent text-accent-foreground' : 'bg-border text-foreground'}`}>
-          {picking ? 'apps' : prefix ? 'navigate' : 'normal'}
-        </span>
-        {screen && <span className="flex items-center border-r border-line px-3 text-foreground">{screen}</span>}
-        {isDemo && <span className="flex items-center border-r border-line px-3 text-foreground">[RO] demo</span>}
-        {appName && (
-          <span className="flex items-center gap-2 px-3">
-            {appName}
-            {currentUptime && currentUptime.status !== 'none' && (
-              <a href={`/apps/${appId}/endpoints`} className={`flex items-center gap-1.5 ${uptime.bad ? 'font-bold text-error' : 'text-subtle'} hover:text-foreground`} title={currentUptime.url}>
-                · <i className={`h-[7px] w-[7px] ${uptime.dot}`} />
-                {uptime.text}
-              </a>
-            )}
-          </span>
-        )}
-        <span className="flex-1" />
-        <span className="flex items-center gap-3.5 px-3">
-          {(prefix
-            ? ([
-                ...(tabs.length ? ([['1-3', 'tab'], ['h/l', 'move'], ['w', 'apps']] as [string, string][]) : []),
-                ['0', 'home'],
-                ['s', 'settings'],
-                ['esc', 'cancel'],
-              ] as [string, string][])
-            : picking
-              ? ([['j/k', 'move'], ['enter', 'switch'], ['esc', 'cancel']] as [string, string][])
-              : screenKeys
-          ).map(([k, v]) => (
-            <span key={k}>
-              <kbd className="mr-1 font-[inherit] text-foreground">{k}</kbd>
-              {v}
-            </span>
-          ))}
-        </span>
-        {!prefix && !picking && (
+        {command ? (
+          <CommandLine
+            ctx={{ appId, applications, openHelp: () => setHelp(true) }}
+            onClose={(said) => {
+              setCommand(false)
+              setMessage(said ?? null)
+            }}
+          />
+        ) : (
           <>
-            <button onClick={() => setHelp(true)} className="flex items-center border-l border-line px-3 hover:text-foreground">
-              <kbd className="mr-1 font-[inherit] text-foreground">?</kbd>keys
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); openPrefix() }} className="flex items-center border-l border-line px-3 hover:text-foreground">
-              <kbd className="mr-1 font-[inherit] text-foreground">ctrl+b</kbd>navigate
-            </button>
-            {!isDemo && (
-              <button onClick={() => setFeedback((f) => !f)} className="flex items-center border-l border-line px-3 hover:text-foreground">
-                feedback
-              </button>
+            <span className={`flex items-center px-3 font-bold uppercase ${prefix || picking ? 'bg-accent text-accent-foreground' : 'bg-border text-foreground'}`}>
+              {picking ? 'apps' : prefix ? 'navigate' : 'normal'}
+            </span>
+            {screen && <span className="flex items-center border-r border-line px-3 text-foreground">{screen}</span>}
+            {isDemo && <span className="flex items-center border-r border-line px-3 text-foreground">[RO] demo</span>}
+            {appName && (
+              <span className="flex items-center gap-2 px-3">
+                {appName}
+                {currentUptime && currentUptime.status !== 'none' && (
+                  <a href={`/apps/${appId}/endpoints`} className={`flex items-center gap-1.5 ${uptime.bad ? 'font-bold text-error' : 'text-subtle'} hover:text-foreground`} title={currentUptime.url}>
+                    · <i className={`h-[7px] w-[7px] ${uptime.dot}`} />
+                    {uptime.text}
+                  </a>
+                )}
+              </span>
+            )}
+            <span className="flex-1" />
+            {message && !prefix && !picking ? (
+              <span className={`flex items-center px-3 ${message.startsWith('E') ? 'font-bold text-error' : 'text-foreground'}`} role="status">
+                {message}
+              </span>
+            ) : (
+              <span className="flex items-center gap-3.5 px-3">
+                {(prefix
+                  ? ([
+                      ...(tabs.length ? ([['1-3', 'tab'], ['h/l', 'move'], ['w', 'apps']] as [string, string][]) : []),
+                      ['0', 'home'],
+                      ['s', 'settings'],
+                      ['esc', 'cancel'],
+                    ] as [string, string][])
+                  : picking
+                    ? ([['j/k', 'move'], ['enter', 'switch'], ['esc', 'cancel']] as [string, string][])
+                    : screenKeys
+                ).map(([k, v]) => (
+                  <span key={k}>
+                    <kbd className="mr-1 font-[inherit] text-foreground">{k}</kbd>
+                    {v}
+                  </span>
+                ))}
+              </span>
+            )}
+            {!prefix && !picking && (
+              <>
+                <button onClick={openCommand} className="flex items-center border-l border-line px-3 hover:text-foreground">
+                  <kbd className="mr-1 font-[inherit] text-foreground">:</kbd>command
+                </button>
+                <button onClick={() => setHelp(true)} className="flex items-center border-l border-line px-3 hover:text-foreground">
+                  <kbd className="mr-1 font-[inherit] text-foreground">?</kbd>keys
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); openPrefix() }} className="flex items-center border-l border-line px-3 hover:text-foreground">
+                  <kbd className="mr-1 font-[inherit] text-foreground">ctrl+b</kbd>navigate
+                </button>
+                {!isDemo && (
+                  <button onClick={() => setFeedback((f) => !f)} className="flex items-center border-l border-line px-3 hover:text-foreground">
+                    feedback
+                  </button>
+                )}
+              </>
             )}
           </>
         )}

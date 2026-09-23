@@ -5,6 +5,7 @@ import { Layout } from '@/components/layout'
 import { Mono, PageHeader, EmptyState } from '@/lib/shared'
 import type { Application, Issue } from '@/lib/shared'
 import { pageKey } from '@/lib/keys'
+import { usePageCommand } from '@/lib/commands'
 
 interface Props {
   issues?: Issue[]
@@ -51,6 +52,11 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
 
   // Keys on the list: j/k move, enter opens, m mutes, e marks seen, E marks all seen.
   const [sel, setSel] = useState(0)
+  usePageCommand('mute', () => {
+    const current = ordered[Math.min(sel, ordered.length - 1)]
+    if (!current) return 'E: no issue to mute'
+    toggleMute(current)
+  })
   const rowRefs = useRef<(HTMLDivElement | null)[]>([])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
