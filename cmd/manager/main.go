@@ -88,7 +88,7 @@ func printUsage() {
 	fmt.Println("  reset-password <email>  Set a new password for a user")
 	fmt.Println()
 	fmt.Println("From any machine:")
-	fmt.Println("  connect <url> <agent key>  Save where to read from (Settings > Developer)")
+	fmt.Println("  connect [url] [agent key]  Save where to read from; asks for what you leave out")
 	fmt.Println("  tail [flags] [search]      Follow the log: --errors, --path /checkout, --app name")
 	fmt.Println("  top [--app name]           Endpoints, alerts, and uptime, live")
 	fmt.Println()

@@ -27,6 +27,10 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
     setTimeout(() => setCopiedStep(null), 2000)
   }
 
+  // The terminal: one command installs lognorth and connects it. Without the
+  // key at hand (it shows once), the installer asks for it.
+  const terminalCommand = `curl -fsSL https://lognorth.com/cli | sh -s -- ${origin}${newAgentKey ? ` ${newAgentKey}` : ''}`
+
   const setupSteps = [
     '/plugin marketplace add karloscodes/lognorth-releases',
     '/plugin install lognorth',
@@ -182,7 +186,7 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
           <code className="font-mono">karloscodes/lognorth-releases</code> there.
         </p>
         <p className="text-sm text-subtle mt-2">
-          Restart Claude Code and it has four read-only tools over your log. Other clients take the same
+          Restart Claude Code and it has eight read-only tools over your log. Other clients take the same
           endpoint:{' '}
           <code className="font-mono">{origin}/mcp</code>.{' '}
           <a
@@ -191,6 +195,31 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
             rel="noopener noreferrer"
             className="underline hover:text-foreground"
           >
+            Docs →
+          </a>
+        </p>
+      </div>
+
+      <div className="mt-6 border border-line bg-raise/40 p-4">
+        <p className="mb-2 text-sm font-bold text-foreground">Terminal</p>
+        <p className="mb-3 text-sm text-subtle">
+          <code className="font-mono">lognorth tail</code> follows the log and <code className="font-mono">lognorth top</code> shows one app
+          live, from your laptop. This installs it and connects it to this server
+          {newAgentKey ? ' with the key above.' : '. It asks for the agent key.'}
+        </p>
+        <div className="flex items-start gap-2">
+          <code className="flex-1 break-all border border-line bg-card px-3 py-1 font-mono text-sm text-text">{terminalCommand}</code>
+          <button
+            type="button"
+            onClick={() => copyStep(9, terminalCommand)}
+            className="shrink-0 border border-border px-3 py-1 text-xs font-bold text-text transition-colors hover:border-foreground hover:text-foreground"
+          >
+            {copiedStep === 9 ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+        <p className="mt-3 text-sm text-subtle">
+          macOS or Linux, no sudo.{' '}
+          <a href="https://lognorth.com/docs/features/terminal/" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
             Docs →
           </a>
         </p>

@@ -123,6 +123,30 @@ func TestConnect(t *testing.T) {
 		}
 	})
 
+	t.Run("a missing key without a terminal says how to pass it, instead of waiting", func(t *testing.T) {
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		err := connect([]string{"https://logs.example.com"})
+
+		if err == nil || !strings.Contains(err.Error(), "usage: lognorth connect <url> <agent key>") {
+			t.Errorf("err = %v, want the usage line", err)
+		}
+	})
+
+	t.Run("a URL without a scheme is https, except on this machine", func(t *testing.T) {
+		for in, want := range map[string]string{
+			"logs.example.com/":        "https://logs.example.com",
+			"logs.example.com/mcp":     "https://logs.example.com",
+			"localhost:8080":           "http://localhost:8080",
+			"127.0.0.1:8080/mcp":       "http://127.0.0.1:8080",
+			"http://logs.internal:80/": "http://logs.internal:80",
+		} {
+			if got := normalizeURL(in); got != want {
+				t.Errorf("normalizeURL(%q) = %q, want %q", in, got, want)
+			}
+		}
+	})
+
 	t.Run("the plugin's environment variables win over the file", func(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 		t.Setenv("LOGNORTH_URL", "logs.example.com/")

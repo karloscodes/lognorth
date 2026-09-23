@@ -5,6 +5,7 @@ package main
 // no API of their own, so an agent and a person read the same tools.
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -86,16 +87,27 @@ func normalizeURL(url string) string {
 	url = strings.TrimRight(strings.TrimSpace(url), "/")
 	url = strings.TrimSuffix(url, "/mcp")
 	if !strings.Contains(url, "://") {
-		url = "https://" + url
+		scheme := "https://"
+		if strings.HasPrefix(url, "localhost") || strings.HasPrefix(url, "127.0.0.1") {
+			scheme = "http://" // a LogNorth on this machine has no TLS
+		}
+		url = scheme + url
 	}
 	return url
 }
 
-// connect checks the URL and key against the server, then saves them.
+// connect checks the URL and key against the server, then saves them. It
+// asks for whatever the arguments leave out, and hides the key as you paste it.
 func connect(args []string) error {
-	if len(args) != 2 {
-		return errors.New("usage: lognorth connect <url> <agent key>\n" +
-			"The agent key is in LogNorth under Settings > Developer. It starts with lgn-agent-.")
+	if len(args) > 2 {
+		return errors.New("usage: lognorth connect [url] [agent key]")
+	}
+	for len(args) < 2 {
+		answer, err := ask(len(args))
+		if err != nil {
+			return err
+		}
+		args = append(args, answer)
 	}
 	r := remote{URL: normalizeURL(args[0]), Key: strings.TrimSpace(args[1])}
 	if !strings.HasPrefix(r.Key, "lgn-agent-") {
@@ -125,6 +137,23 @@ func connect(args []string) error {
 			normalizeURL(os.Getenv("LOGNORTH_URL")), r.URL)
 	}
 	return nil
+}
+
+// ask prompts for the URL (step 0) or the agent key (step 1).
+func ask(step int) (string, error) {
+	in := int(os.Stdin.Fd())
+	if !term.IsTerminal(in) {
+		return "", errors.New("usage: lognorth connect <url> <agent key>. The agent key is in LogNorth under Settings > Developer")
+	}
+	if step == 0 {
+		fmt.Print("LogNorth URL (https://logs.yoursite.com): ")
+		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		return strings.TrimSpace(line), err
+	}
+	fmt.Print("Agent key, from Settings > Developer (hidden): ")
+	key, err := term.ReadPassword(in)
+	fmt.Println()
+	return strings.TrimSpace(string(key)), err
 }
 
 // errRateLimited means the server allows no more agent calls this minute.
