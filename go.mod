@@ -1,14 +1,14 @@
 module lognorth
 
-go 1.26
+go 1.26.0
 
 require (
-	github.com/gofiber/fiber/v2 v2.52.14
+	github.com/gofiber/fiber/v2 v2.52.15
 	github.com/karloscodes/cartridge v0.15.5
 	github.com/karloscodes/matcha v0.12.18
 	go.opentelemetry.io/proto/otlp v1.11.0
-	golang.org/x/term v0.45.0
-	google.golang.org/protobuf v1.36.11
+	golang.org/x/term v0.46.0
+	google.golang.org/protobuf v1.36.12
 	gorm.io/gorm v1.31.2
 )
 
@@ -46,7 +46,7 @@ require (
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260720211330-0afa2a65878a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260720211330-0afa2a65878a // indirect
