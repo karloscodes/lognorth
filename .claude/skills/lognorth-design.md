@@ -60,6 +60,11 @@ never as hex values.
   Logs: `/`.
 - **Status bar** (`layout.tsx`, desktop only): mode, screen, and the keys that
   work right now. Add a screen's keys to `SCREEN_KEYS`.
+- **Command line:** `:` opens a vim-style line in the status bar
+  (`components/command-line.tsx`). Commands that work anywhere live in
+  `COMMANDS` in `lib/commands.ts`; a page adds its own while it is on screen
+  with `usePageCommand('mute', fn)`. A command returns nothing or a status
+  line, and a line that starts with `E` shows red. Tab completes, ↑ ↓ recall.
 
 ## Voice
 

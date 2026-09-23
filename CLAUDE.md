@@ -46,14 +46,21 @@ SDK → POST /api/v1/events → IngestedEvent table (fast write)
 ### Agent Access
 
 Agents read the log through MCP only. `POST /mcp` speaks JSON-RPC over HTTP,
-authenticated with the agent key from Settings > Developer, and exposes six
-read-only tools: `list_apps`, `list_alerts`, `endpoint_timeline`,
-`list_issues`, `search_logs`, `get_event`. There is no REST read API. The
-protocol lives in `internal/mcp`; the handler is `internal/http/mcp.go`.
+authenticated with the agent key from Settings > Developer, and exposes eight
+read-only tools: `list_apps`, `list_alerts`, `list_endpoints`,
+`endpoint_timeline`, `uptime_timeline`, `list_issues`, `search_logs`,
+`get_event`. There is no REST read API. The protocol lives in `internal/mcp`;
+the handler is `internal/http/mcp.go`.
+
+The `lognorth` command reads the same tools from any machine: `lognorth
+connect`, `tail`, and `top` live in `cmd/manager` (`remote.go`, `tail.go`,
+`top.go`). `tail` follows the log with `search_logs` `after_id`, so it never
+misses an event that arrives late. They share the agent rate limit, 60 calls a
+minute per IP, so `top` refreshes every 5 seconds.
 
 Every alert email ends with `/lognorth:investigate <path or issue hash>`, a
 command in the plugin repo (`lognorth-releases`). Keep the tool names in sync
-with that plugin's skill.
+with that plugin's skill and with the `lognorth` command.
 
 ### Alerting
 
@@ -158,6 +165,8 @@ never as hex values.
 - **Red means error.** Never decorative. An endpoint turns red only when it
   alerts against its own history (`events.ListAlerts`), not by a fixed rate.
 - **No rounded corners.** `--radius` is 0. Radios and checkboxes are squares.
+- **Table columns in px, not `ch`.** Header rows are 11px and data rows 13px,
+  and `ch` would size the same column differently in each.
 - **Font:** IBM Plex Mono only, bundled in `web/src/fonts/` (OFL) and loaded by
   `@font-face` in `index.css`. Vite hashes the files into `/assets`, so a
   self-hosted install makes no third-party font requests. Max weight is 700.
@@ -187,6 +196,11 @@ never as hex values.
   Logs: `/`.
 - **Status bar** (`layout.tsx`, desktop only): mode, screen, and the keys that
   work right now. Add a screen's keys to `SCREEN_KEYS`.
+- **Command line:** `:` opens a vim-style line in the status bar
+  (`components/command-line.tsx`). Commands that work anywhere live in
+  `COMMANDS` in `lib/commands.ts`; a page adds its own while it is on screen
+  with `usePageCommand('mute', fn)`. A command returns nothing or a status
+  line, and a line that starts with `E` shows red. Tab completes, ↑ ↓ recall.
 
 ### Page Subtitles
 
