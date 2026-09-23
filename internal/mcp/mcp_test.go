@@ -14,6 +14,7 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/database"
 	"lognorth/internal/events"
+	"lognorth/internal/uptime"
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
@@ -161,7 +162,7 @@ func TestToolsList(t *testing.T) {
 	if !ok {
 		t.Fatalf("tools = %T, want a list", result["tools"])
 	}
-	want := []string{"list_apps", "list_alerts", "endpoint_timeline", "list_issues", "search_logs", "get_event"}
+	want := []string{"list_apps", "list_alerts", "list_endpoints", "endpoint_timeline", "uptime_timeline", "list_issues", "search_logs", "get_event"}
 	if len(listed) != len(want) {
 		t.Fatalf("listed %d tools, want %d", len(listed), len(want))
 	}
@@ -311,6 +312,46 @@ func TestSearchLogs(t *testing.T) {
 
 		if text := toolText(t, result); !strings.Contains(text, "/old") {
 			t.Errorf("text = %q, want the event after the given time", text)
+		}
+	})
+
+	t.Run("after_id returns the newer events oldest first", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		var newest events.Event
+		db.Order("id DESC").First(&newest)
+		for _, msg := range []string{"GET /a 200", "GET /b 200"} {
+			e := &events.Event{APIKeyID: appID, Message: msg, Timestamp: time.Now()}
+			if err := events.Create(db, e); err != nil {
+				t.Fatalf("Failed to create event: %v", err)
+			}
+		}
+
+		result := call(t, db, "tools/call", `{"name":"search_logs","arguments":{"after_id":`+itoa(newest.ID)+`}}`)
+
+		var payload struct {
+			Events []events.Event `json:"events"`
+		}
+		json.Unmarshal([]byte(toolText(t, result)), &payload)
+		if len(payload.Events) != 2 || payload.Events[0].Message != "GET /a 200" || payload.Events[1].Message != "GET /b 200" {
+			t.Errorf("events = %+v, want /a then /b", payload.Events)
+		}
+	})
+
+	t.Run("after_id finds an event whose timestamp arrived late", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		var newest events.Event
+		db.Order("id DESC").First(&newest)
+		late := &events.Event{APIKeyID: appID, Message: "GET /late 200", Timestamp: time.Now().Add(-3 * time.Hour)}
+		if err := events.Create(db, late); err != nil {
+			t.Fatalf("Failed to create event: %v", err)
+		}
+
+		result := call(t, db, "tools/call", `{"name":"search_logs","arguments":{"after_id":`+itoa(newest.ID)+`}}`)
+
+		if text := toolText(t, result); !strings.Contains(text, "GET /late 200") {
+			t.Errorf("text = %q, want the late event", text)
 		}
 	})
 
@@ -497,6 +538,93 @@ func TestEndpointTimeline(t *testing.T) {
 
 		if text := toolErrorText(t, result); !strings.Contains(text, "path") {
 			t.Errorf("text = %q, want the missing path named", text)
+		}
+	})
+}
+
+func TestListEndpoints(t *testing.T) {
+	record := func(db *gorm.DB, appID uint, path string, at time.Time, total, errors int64) {
+		db.Create(&events.EndpointStat{APIKeyID: appID, Path: path, Bucket: at, Total: total, Errors: errors, AvgDuration: 40})
+	}
+
+	t.Run("lists the last hour, most broken first", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		at := events.LastCompleteBucketTime()
+		record(db, appID, "/health", at, 200, 0)
+		record(db, appID, "/pay", at, 100, 20)
+		record(db, appID, "/old", at.Add(-3*time.Hour), 50, 50)
+
+		result := call(t, db, "tools/call", `{"name":"list_endpoints","arguments":{}}`)
+
+		var payload struct {
+			Endpoints []events.EndpointStats `json:"endpoints"`
+		}
+		json.Unmarshal([]byte(toolText(t, result)), &payload)
+		if len(payload.Endpoints) != 2 {
+			t.Fatalf("endpoints = %+v, want /pay and /health from the last hour", payload.Endpoints)
+		}
+		if first := payload.Endpoints[0]; first.Path != "/pay" || first.Total != 100 || first.ErrorRate != 20 {
+			t.Errorf("first = %+v, want /pay at 20%%", first)
+		}
+	})
+
+	t.Run("since reaches further back", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		record(db, appID, "/old", events.LastCompleteBucketTime().Add(-3*time.Hour), 50, 50)
+
+		result := call(t, db, "tools/call", `{"name":"list_endpoints","arguments":{"since":"6h"}}`)
+
+		if text := toolText(t, result); !strings.Contains(text, "/old") {
+			t.Errorf("text = %q, want the endpoint from 3 hours ago", text)
+		}
+	})
+
+	t.Run("asks for app_id when there are two apps", func(t *testing.T) {
+		db := setupTestDB(t)
+		seedApp(t, db, "checkout-prod")
+		seedApp(t, db, "checkout-staging")
+
+		result := call(t, db, "tools/call", `{"name":"list_endpoints","arguments":{}}`)
+
+		if text := toolErrorText(t, result); !strings.Contains(text, "pass app_id") {
+			t.Errorf("error = %q, want a request for app_id", text)
+		}
+	})
+}
+
+func TestUptimeTimeline(t *testing.T) {
+	t.Run("returns the latest ping and why pings failed", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		db.Model(&apikeys.APIKey{}).Where("id = ?", appID).Update("ping_url", "https://shop.example.com/up")
+		now := time.Now()
+		uptime.Record(db, &uptime.Check{APIKeyID: appID, CheckedAt: now.Add(-10 * time.Minute), Status: 503, LatencyMS: 900})
+		uptime.Record(db, &uptime.Check{APIKeyID: appID, CheckedAt: now.Add(-time.Minute), Up: true, Status: 200, LatencyMS: 84})
+
+		result := call(t, db, "tools/call", `{"name":"uptime_timeline","arguments":{}}`)
+
+		var report uptime.Report
+		json.Unmarshal([]byte(toolText(t, result)), &report)
+		if report.Status != "up" || report.LatencyMS != 84 {
+			t.Errorf("state = %s %dms, want up 84ms", report.Status, report.LatencyMS)
+		}
+		if len(report.Bars) != 96 {
+			t.Errorf("got %d bars, want 96", len(report.Bars))
+		}
+		if report.LastFailure == nil || report.LastFailure.Status != 503 {
+			t.Errorf("last failure = %+v, want the 503", report.LastFailure)
+		}
+	})
+
+	t.Run("says so when the app does not exist", func(t *testing.T) {
+		db := setupTestDB(t)
+
+		result := call(t, db, "tools/call", `{"name":"uptime_timeline","arguments":{"app_id":42}}`)
+
+		if text := toolErrorText(t, result); !strings.Contains(text, "no app with id 42") {
+			t.Errorf("error = %q, want the missing app", text)
 		}
 	})
 }

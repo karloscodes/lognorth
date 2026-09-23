@@ -263,7 +263,7 @@ func TestMCPToolsList(t *testing.T) {
 		} `json:"result"`
 	}
 	json.Unmarshal([]byte(body), &res)
-	want := []string{"list_apps", "list_alerts", "endpoint_timeline", "list_issues", "search_logs", "get_event"}
+	want := []string{"list_apps", "list_alerts", "list_endpoints", "endpoint_timeline", "uptime_timeline", "list_issues", "search_logs", "get_event"}
 	if len(res.Result.Tools) != len(want) {
 		t.Fatalf("listed %d tools, want %d", len(res.Result.Tools), len(want))
 	}

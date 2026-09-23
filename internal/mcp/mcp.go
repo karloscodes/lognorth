@@ -18,6 +18,7 @@ import (
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
+	"lognorth/internal/uptime"
 )
 
 // Protocol revisions we understand. We answer with the client's revision when
@@ -112,6 +113,19 @@ var Tools = []map[string]any{
 		},
 	},
 	{
+		"name": "list_endpoints",
+		"description": "Every endpoint of one app with its requests, errors, error rate, and average duration over a window, most broken first. " +
+			"Use it to see which endpoints fail right now before you drill into one with endpoint_timeline.",
+		"inputSchema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"app_id": map[string]any{"type": "integer", "description": "The app, from list_apps. Optional when there is only one app."},
+				"since":  map[string]any{"type": "string", "description": "How far back: 1h, 24h, 7d. Default 1h. History goes back 29 days."},
+				"limit":  map[string]any{"type": "integer", "description": "Max endpoints, 1 to 200. Default 50."},
+			},
+		},
+	},
+	{
 		"name": "endpoint_timeline",
 		"description": "Requests, errors, and error rate for one endpoint over time, with its normal error rate and volume for this time of day. " +
 			"Use it to see when a problem started, then compare that time with deploys and commits. " +
@@ -124,6 +138,15 @@ var Tools = []map[string]any{
 				"since":  map[string]any{"type": "string", "description": "How far back: 30m, 6h, 7d. Default 6h."},
 			},
 			"required": []string{"path"},
+		},
+	},
+	{
+		"name": "uptime_timeline",
+		"description": "Whether an app's URL answers LogNorth's uptime ping, checked every minute: the latest result, response time, uptime over 24 hours, " +
+			"and the last 24 hours in 15-minute bars that say why pings failed (an HTTP status or a timeout). Use it when an app may be down.",
+		"inputSchema": map[string]any{
+			"type":       "object",
+			"properties": map[string]any{"app_id": map[string]any{"type": "integer", "description": "The app, from list_apps. Optional when there is only one app."}},
 		},
 	},
 	{
@@ -150,6 +173,8 @@ var Tools = []map[string]any{
 				"until":       map[string]any{"type": "string", "description": "End of the window, in the same forms as since. Default now."},
 				"app_id":      map[string]any{"type": "integer", "description": "Restrict to one app, from list_apps."},
 				"limit":       map[string]any{"type": "integer", "description": "Max events, 1 to 200. Default 20."},
+				"after_id": map[string]any{"type": "integer", "description": "Only events stored after this event id, oldest first. " +
+					"Use it to follow the log: pass the highest id you have seen. With after_id, since has no default bound."},
 			},
 		},
 	},
@@ -195,8 +220,12 @@ func runTool(db *gorm.DB, name string, args map[string]any) (any, error) {
 		return listApps(db)
 	case "list_alerts":
 		return listAlerts(db, args)
+	case "list_endpoints":
+		return listEndpoints(db, args)
 	case "endpoint_timeline":
 		return endpointTimeline(db, args)
+	case "uptime_timeline":
+		return uptimeTimeline(db, args)
 	case "search_logs":
 		return searchLogs(db, args)
 	case "get_event":
@@ -223,7 +252,14 @@ func listApps(db *gorm.DB) (any, error) {
 }
 
 func searchLogs(db *gorm.DB, args map[string]any) (any, error) {
-	start, err := parseTime(argString(args, "since"), time.Hour)
+	// A follower pages by id, so the default one-hour window would hide an
+	// event whose timestamp arrived late.
+	afterID := uint(max(0, argInt(args, "after_id")))
+	window := time.Hour
+	if afterID > 0 {
+		window = 0
+	}
+	start, err := parseTime(argString(args, "since"), window)
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +275,7 @@ func searchLogs(db *gorm.DB, args map[string]any) (any, error) {
 		EndTime:   end,
 		Limit:     clampLimit(argInt(args, "limit")),
 		APIKeyID:  uint(argInt(args, "app_id")),
+		AfterID:   afterID,
 	}
 	if errorsOnly, ok := args["errors_only"].(bool); ok && errorsOnly {
 		filters.IsError = &errorsOnly
@@ -327,6 +364,70 @@ func endpointTimeline(db *gorm.DB, args map[string]any) (any, error) {
 		},
 		"points": points,
 	}, nil
+}
+
+func listEndpoints(db *gorm.DB, args map[string]any) (any, error) {
+	appID, err := onlyApp(db, uint(argInt(args, "app_id")))
+	if err != nil {
+		return nil, err
+	}
+
+	since := argString(args, "since")
+	if since == "" {
+		since = "1h"
+	}
+	from, err := parseTime(since, 0)
+	if err != nil {
+		return nil, err
+	}
+	if oldest := time.Now().Add(-events.StatsRetention); from.Before(oldest) {
+		from = oldest
+	}
+	limit := argInt(args, "limit")
+	if limit <= 0 {
+		limit = 50
+	}
+
+	stats, err := events.GetEndpointStatsSince(db, appID, from, min(limit, 200))
+	if err != nil {
+		return nil, fmt.Errorf("could not read the endpoints: %w", err)
+	}
+
+	return map[string]any{"app_id": appID, "since": from.UTC(), "endpoints": stats}, nil
+}
+
+func uptimeTimeline(db *gorm.DB, args map[string]any) (any, error) {
+	appID, err := onlyApp(db, uint(argInt(args, "app_id")))
+	if err != nil {
+		return nil, err
+	}
+	key, err := apikeys.FindByID(db, appID)
+	if err != nil {
+		return nil, fmt.Errorf("no app with id %d", appID)
+	}
+
+	return uptime.ReportFor(db, *key, time.Now(), 24*time.Hour, 96), nil
+}
+
+// onlyApp returns the app to read. The app_id may be left out when there is
+// only one app.
+func onlyApp(db *gorm.DB, appID uint) (uint, error) {
+	if appID > 0 {
+		return appID, nil
+	}
+
+	keys, err := apikeys.List(db)
+	if err != nil {
+		return 0, fmt.Errorf("could not read the apps: %w", err)
+	}
+	switch len(keys) {
+	case 0:
+		return 0, fmt.Errorf("no apps yet")
+	case 1:
+		return keys[0].ID, nil
+	default:
+		return 0, fmt.Errorf("%d apps: pass app_id, from list_apps", len(keys))
+	}
 }
 
 // resolveApp returns the app to read. The app_id may be left out when only

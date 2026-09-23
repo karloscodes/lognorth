@@ -242,6 +242,10 @@ type ListFilters struct {
 	EndTime   time.Time
 	Limit     int
 	Offset    int
+	// AfterID keeps only events stored after this id and returns them oldest
+	// first, so a follower pages forward in insertion order. Ids grow with
+	// every insert, so an event with a late timestamp is still found.
+	AfterID uint
 }
 
 // List retrieves events with optional filters
@@ -270,6 +274,9 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 		search := "%" + filters.Search + "%"
 		query = query.Where("message LIKE ? OR context LIKE ? OR trace_id LIKE ?", search, search, search)
 	}
+	if filters.AfterID > 0 {
+		query = query.Where("id > ?", filters.AfterID)
+	}
 
 	// Get total count before pagination
 	var total int64
@@ -287,8 +294,12 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 		query = query.Offset(filters.Offset)
 	}
 
+	order := "timestamp DESC"
+	if filters.AfterID > 0 {
+		order = "id ASC"
+	}
 	var events []Event
-	if err := query.Order("timestamp DESC").Find(&events).Error; err != nil {
+	if err := query.Order(order).Find(&events).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -337,6 +348,12 @@ const EndpointStatsWindow = 28 * 24 * time.Hour
 // EndpointStatsWindow, most broken first. It sums endpoint_stats buckets
 // instead of parsing every event's JSON context.
 func GetEndpointStats(db *gorm.DB, apiKeyID uint, limit int) ([]EndpointStats, error) {
+	return GetEndpointStatsSince(db, apiKeyID, time.Now().UTC().Add(-EndpointStatsWindow), limit)
+}
+
+// GetEndpointStatsSince is GetEndpointStats over the buckets from `from` on, so
+// a caller can ask about the last hour instead of the last four weeks.
+func GetEndpointStatsSince(db *gorm.DB, apiKeyID uint, from time.Time, limit int) ([]EndpointStats, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -351,7 +368,7 @@ func GetEndpointStats(db *gorm.DB, apiKeyID uint, limit int) ([]EndpointStats, e
 		FROM endpoint_stats
 		WHERE bucket >= ? AND total > 0
 	`
-	args := []any{time.Now().UTC().Add(-EndpointStatsWindow)}
+	args := []any{from.UTC()}
 	if apiKeyID > 0 {
 		query += " AND api_key_id = ?"
 		args = append(args, apiKeyID)
