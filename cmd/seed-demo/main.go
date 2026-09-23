@@ -618,6 +618,7 @@ func main() {
 		if err := events.Create(db, event); err != nil {
 			continue
 		}
+		countRequest(apiKey.ID, ctx.Path, isError, duration, timestamp)
 		httpCount++
 
 		// Add trace children AFTER the request (DB queries, cache, etc.)
@@ -866,6 +867,7 @@ func main() {
 		}
 		event.SetContext(ctx)
 		events.Create(db, event)
+		countRequest(apiKey.ID, ctx.Path, false, trace.duration, timestamp)
 		recentTraceCount++
 
 		// Child events happen AFTER the request starts
@@ -928,10 +930,15 @@ func main() {
 		if err := events.Create(db, event); err != nil {
 			continue
 		}
+		countRequest(apiKey.ID, ctx.Path, true, event.DurationMS, timestamp)
 		burstCount++
 	}
 
 	fmt.Printf("  Generated %d burst errors\n", burstCount)
+	if err := saveRequestStats(db); err != nil {
+		log.Fatalf("Failed to save endpoint stats: %v", err)
+	}
+	fmt.Printf("  Summed requests into %d endpoint stat buckets\n", len(requestStats))
 	fmt.Println()
 	fmt.Println("Done. Run with LOGNORTH_DEMO=true to start in demo mode.")
 }
@@ -949,7 +956,56 @@ func createEvent(db *gorm.DB, apiKeyID uint, traceID string, timestamp time.Time
 	if isError {
 		events.PopulateErrorFields(event, ctx)
 	}
-	events.Create(db, event)
+	if events.Create(db, event) == nil && ctx != nil {
+		countRequest(apiKeyID, ctx.Path, isError, durationMS, timestamp)
+	}
+}
+
+// The event processor fills endpoint_stats as real requests arrive. The seed
+// writes events directly, so it sums them into the same 5-minute buckets here.
+// Without them the Endpoints page, alerts, and north top have no history.
+type statKey struct {
+	appID  uint
+	path   string
+	bucket time.Time
+}
+
+type statSum struct {
+	total, errors, durationSum int64
+}
+
+var requestStats = map[statKey]*statSum{}
+
+func countRequest(appID uint, path string, isError bool, durationMS int, at time.Time) {
+	if path == "" {
+		return
+	}
+	key := statKey{appID, path, events.TruncateTo5Min(at.UTC())}
+	sum := requestStats[key]
+	if sum == nil {
+		sum = &statSum{}
+		requestStats[key] = sum
+	}
+	sum.total++
+	sum.durationSum += int64(durationMS)
+	if isError {
+		sum.errors++
+	}
+}
+
+func saveRequestStats(db *gorm.DB) error {
+	rows := make([]events.EndpointStat, 0, len(requestStats))
+	for key, sum := range requestStats {
+		rows = append(rows, events.EndpointStat{
+			APIKeyID:    key.appID,
+			Path:        key.path,
+			Bucket:      key.bucket,
+			Total:       sum.total,
+			Errors:      sum.errors,
+			AvgDuration: int(sum.durationSum / sum.total),
+		})
+	}
+	return db.CreateInBatches(rows, 500).Error
 }
 
 func createLinkedJob(db *gorm.DB, apiKeyID uint, traceID string, timestamp time.Time, jobName string, isInIncident bool) {
