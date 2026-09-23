@@ -203,7 +203,7 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
       <div className="mt-6 border border-line bg-raise/40 p-4">
         <p className="mb-2 text-sm font-bold text-foreground">Terminal</p>
         <p className="mb-3 text-sm text-subtle">
-          <code className="font-mono">lognorth tail</code> follows the log and <code className="font-mono">lognorth top</code> shows one app
+          <code className="font-mono">north tail</code> follows the log and <code className="font-mono">north top</code> shows one app
           live, from your laptop. This installs it and connects it to this server
           {newAgentKey ? ' with the key above.' : '. It asks for the agent key.'}
         </p>

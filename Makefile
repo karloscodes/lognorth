@@ -53,10 +53,7 @@ release:
 	@echo "=== Building CLI binaries ==="
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X main.currentVersion=$(V)" -o tmp/lognorth-linux-amd64 ./cmd/manager
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-X main.currentVersion=$(V)" -o tmp/lognorth-linux-arm64 ./cmd/manager
-	@# macOS builds run connect, tail, and top from a laptop.
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.currentVersion=$(V)" -o tmp/lognorth-darwin-arm64 ./cmd/manager
-	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.currentVersion=$(V)" -o tmp/lognorth-darwin-amd64 ./cmd/manager
-	cd tmp && shasum -a 256 lognorth-linux-amd64 lognorth-linux-arm64 lognorth-darwin-arm64 lognorth-darwin-amd64 > checksums.txt
+	cd tmp && shasum -a 256 lognorth-linux-amd64 lognorth-linux-arm64 > checksums.txt
 	@echo "=== Publishing releases ==="
 	gh release create v$(V) \
 		--repo karloscodes/lognorth \
@@ -64,8 +61,6 @@ release:
 		--notes "Release v$(V)" \
 		tmp/lognorth-linux-amd64 \
 		tmp/lognorth-linux-arm64 \
-		tmp/lognorth-darwin-arm64 \
-		tmp/lognorth-darwin-amd64 \
 		tmp/checksums.txt
 	gh release create v$(V) \
 		--repo karloscodes/lognorth-releases \
@@ -73,13 +68,11 @@ release:
 		--notes "Release v$(V)" \
 		tmp/lognorth-linux-amd64 \
 		tmp/lognorth-linux-arm64 \
-		tmp/lognorth-darwin-arm64 \
-		tmp/lognorth-darwin-amd64 \
 		tmp/checksums.txt
 	@echo "=== Cleaning up ==="
 	-docker rmi karloscodes/lognorth:$(V) karloscodes/lognorth:latest 2>/dev/null
 	-docker buildx prune -f --filter "until=1h" 2>/dev/null
-	rm -f tmp/lognorth-linux-* tmp/lognorth-darwin-* tmp/checksums.txt
+	rm -f tmp/lognorth-linux-* tmp/checksums.txt
 	@echo "Released v$(V)"
 
 # Development mode with hot reload

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/karloscodes/matcha"
@@ -30,25 +29,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// The server commands drive Docker on the box LogNorth runs on. On a
-	// laptop they would only fail halfway, so say which commands work there.
-	if runtime.GOOS != "linux" {
-		switch os.Args[1] {
-		case "install", "update", "reload", "status", "reset-password":
-			fmt.Fprintf(os.Stderr, "lognorth %s manages a LogNorth server. Run it on the server.\n", os.Args[1])
-			fmt.Fprintln(os.Stderr, "From this machine: lognorth connect, lognorth tail, lognorth top.")
-			os.Exit(1)
-		}
-	}
-
 	var err error
 	switch os.Args[1] {
-	case "connect":
-		err = connect(os.Args[2:])
-	case "tail":
-		err = tail(os.Args[2:])
-	case "top":
-		err = top(os.Args[2:])
 	case "install":
 		err = m.Install()
 	case "update":
@@ -80,20 +62,16 @@ func main() {
 func printUsage() {
 	fmt.Println("Usage: lognorth [command]")
 	fmt.Println()
-	fmt.Println("On the server:")
+	fmt.Println("Commands:")
 	fmt.Println("  install    Install LogNorth on this server")
 	fmt.Println("  update     Update to the latest version")
 	fmt.Println("  reload     Restart with current config")
 	fmt.Println("  status     Check system status")
 	fmt.Println("  reset-password <email>  Set a new password for a user")
-	fmt.Println()
-	fmt.Println("From any machine:")
-	fmt.Println("  connect [url] [agent key]  Save where to read from; asks for what you leave out")
-	fmt.Println("  tail [flags] [search]      Follow the log: --errors, --path /checkout, --app name")
-	fmt.Println("  top [--app name]           Endpoints, alerts, and uptime, live")
-	fmt.Println()
 	fmt.Println("  version    Show version information")
 	fmt.Println("  help       Show this help message")
+	fmt.Println()
+	fmt.Println("To read this server from your laptop, install north: curl -fsSL https://lognorth.com/cli | sh")
 }
 
 // resetPassword runs lnctl reset-password inside the running app container,

@@ -52,11 +52,12 @@ read-only tools: `list_apps`, `list_alerts`, `list_endpoints`,
 `get_event`. There is no REST read API. The protocol lives in `internal/mcp`;
 the handler is `internal/http/mcp.go`.
 
-The `lognorth` command reads the same tools from any machine: `lognorth
-connect`, `tail`, and `top` live in `cmd/manager` (`remote.go`, `tail.go`,
-`top.go`). `tail` follows the log with `search_logs` `after_id`, so it never
-misses an event that arrives late. They share the agent rate limit, 60 calls a
-minute per IP, so `top` refreshes every 5 seconds.
+`north`, the open-source laptop CLI (`karloscodes/lognorth-cli`, MIT), reads
+the same tools: `north tail` follows the log with `search_logs` `after_id`, and
+`north top` reads `list_endpoints`, `list_alerts`, and `uptime_timeline`. Keep
+those tools' output fields stable, or release north with the change. It shares
+the agent rate limit, 60 calls a minute per IP. `cmd/manager` is the server
+command, `lognorth`, and stays server-only.
 
 Every alert email ends with `/lognorth:investigate <path or issue hash>`, a
 command in the plugin repo (`lognorth-releases`). Keep the tool names in sync
