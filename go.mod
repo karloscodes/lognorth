@@ -3,11 +3,11 @@ module lognorth
 go 1.26
 
 require (
-	github.com/gofiber/fiber/v2 v2.52.14
+	github.com/gofiber/fiber/v2 v2.52.15
 	github.com/karloscodes/cartridge v0.15.5
 	github.com/karloscodes/matcha v0.12.18
 	go.opentelemetry.io/proto/otlp v1.11.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 	gorm.io/gorm v1.31.2
 )
 
