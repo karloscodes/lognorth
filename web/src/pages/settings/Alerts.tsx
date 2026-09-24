@@ -11,6 +11,7 @@ interface SettingsData {
   smtp_from: string
   notify_email: string
   telegram_chat_id: string
+  webhook_url: string
   quiet_hours_enabled: boolean
   quiet_start: number
   quiet_end: number
@@ -25,12 +26,20 @@ interface Props {
   settings?: SettingsData
   hasPassword?: boolean
   hasTelegramToken?: boolean
+  hasWebhookToken?: boolean
   userEmail?: string
 }
 
-export default function SettingsAlerts({ settings, hasPassword = false, hasTelegramToken = false, userEmail = '' }: Props) {
-  // The server never sends the bot token back, only whether one is saved.
+export default function SettingsAlerts({
+  settings,
+  hasPassword = false,
+  hasTelegramToken = false,
+  hasWebhookToken = false,
+  userEmail = '',
+}: Props) {
+  // The server never sends tokens back, only whether one is saved.
   const [telegramTokenSaved, setTelegramTokenSaved] = useState(hasTelegramToken)
+  const [webhookTokenSaved, setWebhookTokenSaved] = useState(hasWebhookToken)
   const [form, setForm] = useState({
     notify_channel: settings?.notify_channel || '',
     ntfy_url: settings?.ntfy_url || '',
@@ -42,6 +51,8 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
     notify_email: settings?.notify_email || userEmail,
     telegram_bot_token: '',
     telegram_chat_id: settings?.telegram_chat_id || '',
+    webhook_url: settings?.webhook_url || '',
+    webhook_token: '',
     quiet_hours_enabled: settings?.quiet_hours_enabled || false,
     quiet_start: settings?.quiet_start ?? 23,
     quiet_end: settings?.quiet_end ?? 7,
@@ -72,7 +83,8 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
       const data = await res.json()
       if (data.success) {
         if (form.telegram_bot_token) setTelegramTokenSaved(true)
-        setForm((prev) => ({ ...prev, smtp_password: '', telegram_bot_token: '' }))
+        if (form.webhook_token) setWebhookTokenSaved(true)
+        setForm((prev) => ({ ...prev, smtp_password: '', telegram_bot_token: '', webhook_token: '' }))
         setMessage({ type: 'success', text: 'Alerts saved' })
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to save' })
@@ -107,7 +119,8 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
     form.notify_channel === 'email' && form.smtp_host && form.smtp_port && form.smtp_from && form.notify_email
   const isTelegramConfigured =
     form.notify_channel === 'telegram' && (form.telegram_bot_token || telegramTokenSaved) && form.telegram_chat_id
-  const canTest = isNtfyConfigured || isEmailConfigured || isTelegramConfigured
+  const isWebhookConfigured = form.notify_channel === 'webhook' && form.webhook_url
+  const canTest = isNtfyConfigured || isEmailConfigured || isTelegramConfigured || isWebhookConfigured
 
   return (
     <SettingsLayout currentPath="/settings/alerts">
@@ -158,6 +171,20 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
               <div>
                 <span className="block font-bold text-foreground">Telegram</span>
                 <span className="block text-sm text-subtle">Send alerts via Telegram bot</span>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="notify_channel"
+                value="webhook"
+                checked={form.notify_channel === 'webhook'}
+                onChange={(e) => change('notify_channel', e.target.value)}
+                className="w-4 h-4 border border-border"
+              />
+              <div>
+                <span className="block font-bold text-foreground">Webhook</span>
+                <span className="block text-sm text-subtle">A JSON POST per alert, for Grok Bot, Slack, or your own endpoint</span>
               </div>
             </label>
           </div>
@@ -326,6 +353,60 @@ export default function SettingsAlerts({ settings, hasPassword = false, hasTeleg
           </div>
         )}
       </div>
+
+      {form.notify_channel === 'webhook' && (
+        <div className="space-y-4 pt-6">
+          <div>
+            <label className="block text-sm font-bold text-foreground mb-1.5">Webhook URL</label>
+            <input
+              type="url"
+              value={form.webhook_url}
+              onChange={(e) => change('webhook_url', e.target.value)}
+              placeholder="https://api2.cursor.sh/automations/webhook/..."
+              className="w-full px-3 py-2 border border-border text-sm font-mono focus:outline-none focus:border-foreground placeholder:text-dim"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-foreground mb-1.5">Token</label>
+            <input
+              type="password"
+              value={form.webhook_token}
+              onChange={(e) => change('webhook_token', e.target.value)}
+              placeholder={webhookTokenSaved ? '••••••••  (saved, leave blank to keep)' : 'Optional'}
+              className="w-full px-3 py-2 border border-border text-sm font-mono focus:outline-none focus:border-foreground placeholder:text-dim"
+            />
+            <p className="text-sm text-subtle mt-2">
+              Sent as <code className="font-mono">Authorization: Bearer</code>. For Grok Bot, add a Webhook trigger to a
+              routine and paste its URL and key here.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-foreground mb-1.5">Base URL</label>
+            <input
+              type="url"
+              value={form.base_url}
+              onChange={(e) => change('base_url', e.target.value)}
+              placeholder="https://lognorth.example.com"
+              className="w-full px-3 py-2 border border-border text-sm focus:outline-none focus:border-foreground placeholder:text-dim"
+            />
+            <span className="text-sm text-subtle">For links in notifications</span>
+          </div>
+          <details className="text-sm text-subtle">
+            <summary className="cursor-pointer hover:text-foreground">What LogNorth sends</summary>
+            <pre className="mt-2 p-3 bg-card border border-line font-mono text-xs overflow-x-auto">{`POST <your URL>
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "source": "lognorth",
+  "title": "[shop-prod] Spike on /checkout",
+  "message": "... /lognorth:investigate /checkout",
+  "text": "<title>\n\n<message>",
+  "sent_at": "2026-09-24T14:05:00Z"
+}`}</pre>
+          </details>
+        </div>
+      )}
 
       {form.notify_channel && (
         <div className="mt-10 pt-6 border-t border-line">

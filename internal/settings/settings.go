@@ -21,7 +21,7 @@ import (
 type Settings struct {
 	ID uint `gorm:"primaryKey" json:"-"`
 
-	// Notification channel: "email", "ntfy", or "telegram"
+	// Notification channel: "email", "ntfy", "telegram", or "webhook"
 	NotifyChannel string `gorm:"size:20" json:"notify_channel"`
 
 	// ntfy.sh URL (e.g., https://ntfy.sh/my-secret-topic)
@@ -38,6 +38,11 @@ type Settings struct {
 	// Telegram settings
 	TelegramBotToken string `gorm:"size:100" json:"-"` // Never expose in JSON
 	TelegramChatID   string `gorm:"size:50" json:"telegram_chat_id"`
+
+	// Webhook settings: a JSON POST per alert, for Grok Bot routines, Slack,
+	// or your own endpoint. The token goes in the Authorization header.
+	WebhookURL   string `gorm:"size:500" json:"webhook_url"`
+	WebhookToken string `gorm:"size:500" json:"-"` // Never expose in JSON
 
 	// Quiet hours - no alerts during this window
 	QuietHoursEnabled bool `gorm:"default:false" json:"quiet_hours_enabled"`
@@ -116,6 +121,16 @@ func (s *Settings) IsTelegramConfigured() bool {
 	return s.TelegramBotToken != "" && s.TelegramChatID != ""
 }
 
+// HasWebhookToken reports whether a webhook token is saved, without exposing it.
+func (s *Settings) HasWebhookToken() bool {
+	return s.WebhookToken != ""
+}
+
+// IsWebhookConfigured returns true if a webhook URL is set
+func (s *Settings) IsWebhookConfigured() bool {
+	return s.WebhookURL != ""
+}
+
 // IsQuietHours returns true if current time is within quiet hours
 func (s *Settings) IsQuietHours() bool {
 	if !s.QuietHoursEnabled {
@@ -141,6 +156,8 @@ func (s *Settings) CanNotify() bool {
 		return s.IsEmailConfigured()
 	case "telegram":
 		return s.IsTelegramConfigured()
+	case "webhook":
+		return s.IsWebhookConfigured()
 	default:
 		return false
 	}
@@ -155,6 +172,8 @@ func (s *Settings) SendNotification(title, message string) error {
 		return s.sendViaSMTP(title, message)
 	case "telegram":
 		return s.sendViaTelegram(title, message)
+	case "webhook":
+		return s.sendViaWebhook(title, message)
 	default:
 		return fmt.Errorf("no notification channel configured")
 	}
@@ -243,6 +262,48 @@ func (s *Settings) sendViaTelegram(title, message string) error {
 
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("telegram failed with status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// sendViaWebhook POSTs the alert as JSON. text repeats title and message in
+// one field, the shape Slack-style incoming webhooks read.
+func (s *Settings) sendViaWebhook(title, message string) error {
+	if !s.IsWebhookConfigured() {
+		return fmt.Errorf("webhook URL not configured")
+	}
+
+	body, err := json.Marshal(map[string]string{
+		"source":  "lognorth",
+		"title":   title,
+		"message": message,
+		"text":    title + "\n\n" + message,
+		"sent_at": time.Now().UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to encode alert: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", s.WebhookURL, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "LogNorth")
+	if s.WebhookToken != "" {
+		req.Header.Set("Authorization", "Bearer "+s.WebhookToken)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("webhook request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("webhook failed with status %d", resp.StatusCode)
 	}
 
 	return nil

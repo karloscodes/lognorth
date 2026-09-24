@@ -40,6 +40,7 @@ func renderSettingsPage(ctx *cartridge.Context, component string) error {
 		"settings":         s,
 		"hasPassword":      s.HasPassword(),
 		"hasTelegramToken": s.HasTelegramToken(),
+		"hasWebhookToken":  s.HasWebhookToken(),
 		"userEmail":        userEmail,
 		"agentKeyPrefix":   s.AgentKeyPrefix,
 	})
@@ -67,7 +68,7 @@ func SettingsDeveloperPageAction(ctx *cartridge.Context) error {
 
 // UpdateSettingsInput represents the settings update request
 type UpdateSettingsInput struct {
-	// Channel: "ntfy", "email", or "telegram"
+	// Channel: "ntfy", "email", "telegram", or "webhook"
 	NotifyChannel string `json:"notify_channel"`
 
 	// ntfy settings
@@ -84,6 +85,10 @@ type UpdateSettingsInput struct {
 	// Telegram settings
 	TelegramBotToken string `json:"telegram_bot_token"`
 	TelegramChatID   string `json:"telegram_chat_id"`
+
+	// Webhook settings
+	WebhookURL   string `json:"webhook_url"`
+	WebhookToken string `json:"webhook_token"`
 
 	// Quiet hours
 	QuietHoursEnabled bool `json:"quiet_hours_enabled"`
@@ -133,6 +138,12 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 	// Blank keeps the saved token: the browser never receives it.
 	if input.TelegramBotToken != "" {
 		s.TelegramBotToken = input.TelegramBotToken
+	}
+
+	// Update webhook. Blank keeps the saved token, like the Telegram one.
+	s.WebhookURL = input.WebhookURL
+	if input.WebhookToken != "" {
+		s.WebhookToken = input.WebhookToken
 	}
 
 	// Update quiet hours

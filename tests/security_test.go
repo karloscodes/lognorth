@@ -229,14 +229,14 @@ func TestSetup(t *testing.T) {
 }
 
 func TestSettingsJSONHidesSecrets(t *testing.T) {
-	s := settings.Settings{SMTPPassword: "smtp-secret", TelegramBotToken: "123:bot-secret", AgentKey: "lgn-agent-secret"}
+	s := settings.Settings{SMTPPassword: "smtp-secret", TelegramBotToken: "123:bot-secret", AgentKey: "lgn-agent-secret", WebhookToken: "crsr_webhook-secret"}
 
 	out, err := json.Marshal(s)
 
 	if err != nil {
 		t.Fatalf("marshal failed: %v", err)
 	}
-	for _, secret := range []string{"smtp-secret", "bot-secret", "lgn-agent-secret"} {
+	for _, secret := range []string{"smtp-secret", "bot-secret", "lgn-agent-secret", "webhook-secret"} {
 		if strings.Contains(string(out), secret) {
 			t.Errorf("settings JSON contains %q: %s", secret, out)
 		}
