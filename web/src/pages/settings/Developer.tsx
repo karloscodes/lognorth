@@ -19,7 +19,8 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
   }
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://your-instance.com'
-  const connectCommand = `/lognorth:connect ${origin} ${newAgentKey ?? 'lgn-agent-...'}`
+  // On screen the key stays a placeholder; Copy puts the real one in.
+  const connectCommand = (key: string) => `/lognorth:connect ${origin} ${key}`
 
   const copyStep = (index: number, command: string) => {
     navigator.clipboard.writeText(command)
@@ -27,14 +28,49 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
     setTimeout(() => setCopiedStep(null), 2000)
   }
 
-  // The terminal: one command installs lognorth and connects it. Without the
-  // key at hand (it shows once), the installer asks for it.
-  const terminalCommand = `curl -fsSL https://lognorth.com/cli | sh -s -- ${origin}${newAgentKey ? ` ${newAgentKey}` : ''}`
+  // The terminal: one command installs north and connects it to this server.
+  const terminalCommand = (key: string) => `curl -fsSL https://lognorth.com/cli | sh -s -- ${origin} ${key}`
 
-  const setupSteps = [
-    '/plugin marketplace add karloscodes/lognorth-releases',
-    '/plugin install lognorth',
-    connectCommand,
+  // fetchKey returns the agent key: the one just created, or the server's.
+  const fetchKey = async (): Promise<string> => {
+    if (newAgentKey) return newAgentKey
+    const res = await fetch('/settings/agent-key/reveal', { method: 'POST' })
+    const data = await res.json()
+    if (!res.ok || !data.key) throw new Error(data.error || 'Could not read the agent key')
+    return data.key
+  }
+
+  // copyWithKey copies a command that carries the key. Safari allows a
+  // clipboard write only inside the click, so the clipboard gets a promise
+  // that resolves when the key arrives.
+  const copyWithKey = async (index: number, build: (key: string) => string) => {
+    setAgentKeyError(null)
+    const text = fetchKey().then(build)
+    try {
+      if (typeof ClipboardItem !== 'undefined') {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'text/plain': text.then((t) => new Blob([t], { type: 'text/plain' })) }),
+        ])
+      } else {
+        await navigator.clipboard.writeText(await text)
+      }
+    } catch (err) {
+      try {
+        await navigator.clipboard.writeText(await text)
+      } catch {
+        setAgentKeyError(err instanceof Error ? err.message : 'Could not copy the command')
+        return
+      }
+    }
+    setCopiedStep(index)
+    setTimeout(() => setCopiedStep(null), 2000)
+  }
+
+  const placeholder = newAgentKey ?? 'lgn-agent-...'
+  const setupSteps: { shown: string; copy: () => void }[] = [
+    { shown: '/plugin marketplace add karloscodes/lognorth-releases', copy: () => copyStep(0, '/plugin marketplace add karloscodes/lognorth-releases') },
+    { shown: '/plugin install lognorth', copy: () => copyStep(1, '/plugin install lognorth') },
+    { shown: connectCommand(placeholder), copy: () => copyWithKey(2, connectCommand) },
   ]
 
   const createAgentKey = async () => {
@@ -111,7 +147,7 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
             </button>
           </div>
           <p className="text-sm text-subtle mt-2">
-            Save this key now. You won't be able to see it again.
+            The setup commands below include it when you copy them.
           </p>
         </div>
       )}
@@ -161,19 +197,19 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
         <p className="text-sm font-bold text-foreground mb-2">Setup</p>
         <p className="text-sm text-subtle mb-3">
           {currentPrefix
-            ? 'Three commands in Claude Code, one at a time. The last one carries your key, which is only shown once, so regenerate it if you no longer have it.'
+            ? 'Three commands in Claude Code, one at a time. The first two install the plugin; /lognorth:connect exists only after them, and after /reload-plugins or a restart. Copying the last one includes your key.'
             : 'Create an agent key above. Then run these three commands in Claude Code, one at a time.'}
         </p>
         <div className="space-y-2">
-          {setupSteps.map((command, i) => (
+          {setupSteps.map((step, i) => (
             <div key={i} className="flex items-start gap-2">
               <span className="font-mono text-sm text-dim pt-1 tabular-nums">{i + 1}</span>
               <code className="flex-1 px-3 py-1 bg-card border border-line text-sm font-mono text-text break-all">
-                {command}
+                {step.shown}
               </code>
               <button
                 type="button"
-                onClick={() => copyStep(i, command)}
+                onClick={step.copy}
                 className="shrink-0 px-3 py-1 border border-border text-xs font-bold text-text hover:border-foreground hover:text-foreground transition-colors"
               >
                 {copiedStep === i ? 'Copied!' : 'Copy'}
@@ -204,14 +240,13 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
         <p className="mb-2 text-sm font-bold text-foreground">Terminal</p>
         <p className="mb-3 text-sm text-subtle">
           <code className="font-mono">north tail</code> follows the log and <code className="font-mono">north top</code> shows one app
-          live, from your laptop. This installs it and connects it to this server
-          {newAgentKey ? ' with the key above.' : '. It asks for the agent key.'}
+          live, from your laptop. This installs it and connects it to this server; copying it includes your key.
         </p>
         <div className="flex items-start gap-2">
-          <code className="flex-1 break-all border border-line bg-card px-3 py-1 font-mono text-sm text-text">{terminalCommand}</code>
+          <code className="flex-1 break-all border border-line bg-card px-3 py-1 font-mono text-sm text-text">{terminalCommand(placeholder)}</code>
           <button
             type="button"
-            onClick={() => copyStep(9, terminalCommand)}
+            onClick={() => copyWithKey(9, terminalCommand)}
             className="shrink-0 border border-border px-3 py-1 text-xs font-bold text-text transition-colors hover:border-foreground hover:text-foreground"
           >
             {copiedStep === 9 ? 'Copied!' : 'Copy'}
