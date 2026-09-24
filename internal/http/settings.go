@@ -235,20 +235,6 @@ func RegenerateAgentKeyAction(ctx *cartridge.Context) error {
 	return ctx.Ctx.JSON(fiber.Map{"success": true, "key": fullKey, "prefix": s.AgentKeyPrefix})
 }
 
-// RevealAgentKeyAction handles POST /settings/agent-key/reveal. The setup
-// commands on the Developer page carry the key; their Copy buttons fetch it
-// on click, so it never sits in the page HTML.
-func RevealAgentKeyAction(ctx *cartridge.Context) error {
-	s, err := settings.Get(ctx.DB())
-	if err != nil {
-		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
-	}
-	if s.AgentKey == "" {
-		return ctx.Ctx.Status(404).JSON(fiber.Map{"error": "No agent key yet. Create one first."})
-	}
-	return ctx.Ctx.JSON(fiber.Map{"key": s.AgentKey})
-}
-
 // RevokeAgentKeyAction handles POST /settings/agent-key/revoke
 func RevokeAgentKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()

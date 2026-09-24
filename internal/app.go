@@ -318,7 +318,6 @@ func MountRoutes(server *cartridge.Server) {
 	server.Post("/settings/agent-key", lbhttp.CreateAgentKeyAction, protectedConfig)
 	server.Post("/settings/agent-key/regenerate", lbhttp.RegenerateAgentKeyAction, protectedConfig)
 	server.Post("/settings/agent-key/revoke", lbhttp.RevokeAgentKeyAction, protectedConfig)
-	server.Post("/settings/agent-key/reveal", lbhttp.RevealAgentKeyAction, protectedConfig)
 }
 
 // clientIP is the rate limiter key. kamal-proxy appends the address it saw to
