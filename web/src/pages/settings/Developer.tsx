@@ -19,7 +19,9 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
   }
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://your-instance.com'
-  const connectCommand = `/lognorth:connect ${origin} ${newAgentKey ?? 'lgn-agent-...'}`
+  // Without the key at hand (it shows once), the command leaves it out and
+  // /lognorth:connect asks for it.
+  const connectCommand = `/lognorth:connect ${origin}${newAgentKey ? ` ${newAgentKey}` : ''}`
 
   const copyStep = (index: number, command: string) => {
     navigator.clipboard.writeText(command)
@@ -161,7 +163,7 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
         <p className="text-sm font-bold text-foreground mb-2">Setup</p>
         <p className="text-sm text-subtle mb-3">
           {currentPrefix
-            ? 'Three commands in Claude Code, one at a time. The last one carries your key, which is only shown once, so regenerate it if you no longer have it.'
+            ? 'Three commands in Claude Code, one at a time. /lognorth:connect exists only after the first two and a /reload-plugins. It asks for your agent key if the command does not include it.'
             : 'Create an agent key above. Then run these three commands in Claude Code, one at a time.'}
         </p>
         <div className="space-y-2">
