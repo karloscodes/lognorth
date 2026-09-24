@@ -19,10 +19,6 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
   }
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://your-instance.com'
-  // Without the key at hand (it shows once), the command leaves it out and
-  // /lognorth:connect asks for it.
-  const connectCommand = `/lognorth:connect ${origin}${newAgentKey ? ` ${newAgentKey}` : ''}`
-
   const copyStep = (index: number, command: string) => {
     navigator.clipboard.writeText(command)
     setCopiedStep(index)
@@ -32,12 +28,6 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
   // One command installs north, connects it, and adds LogNorth to the coding
   // agents it finds. Without the key at hand (it shows once), it asks for it.
   const terminalCommand = `curl -fsSL https://lognorth.com/cli | sh -s -- ${origin}${newAgentKey ? ` ${newAgentKey}` : ''}`
-
-  const setupSteps = [
-    '/plugin marketplace add karloscodes/lognorth-releases',
-    '/plugin install lognorth',
-    connectCommand,
-  ]
 
   const createAgentKey = async () => {
     setAgentKeyError(null)
@@ -171,10 +161,10 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
           <code className="flex-1 break-all border border-line bg-card px-3 py-1 font-mono text-sm text-text">{terminalCommand}</code>
           <button
             type="button"
-            onClick={() => copyStep(9, terminalCommand)}
+            onClick={() => copyStep(0, terminalCommand)}
             className="shrink-0 border border-border px-3 py-1 text-xs font-bold text-text transition-colors hover:border-foreground hover:text-foreground"
           >
-            {copiedStep === 9 ? 'Copied!' : 'Copy'}
+            {copiedStep === 0 ? 'Copied!' : 'Copy'}
           </button>
         </div>
         <p className="mt-3 text-sm text-subtle">
@@ -182,32 +172,7 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
           an agent config. macOS or Linux, no sudo. <code className="font-mono">north tail</code> and{' '}
           <code className="font-mono">north top</code> read the log from the terminal too.
         </p>
-      </div>
-
-      <div className="mt-6 border border-line p-4">
-        <p className="mb-2 text-sm font-bold text-foreground">Or from inside Claude Code</p>
-        <p className="mb-3 text-sm text-subtle">
-          Three commands, one at a time. <code className="font-mono">/lognorth:connect</code> exists after the first two
-          and a <code className="font-mono">/reload-plugins</code>.
-        </p>
-        <div className="space-y-2">
-          {setupSteps.map((command, i) => (
-            <div key={i} className="flex items-start gap-2">
-              <span className="font-mono text-sm text-dim pt-1 tabular-nums">{i + 1}</span>
-              <code className="flex-1 px-3 py-1 bg-card border border-line text-sm font-mono text-text break-all">
-                {command}
-              </code>
-              <button
-                type="button"
-                onClick={() => copyStep(i, command)}
-                className="shrink-0 px-3 py-1 border border-border text-xs font-bold text-text hover:border-foreground hover:text-foreground transition-colors"
-              >
-                {copiedStep === i ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          ))}
-        </div>
-        <p className="text-sm text-subtle mt-3">
+        <p className="mt-2 text-sm text-subtle">
           Other MCP clients connect to <code className="font-mono">{origin}/mcp</code> with the agent key as a Bearer
           token.{' '}
           <a
@@ -220,6 +185,7 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
           </a>
         </p>
       </div>
+
     </SettingsLayout>
   )
 }
