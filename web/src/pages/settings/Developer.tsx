@@ -29,8 +29,8 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
     setTimeout(() => setCopiedStep(null), 2000)
   }
 
-  // The terminal: one command installs lognorth and connects it. Without the
-  // key at hand (it shows once), the installer asks for it.
+  // One command installs north, connects it, and adds LogNorth to the coding
+  // agents it finds. Without the key at hand (it shows once), it asks for it.
   const terminalCommand = `curl -fsSL https://lognorth.com/cli | sh -s -- ${origin}${newAgentKey ? ` ${newAgentKey}` : ''}`
 
   const setupSteps = [
@@ -160,11 +160,35 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
       )}
 
       <div className="mt-6 p-4 bg-raise/40 border border-line">
-        <p className="text-sm font-bold text-foreground mb-2">Setup</p>
+        <p className="text-sm font-bold text-foreground mb-2">Connect your coding agent</p>
         <p className="text-sm text-subtle mb-3">
           {currentPrefix
-            ? 'Three commands in Claude Code, one at a time. /lognorth:connect exists only after the first two and a /reload-plugins. It asks for your agent key if the command does not include it.'
-            : 'Create an agent key above. Then run these three commands in Claude Code, one at a time.'}
+            ? 'One command in your terminal. It installs north, checks the key, and adds LogNorth to Claude Code, Codex, and Gemini CLI.'
+            : 'Create an agent key above, then run one command in your terminal.'}
+          {currentPrefix && !newAgentKey && ' It asks for the agent key.'}
+        </p>
+        <div className="flex items-start gap-2">
+          <code className="flex-1 break-all border border-line bg-card px-3 py-1 font-mono text-sm text-text">{terminalCommand}</code>
+          <button
+            type="button"
+            onClick={() => copyStep(9, terminalCommand)}
+            className="shrink-0 border border-border px-3 py-1 text-xs font-bold text-text transition-colors hover:border-foreground hover:text-foreground"
+          >
+            {copiedStep === 9 ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+        <p className="mt-3 text-sm text-subtle">
+          Restart your agent and ask it what is broken in production. The key stays in one file on your machine, never in
+          an agent config. macOS or Linux, no sudo. <code className="font-mono">north tail</code> and{' '}
+          <code className="font-mono">north top</code> read the log from the terminal too.
+        </p>
+      </div>
+
+      <div className="mt-6 border border-line p-4">
+        <p className="mb-2 text-sm font-bold text-foreground">Or from inside Claude Code</p>
+        <p className="mb-3 text-sm text-subtle">
+          Three commands, one at a time. <code className="font-mono">/lognorth:connect</code> exists after the first two
+          and a <code className="font-mono">/reload-plugins</code>.
         </p>
         <div className="space-y-2">
           {setupSteps.map((command, i) => (
@@ -184,44 +208,14 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
           ))}
         </div>
         <p className="text-sm text-subtle mt-3">
-          Run them one at a time. If Claude Code asks you to "Enter marketplace source", type only{' '}
-          <code className="font-mono">karloscodes/lognorth-releases</code> there.
-        </p>
-        <p className="text-sm text-subtle mt-2">
-          Restart Claude Code and it has eight read-only tools over your log. Other clients take the same
-          endpoint:{' '}
-          <code className="font-mono">{origin}/mcp</code>.{' '}
+          Other MCP clients connect to <code className="font-mono">{origin}/mcp</code> with the agent key as a Bearer
+          token.{' '}
           <a
             href="https://lognorth.com/docs/integrations/mcp/"
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:text-foreground"
           >
-            Docs →
-          </a>
-        </p>
-      </div>
-
-      <div className="mt-6 border border-line bg-raise/40 p-4">
-        <p className="mb-2 text-sm font-bold text-foreground">Terminal</p>
-        <p className="mb-3 text-sm text-subtle">
-          <code className="font-mono">north tail</code> follows the log and <code className="font-mono">north top</code> shows one app
-          live, from your laptop. This installs it and connects it to this server
-          {newAgentKey ? ' with the key above.' : '. It asks for the agent key.'}
-        </p>
-        <div className="flex items-start gap-2">
-          <code className="flex-1 break-all border border-line bg-card px-3 py-1 font-mono text-sm text-text">{terminalCommand}</code>
-          <button
-            type="button"
-            onClick={() => copyStep(9, terminalCommand)}
-            className="shrink-0 border border-border px-3 py-1 text-xs font-bold text-text transition-colors hover:border-foreground hover:text-foreground"
-          >
-            {copiedStep === 9 ? 'Copied!' : 'Copy'}
-          </button>
-        </div>
-        <p className="mt-3 text-sm text-subtle">
-          macOS or Linux, no sudo.{' '}
-          <a href="https://lognorth.com/docs/features/terminal/" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
             Docs →
           </a>
         </p>
