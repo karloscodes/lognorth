@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -1071,6 +1073,105 @@ func TestDemo(t *testing.T) {
 
 		if res.StatusCode != http.StatusOK {
 			t.Errorf("status = %d, want 200: the proxy would mark the app down", res.StatusCode)
+		}
+	})
+}
+
+// OpenTelemetry exporters compress by default, so ingest must read gzip.
+func TestIngestReadsGzip(t *testing.T) {
+	gz := func(body []byte) *bytes.Buffer {
+		var buf bytes.Buffer
+		w := gzip.NewWriter(&buf)
+		w.Write(body)
+		w.Close()
+		return &buf
+	}
+	post := func(sa *securityApp, path, key, contentType string, body io.Reader) *http.Response {
+		req := httptest.NewRequest("POST", path, body)
+		req.Header.Set("Authorization", "Bearer "+key)
+		req.Header.Set("Content-Type", contentType)
+		req.Header.Set("Content-Encoding", "gzip")
+		res, err := sa.app.Server.Test(req)
+		if err != nil {
+			sa.t.Fatalf("request failed: %v", err)
+		}
+		return res
+	}
+	stored := func(sa *securityApp) []events.IngestedEvent {
+		var rows []events.IngestedEvent
+		sa.db.Order("id").Find(&rows)
+		return rows
+	}
+
+	t.Run("a gzip JSON batch is stored", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+		batch := []byte(`{"events":[{"message":"GET /cart 200","context":{"path":"/cart","status":200}},{"message":"POST /pay 500","context":{"path":"/pay","status":500}}]}`)
+
+		res := post(sa, "/api/v1/events/batch", key, "application/json", gz(batch))
+
+		if res.StatusCode != http.StatusCreated {
+			t.Fatalf("status = %d, want 201", res.StatusCode)
+		}
+		rows := stored(sa)
+		if len(rows) != 2 || rows[0].Message != "GET /cart 200" || !rows[1].IsError {
+			t.Errorf("stored = %+v, want both events, the second as an error", rows)
+		}
+	})
+
+	t.Run("a gzip OpenTelemetry log request is stored", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+		// ExportLogsServiceRequest with one record whose body is "otel hello".
+		record := append([]byte{0x2a, 0x0c, 0x0a, 0x0a}, "otel hello"...)
+		scope := append([]byte{0x12, byte(len(record))}, record...)
+		resource := append([]byte{0x12, byte(len(scope))}, scope...)
+		request := append([]byte{0x0a, byte(len(resource))}, resource...)
+
+		res := post(sa, "/otel/v1/logs", key, "application/x-protobuf", gz(request))
+
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", res.StatusCode)
+		}
+		rows := stored(sa)
+		if len(rows) != 1 || rows[0].Message != "otel hello" {
+			t.Errorf("stored = %+v, want the one log record", rows)
+		}
+	})
+
+	t.Run("a body that inflates past the limit is refused", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+		bomb := gz([]byte(`{"message":"` + strings.Repeat("a", 20<<20) + `"}`))
+
+		res := post(sa, "/api/v1/events", key, "application/json", bomb)
+
+		if res.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Errorf("status = %d, want 413 for 20 MB inflated from %d KB", res.StatusCode, bomb.Len()/1024)
+		}
+		if rows := stored(sa); len(rows) != 0 {
+			t.Errorf("stored = %d events, want none", len(rows))
+		}
+	})
+
+	t.Run("a body that is not gzip is refused", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+
+		res := post(sa, "/api/v1/events", key, "application/json", strings.NewReader(`{"message":"plain"}`))
+
+		if res.StatusCode != http.StatusBadRequest {
+			t.Errorf("status = %d, want 400", res.StatusCode)
+		}
+	})
+
+	t.Run("a wrong key is refused before the body is read", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+
+		res := post(sa, "/api/v1/events", "lgn-wrong", "application/json", strings.NewReader("not gzip"))
+
+		if res.StatusCode != http.StatusUnauthorized {
+			t.Errorf("status = %d, want 401: the key comes first, not the 400 for a bad body", res.StatusCode)
 		}
 	})
 }

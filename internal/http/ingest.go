@@ -2,8 +2,12 @@
 package http
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -40,6 +44,48 @@ type IngestRequest struct {
 	// Legacy top-level fields — new SDKs send these inside context instead
 	ErrorType     string `json:"error_type,omitempty"`     // e.g., "TypeError"
 	ErrorLocation string `json:"error_location,omitempty"` // e.g., "checkout.ts:42"
+}
+
+// maxInflatedBody caps a gzip body after it is inflated, so a small request
+// cannot expand into a large one in memory. The server's body limit covers
+// the compressed bytes.
+const maxInflatedBody = 16 << 20
+
+var (
+	errInvalidGzip  = errors.New("Invalid gzip body")
+	errBodyTooLarge = errors.New("Request body too large")
+)
+
+// ingestBody returns the request body, inflated when the client sent it with
+// Content-Encoding: gzip. OpenTelemetry exporters compress by default; the
+// LogNorth SDKs do not. Handlers call it after they check the key.
+func ingestBody(ctx *cartridge.Context) ([]byte, error) {
+	body := ctx.Body()
+	if !strings.EqualFold(ctx.Get("Content-Encoding"), "gzip") {
+		return body, nil
+	}
+
+	reader, err := gzip.NewReader(bytes.NewReader(body))
+	if err != nil {
+		return nil, errInvalidGzip
+	}
+	inflated, err := io.ReadAll(io.LimitReader(reader, maxInflatedBody+1))
+	if err != nil {
+		return nil, errInvalidGzip
+	}
+	if len(inflated) > maxInflatedBody {
+		return nil, errBodyTooLarge
+	}
+	return inflated, nil
+}
+
+// rejectBody answers a body that ingestBody could not read.
+func rejectBody(ctx *cartridge.Context, err error) error {
+	status := http.StatusBadRequest
+	if errors.Is(err, errBodyTooLarge) {
+		status = http.StatusRequestEntityTooLarge
+	}
+	return ctx.Status(status).JSON(cartridge.Map{"error": err.Error()})
 }
 
 // maxEventsPerRequest caps one request. The SDKs send batches of 10.
@@ -88,7 +134,10 @@ func IngestAction(ctx *cartridge.Context) error {
 	}
 
 	// Parse request body (single event or batch)
-	body := ctx.Body()
+	body, err := ingestBody(ctx)
+	if err != nil {
+		return rejectBody(ctx, err)
+	}
 
 	var ingestEvents []IngestRequest
 

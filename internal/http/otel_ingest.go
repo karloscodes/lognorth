@@ -41,9 +41,14 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 		})
 	}
 
+	body, err := ingestBody(ctx)
+	if err != nil {
+		return rejectBody(ctx, err)
+	}
+
 	// Decode protobuf
 	var req collectorlogs.ExportLogsServiceRequest
-	if err := proto.Unmarshal(ctx.Body(), &req); err != nil {
+	if err := proto.Unmarshal(body, &req); err != nil {
 		return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{
 			"error": "Invalid OTLP protobuf",
 		})
