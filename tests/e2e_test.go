@@ -18,7 +18,6 @@ import (
 	"lognorth/internal/database"
 	"lognorth/internal/events"
 	"lognorth/internal/jobs"
-	"lognorth/internal/license"
 )
 
 func setupTestDB(t *testing.T) *gorm.DB {
@@ -384,8 +383,6 @@ func TestCompleteSystemFlow(t *testing.T) {
 	}
 
 	// Run the real event processor job
-	license.SetConfigured(true)
-	t.Cleanup(func() { license.SetConfigured(false) })
 	jobCtx := &cartridge.JobContext{Context: t.Context(), Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), DB: db}
 	if err := jobs.NewEventProcessor().ProcessBatch(jobCtx); err != nil {
 		t.Fatalf("Event processor failed: %v", err)
