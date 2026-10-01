@@ -89,6 +89,7 @@ func NewApp() (*Application, error) {
 	// private or loopback address; otherwise every client shares the proxy's
 	// IP in the rate limiters. A client that reaches the app directly cannot
 	// set its own IP this way.
+	serverConfig.ErrorHandler = lbhttp.ErrorHandler(logger)
 	serverConfig.ProxyHeader = "X-Forwarded-For"
 	serverConfig.TrustedProxies = trustedProxies
 
@@ -166,6 +167,8 @@ func MountRoutes(server *cartridge.Server) {
 	// Onboarding check middleware
 	onboardingCheck := onboardingCheckMiddleware(dbMgr, logger)
 
+	server.Use(lbhttp.SecurityHeaders)
+
 	// Health check (no auth, no CSRF check)
 	isHealthCheck := func(c *cartridge.Context) bool { return c.Path() == "/_health" }
 	server.Get("/_health", func(c *cartridge.Context) error {
@@ -188,8 +191,7 @@ func MountRoutes(server *cartridge.Server) {
 				if strings.HasPrefix(c.Path(), "/api/") {
 					return c.Next()
 				}
-				referer := c.Get("Referer", "/")
-				return c.Redirect(referer)
+				return c.Redirect(lbhttp.RefererPath(c, "/"))
 			}
 			return c.Next()
 		})

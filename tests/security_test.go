@@ -3,6 +3,7 @@ package tests
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,12 +12,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/karloscodes/cartridge"
+	"github.com/karloscodes/cartridge/testsupport"
 	"gorm.io/gorm"
 
 	"lognorth/internal"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/events"
+	lbhttp "lognorth/internal/http"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
 )
@@ -817,23 +821,184 @@ func TestNoCrossOriginAccess(t *testing.T) {
 }
 
 func TestSecurityHeaders(t *testing.T) {
-	sa := setupSecurityApp(t)
-	users.CreateUser(sa.db, "owner@example.com", "correct-horse")
+	t.Run("a page carries the browser protections", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		users.CreateUser(sa.db, "owner@example.com", "correct-horse")
 
-	res := sa.do("GET", "/login", nil, nil)
+		res := sa.do("GET", "/login", nil, nil)
 
-	want := map[string]string{
-		"X-Frame-Options":              "SAMEORIGIN",
-		"X-Content-Type-Options":       "nosniff",
-		"Referrer-Policy":              "same-origin",
-		"Cross-Origin-Opener-Policy":   "same-origin",
-		"Cross-Origin-Resource-Policy": "same-origin",
-	}
-	for header, value := range want {
-		if got := res.Header.Get(header); got != value {
-			t.Errorf("%s = %q, want %q", header, got, value)
+		want := map[string]string{
+			"X-Frame-Options":              "SAMEORIGIN",
+			"X-Content-Type-Options":       "nosniff",
+			"Referrer-Policy":              "same-origin",
+			"Cross-Origin-Opener-Policy":   "same-origin",
+			"Cross-Origin-Resource-Policy": "same-origin",
 		}
+		for header, value := range want {
+			if got := res.Header.Get(header); got != value {
+				t.Errorf("%s = %q, want %q", header, got, value)
+			}
+		}
+	})
+
+	t.Run("the content policy allows scripts from the app only", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		users.CreateUser(sa.db, "owner@example.com", "correct-horse")
+
+		res := sa.do("GET", "/login", nil, nil)
+
+		policy := res.Header.Get("Content-Security-Policy")
+		for _, directive := range []string{"default-src 'self'", "script-src 'self';", "frame-ancestors 'self'", "object-src 'none'", "form-action 'self'"} {
+			if !strings.Contains(policy, directive) {
+				t.Errorf("policy = %q, want %q in it", policy, directive)
+			}
+		}
+		if strings.Contains(policy, "script-src 'self' 'unsafe") {
+			t.Errorf("policy = %q, want no unsafe script source", policy)
+		}
+	})
+
+	t.Run("over HTTPS the browser is told to stay on HTTPS", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		users.CreateUser(sa.db, "owner@example.com", "correct-horse")
+
+		res := sa.doFrom(proxyPeer, "GET", "/login", nil, map[string]string{"X-Forwarded-Proto": "https"})
+
+		if got := res.Header.Get("Strict-Transport-Security"); got != "max-age=31536000" {
+			t.Errorf("Strict-Transport-Security = %q, want one year", got)
+		}
+	})
+
+	t.Run("over HTTP the browser is not told to refuse HTTP", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		users.CreateUser(sa.db, "owner@example.com", "correct-horse")
+
+		res := sa.doFrom(proxyPeer, "GET", "/login", nil, nil)
+
+		if got := res.Header.Get("Strict-Transport-Security"); got != "" {
+			t.Errorf("Strict-Transport-Security = %q, want none over HTTP", got)
+		}
+	})
+}
+
+func TestRedirectsStayOnTheSite(t *testing.T) {
+	mute := func(t *testing.T, referer string) string {
+		t.Helper()
+		sa := setupSecurityApp(t)
+		headers := map[string]string{"Cookie": sa.login(), "Sec-Fetch-Site": "same-origin"}
+		if referer != "" {
+			headers["Referer"] = referer
+		}
+		return sa.do("POST", "/issues/abc/mute", url.Values{}, headers).Header.Get("Location")
 	}
+
+	t.Run("back to the page that sent the form", func(t *testing.T) {
+		if loc := mute(t, "http://example.com/apps/1/issues?muted=1"); loc != "/apps/1/issues?muted=1" {
+			t.Errorf("Location = %q, want the page with its query", loc)
+		}
+	})
+
+	t.Run("to the issues page when there is no Referer", func(t *testing.T) {
+		if loc := mute(t, ""); loc != "/issues" {
+			t.Errorf("Location = %q, want /issues", loc)
+		}
+	})
+
+	t.Run("never to another site", func(t *testing.T) {
+		for _, referer := range []string{
+			"https://evil.example/phish",
+			"//evil.example/phish",
+			"http://example.com//evil.example/phish",
+			"http://example.com.evil.example/",
+			"javascript:alert(1)",
+		} {
+			if loc := mute(t, referer); loc != "/issues" {
+				t.Errorf("Referer %q: Location = %q, want /issues", referer, loc)
+			}
+		}
+	})
+
+	t.Run("a backslash stays a path on this site", func(t *testing.T) {
+		if loc := mute(t, "http://example.com/\\evil.example"); loc != "/%5Cevil.example" {
+			t.Errorf("Location = %q, want the backslash escaped", loc)
+		}
+	})
+
+	t.Run("the demo turns a write back to its own pages", func(t *testing.T) {
+		t.Setenv("LOGNORTH_DEMO", "true")
+		sa := setupSecurityApp(t)
+		users.CreateUser(sa.db, "demo@lognorth.com", "demo")
+
+		res := sa.do("POST", "/settings/agent-key", url.Values{},
+			map[string]string{"Sec-Fetch-Site": "same-origin", "Referer": "https://evil.example/phish"})
+
+		if loc := res.Header.Get("Location"); loc != "/" {
+			t.Errorf("Location = %q, want /", loc)
+		}
+	})
+}
+
+func TestErrorsSayNothingAboutTheServer(t *testing.T) {
+	serve := func(t *testing.T, path string) (int, string) {
+		t.Helper()
+		logger := testsupport.NewTestLogger()
+		cfg := cartridge.DefaultServerConfig()
+		cfg.Config = testsupport.NewTestConfig()
+		cfg.Logger = logger
+		cfg.DBManager = testsupport.NewTestDBManager(setupTestDB(t))
+		cfg.ErrorHandler = lbhttp.ErrorHandler(logger)
+		server, err := cartridge.NewServer(cfg)
+		if err != nil {
+			t.Fatalf("Failed to create server: %v", err)
+		}
+		server.Get("/fails", func(ctx *cartridge.Context) error {
+			return errors.New("sqlite: no such table: secret_things at /app/storage/lognorth.db")
+		})
+		server.Get("/panics", func(ctx *cartridge.Context) error {
+			panic("nil pointer in internal/events/alerting.go")
+		})
+
+		res, err := server.Test(httptest.NewRequest("GET", path, nil))
+
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		body, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(body)
+	}
+
+	t.Run("a failed handler answers 500 with no cause", func(t *testing.T) {
+		status, body := serve(t, "/fails")
+
+		if status != http.StatusInternalServerError {
+			t.Errorf("status = %d, want 500", status)
+		}
+		if strings.Contains(body, "sqlite") || strings.Contains(body, "storage") {
+			t.Errorf("body = %s, want no internal detail", body)
+		}
+	})
+
+	t.Run("a panic answers 500 with no stack", func(t *testing.T) {
+		status, body := serve(t, "/panics")
+
+		if status != http.StatusInternalServerError {
+			t.Errorf("status = %d, want 500", status)
+		}
+		if strings.Contains(body, "alerting.go") || strings.Contains(body, "goroutine") {
+			t.Errorf("body = %s, want no stack", body)
+		}
+	})
+
+	t.Run("an unknown page answers 404", func(t *testing.T) {
+		status, body := serve(t, "/nope/<script>alert(1)</script>")
+
+		if status != http.StatusNotFound {
+			t.Errorf("status = %d, want 404", status)
+		}
+		if strings.Contains(body, "script") {
+			t.Errorf("body = %s, want the path left out", body)
+		}
+	})
 }
 
 func TestBodyLimit(t *testing.T) {
