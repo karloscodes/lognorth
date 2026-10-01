@@ -104,9 +104,8 @@ function HelpOverlay({ onClose, appScoped }: { onClose: () => void; appScoped: b
 }
 
 export function Layout({ children, currentPath, appId, appName, applications }: LayoutProps) {
-  const { props, url } = usePage<{ isDemo?: boolean; licenseValid?: boolean }>()
+  const { props, url } = usePage<{ isDemo?: boolean }>()
   const isDemo = props.isDemo ?? false
-  const licenseValid = props.licenseValid ?? true
   const appScoped = Boolean(appId && appName && applications)
   const path = currentPath ?? url.split('?')[0]
   // The status bar names the real screen: an issue page passes "/issues" as its tab.
@@ -265,17 +264,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
             <span>
               demo · read-only<span className="hidden md:inline">. Your install shows your own apps.</span>
             </span>
-            <a href="https://lognorth.com" className="whitespace-nowrap border-b border-border text-foreground">Buy LogNorth · $99</a>
-          </div>
-        </div>
-      )}
-      {!isDemo && !licenseValid && (
-        <div className="bg-error text-xs text-foreground">
-          <div className="mx-auto flex min-h-[30px] max-w-6xl items-center px-4 py-1 md:px-8">
-            <span>
-              No valid license. Events arrive, but LogNorth does not process them yet.{' '}
-              <Link href="/settings" className="font-bold underline hover:no-underline">Enter your license key →</Link>
-            </span>
+            <a href="https://lognorth.com" className="whitespace-nowrap border-b border-border text-foreground">Get LogNorth · free</a>
           </div>
         </div>
       )}

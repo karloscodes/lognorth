@@ -41,8 +41,8 @@ func RenderPage(c *cartridge.Context, component string, props inertia.Props) err
 		props["isDemo"] = true
 	}
 
-	// Surface license status to the layout so it can warn when events
-	// are arriving but not being processed.
+	// Surface license status so the Developer page can say that agent
+	// access needs one.
 	if _, exists := props["licenseValid"]; !exists {
 		props["licenseValid"] = license.IsConfigured()
 	}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link, usePage } from '@inertiajs/react'
 import { SettingsLayout } from '@/components/settings-layout'
 
 interface Props {
@@ -6,6 +7,7 @@ interface Props {
 }
 
 export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }: Props) {
+  const licenseValid = usePage<{ licenseValid?: boolean }>().props.licenseValid ?? true
   const [copiedKey, setCopiedKey] = useState(false)
   const [copiedStep, setCopiedStep] = useState<number | null>(null)
   const [newAgentKey, setNewAgentKey] = useState<string | null>(null)
@@ -87,6 +89,15 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
       <p className="text-subtle text-sm mb-6">
         Let Claude Code, Cursor, or any MCP client read your logs. Read-only, every app.
       </p>
+
+      {!licenseValid && (
+        <p className="mb-6 border border-border p-3 text-sm text-text">
+          Agent access needs a license. Everything else is free.{' '}
+          <Link href="/settings/license" className="font-bold text-foreground underline hover:no-underline">
+            Add your license key →
+          </Link>
+        </p>
+      )}
 
       {newAgentKey && (
         <div className="mb-6 p-4 bg-accent/10 border border-accent/30">

@@ -76,7 +76,7 @@ export default function SettingsLicense({ settings }: Props) {
         )}
       </div>
       <p className="text-subtle text-sm mb-6">
-        Required to process events. Without one, events still arrive but aren't processed.
+        LogNorth is free. A license adds agent access: Claude Code, Cursor, and the north CLI read your logs.
       </p>
 
       <div>
