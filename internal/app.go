@@ -93,7 +93,11 @@ func NewApp() (*Application, error) {
 	// private or loopback address; otherwise every client shares the proxy's
 	// IP in the rate limiters. A client that reaches the app directly cannot
 	// set its own IP this way.
-	serverConfig.ErrorHandler = lbhttp.ErrorHandler(logger)
+	// In development the page loads from the Vite dev server, which the
+	// policy would block.
+	if !cfg.IsDevelopment() {
+		serverConfig.ContentSecurityPolicy = contentSecurityPolicy
+	}
 	serverConfig.ProxyHeader = "X-Forwarded-For"
 	serverConfig.TrustedProxies = trustedProxies
 
@@ -133,18 +137,29 @@ func NewApp() (*Application, error) {
 	}, nil
 }
 
+// contentSecurityPolicy lets the browser load only what the app ships: its
+// own scripts, styles, fonts, and images. Inline styles stay allowed because
+// components set them. Nothing inline runs as script.
+const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; " +
+	"base-uri 'self'; form-action 'self'; object-src 'none'"
+
 // MountRoutes sets up all application routes
 func MountRoutes(server *cartridge.Server) {
 	cfg := config.GetConfig()
 
 	// Set up session manager
-	sessionMgr := cartridge.NewSessionManager(cartridge.SessionConfig{
+	sessionMgr, err := cartridge.NewSessionManager(cartridge.SessionConfig{
 		CookieName: "lognorth_session",
 		Secret:     cfg.GetSessionSecret(),
 		TTL:        time.Duration(cfg.GetLoginSessionTimeout()) * time.Second,
-		Secure:     cfg.IsProduction(),
+		Insecure:   !cfg.IsProduction(),
 		LoginPath:  "/login",
 	})
+	if err != nil {
+		// GetSessionSecret always returns 32 bytes or more.
+		panic(fmt.Sprintf("session manager: %v", err))
+	}
 	server.SetSession(sessionMgr)
 
 	// Get dependencies for middleware
@@ -170,8 +185,6 @@ func MountRoutes(server *cartridge.Server) {
 
 	// Onboarding check middleware
 	onboardingCheck := onboardingCheckMiddleware(dbMgr, logger)
-
-	server.Use(lbhttp.SecurityHeaders)
 
 	// Health check (no auth, no CSRF check)
 	server.Get("/_health", func(c *cartridge.Context) error {
@@ -204,7 +217,7 @@ func MountRoutes(server *cartridge.Server) {
 				if strings.HasPrefix(c.Path(), "/api/") {
 					return c.Next()
 				}
-				return c.Redirect(lbhttp.RefererPath(c, "/"))
+				return c.RedirectBack("/")
 			}
 			return c.Next()
 		})

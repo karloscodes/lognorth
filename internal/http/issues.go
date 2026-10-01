@@ -149,7 +149,7 @@ func MarkIssueSeenAction(ctx *cartridge.Context) error {
 		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to mark seen"})
 	}
 
-	return ctx.Redirect(RefererPath(ctx, "/issues"), http.StatusFound)
+	return ctx.RedirectBack("/issues")
 }
 
 // MarkAllIssuesSeenAction handles POST /issues/seen
@@ -162,7 +162,7 @@ func MarkAllIssuesSeenAction(ctx *cartridge.Context) error {
 		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to mark all seen"})
 	}
 
-	return ctx.Redirect(RefererPath(ctx, "/issues"), http.StatusFound)
+	return ctx.RedirectBack("/issues")
 }
 
 // MuteIssueAction handles POST /issues/:hash/mute
@@ -178,7 +178,7 @@ func MuteIssueAction(ctx *cartridge.Context) error {
 		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to mute"})
 	}
 
-	return ctx.Redirect(RefererPath(ctx, "/issues"), http.StatusFound)
+	return ctx.RedirectBack("/issues")
 }
 
 // UnmuteIssueAction handles POST /issues/:hash/unmute
@@ -194,5 +194,5 @@ func UnmuteIssueAction(ctx *cartridge.Context) error {
 		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to unmute"})
 	}
 
-	return ctx.Redirect(RefererPath(ctx, "/issues"), http.StatusFound)
+	return ctx.RedirectBack("/issues")
 }

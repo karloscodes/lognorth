@@ -54,6 +54,7 @@ const maxInflatedBody = 16 << 20
 var (
 	errInvalidGzip  = errors.New("Invalid gzip body")
 	errBodyTooLarge = errors.New("Request body too large")
+	errUnreadBody   = errors.New("Could not read the request body")
 )
 
 // ingestBody returns the request body, inflated when the client sent it with
@@ -61,6 +62,11 @@ var (
 // LogNorth SDKs do not. Handlers call it after they check the key.
 func ingestBody(ctx *cartridge.Context) ([]byte, error) {
 	body := ctx.Body()
+	// Body returns nil when the read failed, for example a chunked body over
+	// the limit. Say so: an empty OTLP request would count as a success.
+	if body == nil && ctx.Request().ContentLength != 0 {
+		return nil, errUnreadBody
+	}
 	if !strings.EqualFold(ctx.Get("Content-Encoding"), "gzip") {
 		return body, nil
 	}

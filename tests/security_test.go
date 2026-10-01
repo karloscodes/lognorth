@@ -23,7 +23,6 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/events"
-	lbhttp "lognorth/internal/http"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
 )
@@ -505,6 +504,18 @@ func TestSessionCookie(t *testing.T) {
 		}
 	})
 
+	t.Run("an install with a short private key still starts and logs in", func(t *testing.T) {
+		t.Setenv("LOGNORTH_PRIVATE_KEY", "short-key")
+		t.Chdir(t.TempDir())
+		sa := setupSecurityAppIn(t, "production")
+
+		cookie := sa.login()
+
+		if status := open(sa, cookie); status != http.StatusOK {
+			t.Errorf("status = %d, want the page for the logged-in owner", status)
+		}
+	})
+
 	t.Run("in production the session cookie is HttpOnly, Secure, and SameSite=Lax", func(t *testing.T) {
 		sa := setupProductionApp(t)
 		users.CreateUser(sa.db, "owner@example.com", "correct-horse")
@@ -655,6 +666,17 @@ func TestBrowserWritesNeedTheSameOrigin(t *testing.T) {
 	t.Run("a post from another subdomain is rejected", func(t *testing.T) {
 		if status := post(t, "/settings/agent-key/regenerate", "same-site"); status != http.StatusForbidden {
 			t.Errorf("status = %d, want 403", status)
+		}
+	})
+
+	t.Run("a post with no Sec-Fetch-Site and another site's Origin is rejected", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+
+		res := sa.do("POST", "/settings/agent-key/regenerate", url.Values{},
+			map[string]string{"Cookie": sa.login(), "Origin": "https://evil.example"})
+
+		if res.StatusCode != http.StatusForbidden {
+			t.Errorf("status = %d, want 403", res.StatusCode)
 		}
 	})
 
@@ -862,7 +884,7 @@ func TestSecurityHeaders(t *testing.T) {
 	})
 
 	t.Run("over HTTPS the browser is told to stay on HTTPS", func(t *testing.T) {
-		sa := setupSecurityApp(t)
+		sa := setupProductionApp(t)
 		users.CreateUser(sa.db, "owner@example.com", "correct-horse")
 
 		res := sa.doFrom(proxyPeer, "GET", "/login", nil, map[string]string{"X-Forwarded-Proto": "https"})
@@ -873,7 +895,7 @@ func TestSecurityHeaders(t *testing.T) {
 	})
 
 	t.Run("over HTTP the browser is not told to refuse HTTP", func(t *testing.T) {
-		sa := setupSecurityApp(t)
+		sa := setupProductionApp(t)
 		users.CreateUser(sa.db, "owner@example.com", "correct-horse")
 
 		res := sa.doFrom(proxyPeer, "GET", "/login", nil, nil)
@@ -921,9 +943,9 @@ func TestRedirectsStayOnTheSite(t *testing.T) {
 		}
 	})
 
-	t.Run("a backslash stays a path on this site", func(t *testing.T) {
-		if loc := mute(t, "http://example.com/\\evil.example"); loc != "/%5Cevil.example" {
-			t.Errorf("Location = %q, want the backslash escaped", loc)
+	t.Run("a backslash path, which a browser reads as another site, is refused", func(t *testing.T) {
+		if loc := mute(t, "http://example.com/\\evil.example"); loc != "/issues" {
+			t.Errorf("Location = %q, want /issues", loc)
 		}
 	})
 
@@ -944,12 +966,10 @@ func TestRedirectsStayOnTheSite(t *testing.T) {
 func TestErrorsSayNothingAboutTheServer(t *testing.T) {
 	serve := func(t *testing.T, path string) (int, string) {
 		t.Helper()
-		logger := testsupport.NewTestLogger()
 		cfg := cartridge.DefaultServerConfig()
 		cfg.Config = testsupport.NewTestConfig()
-		cfg.Logger = logger
+		cfg.Logger = testsupport.NewTestLogger()
 		cfg.DBManager = testsupport.NewTestDBManager(setupTestDB(t))
-		cfg.ErrorHandler = lbhttp.ErrorHandler(logger)
 		server, err := cartridge.NewServer(cfg)
 		if err != nil {
 			t.Fatalf("Failed to create server: %v", err)
@@ -1183,6 +1203,24 @@ func TestIngestReadsGzip(t *testing.T) {
 
 		if res.StatusCode != http.StatusBadRequest {
 			t.Errorf("status = %d, want 400", res.StatusCode)
+		}
+	})
+
+	t.Run("an OpenTelemetry body over the limit with no length is refused, not counted as empty", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+		req := httptest.NewRequest("POST", "/otel/v1/logs", io.NopCloser(strings.NewReader(strings.Repeat("a", 5<<20))))
+		req.ContentLength = -1 // chunked: the server cannot refuse it up front
+		req.Header.Set("Authorization", "Bearer "+key)
+		req.Header.Set("Content-Type", "application/x-protobuf")
+
+		res, err := sa.app.Server.Test(req)
+
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if res.StatusCode < 400 {
+			t.Errorf("status = %d, want the request refused", res.StatusCode)
 		}
 	})
 

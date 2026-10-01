@@ -3,6 +3,7 @@ package config
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -139,6 +140,13 @@ func (c *Config) DatabaseDSN() string {
 
 // GetSessionSecret returns the session encryption key
 func (c *Config) GetSessionSecret() string {
+	// The session manager refuses a secret under 32 bytes. An install with a
+	// shorter private key must still start after an update, so its secret is
+	// the key's SHA-256. Its sessions end once; a longer key is the real fix.
+	if len(c.PrivateKey) < 32 {
+		sum := sha256.Sum256([]byte(c.PrivateKey))
+		return hex.EncodeToString(sum[:])
+	}
 	return c.PrivateKey
 }
 
