@@ -49,7 +49,9 @@ Agents read the log through MCP only. `POST /mcp` speaks JSON-RPC over HTTP,
 authenticated with the agent key from Settings > Developer, and exposes eight
 read-only tools: `list_apps`, `list_alerts`, `list_endpoints`,
 `endpoint_timeline`, `uptime_timeline`, `list_issues`, `search_logs`,
-`get_event`. There is no REST read API. The protocol lives in `internal/mcp`;
+`get_event`. Tool calls need a valid license (`license.IsConfigured()`); without
+one every tool answers `mcp.Unlicensed`. Nothing else checks the license.
+There is no REST read API. The protocol lives in `internal/mcp`;
 the handler is `internal/http/mcp.go`.
 
 `north`, the open-source laptop CLI (`karloscodes/lognorth-cli`, MIT), reads

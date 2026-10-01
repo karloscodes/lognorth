@@ -1,6 +1,12 @@
 # LogNorth
 
-Know when things break. Self-hosted error tracking.
+Know when things break. Self-hosted logs, errors, alerts, and uptime.
+
+LogNorth is open source under the MIT license, and free to run. Agent access
+(Claude Code, Cursor, the `north` CLI) needs a license: $99, once, at
+[lognorth.com](https://lognorth.com). The check is in `internal/mcp`. You can
+delete it. If LogNorth earns its place on your server, buy the license instead:
+it pays for the work.
 
 ## Quick Start
 
@@ -78,7 +84,8 @@ curl -X POST http://localhost:8080/api/v1/events \
 The server answers the Model Context Protocol at `POST /mcp`, so a coding agent
 can read production logs while it debugs. It is the only read path for an agent:
 there is no REST agent API. Authenticated with the agent key from
-Settings > Developer.
+Settings > Developer. Tool calls need a license key in Settings > License; in
+development, a Polar sandbox key works.
 
 ```bash
 claude mcp add --transport http lognorth http://localhost:8080/mcp \
