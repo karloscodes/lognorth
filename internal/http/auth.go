@@ -26,7 +26,7 @@ func LoginPageAction(ctx *cartridge.Context) error {
 	}
 
 	// If already authenticated, redirect to home
-	if ctx.Session.IsAuthenticated(ctx) {
+	if sessionAlive(ctx) {
 		return ctx.Redirect("/", http.StatusFound)
 	}
 
@@ -81,8 +81,36 @@ func LoginAction(ctx *cartridge.Context) error {
 	return ctx.Redirect("/", http.StatusFound)
 }
 
+// RequireLiveSession turns away a session the owner ended with a logout or a
+// password change. It runs after the session middleware, which checks the
+// signature and the expiry.
+func RequireLiveSession(ctx *cartridge.Context) error {
+	if sessionAlive(ctx) {
+		return ctx.Next()
+	}
+	ctx.Session.ClearSession(ctx)
+	if ctx.Get("HX-Request") == "true" {
+		return ctx.Status(http.StatusUnauthorized).SendString("authentication required")
+	}
+	return ctx.Redirect("/login", http.StatusFound)
+}
+
+func sessionAlive(ctx *cartridge.Context) bool {
+	userID, ok := ctx.Session.GetUserID(ctx)
+	if !ok {
+		return false
+	}
+	issuedAt, _ := ctx.Session.IssuedAt(ctx)
+	return users.SessionAlive(ctx.DB(), userID, issuedAt)
+}
+
 // LogoutAction handles POST /logout
 func LogoutAction(ctx *cartridge.Context) error {
+	if userID, ok := ctx.Session.GetUserID(ctx); ok {
+		if err := users.EndSessions(ctx.DB(), userID); err != nil {
+			ctx.Logger.Error("Failed to end sessions on logout", slog.Any("error", err))
+		}
+	}
 	ctx.Session.ClearSession(ctx)
 	setFlash(ctx, "success", "You have been logged out")
 	return ctx.Redirect("/login", http.StatusFound)

@@ -538,6 +538,78 @@ func TestSessionCookie(t *testing.T) {
 		t.Fatal("a failed login set no flash cookie")
 	})
 
+	t.Run("after a logout, a copy of the cookie no longer opens the pages", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		cookie := sa.login()
+		sa.do("POST", "/logout", url.Values{}, map[string]string{"Cookie": cookie, "Sec-Fetch-Site": "same-origin"})
+
+		res := sa.do("GET", "/settings/developer", nil, map[string]string{"Cookie": cookie})
+
+		if res.StatusCode != http.StatusFound || res.Header.Get("Location") != "/login" {
+			t.Errorf("status = %d to %q, want 302 to /login", res.StatusCode, res.Header.Get("Location"))
+		}
+	})
+
+	t.Run("after a logout, the login page does not bounce a copied cookie back", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		cookie := sa.login()
+		sa.do("POST", "/logout", url.Values{}, map[string]string{"Cookie": cookie, "Sec-Fetch-Site": "same-origin"})
+
+		res := sa.do("GET", "/login", nil, map[string]string{"Cookie": cookie})
+
+		if res.StatusCode != http.StatusOK {
+			t.Errorf("status = %d, want the login page", res.StatusCode)
+		}
+	})
+
+	t.Run("a new login after a logout opens the pages", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		old := sa.login()
+		sa.do("POST", "/logout", url.Values{}, map[string]string{"Cookie": old, "Sec-Fetch-Site": "same-origin"})
+		res := sa.do("POST", "/login",
+			url.Values{"email": {"owner@example.com"}, "password": {"correct-horse"}},
+			map[string]string{"Sec-Fetch-Site": "same-origin"})
+		fresh := ""
+		for _, c := range res.Cookies() {
+			if c.Name == "lognorth_session" {
+				fresh = c.Name + "=" + c.Value
+			}
+		}
+
+		status := open(sa, fresh)
+
+		if status != http.StatusOK {
+			t.Errorf("status = %d, want the page for the new session", status)
+		}
+	})
+
+	t.Run("a new password ends the sessions the old one opened", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		cookie := sa.login()
+		if err := users.SetPassword(sa.db, "owner@example.com", "a-new-password"); err != nil {
+			t.Fatalf("SetPassword failed: %v", err)
+		}
+
+		status := open(sa, cookie)
+
+		if status != http.StatusFound {
+			t.Errorf("status = %d, want 302 to the login page", status)
+		}
+	})
+
+	t.Run("a session of a deleted user opens nothing", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		cookie := sa.login()
+		sa.db.Where("email = ?", "owner@example.com").Delete(&users.User{})
+		users.CreateUser(sa.db, "other@example.com", "correct-horse")
+
+		status := open(sa, cookie)
+
+		if status != http.StatusFound {
+			t.Errorf("status = %d, want 302 to the login page", status)
+		}
+	})
+
 	t.Run("logout clears the cookie", func(t *testing.T) {
 		sa := setupSecurityApp(t)
 		cookie := sa.login()

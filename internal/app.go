@@ -226,6 +226,7 @@ func MountRoutes(server *cartridge.Server) {
 		protectedMiddleware = []cartridge.HandlerFunc{
 			onboardingCheck,
 			sessionMgr.Middleware(),
+			lbhttp.RequireLiveSession,
 		}
 	}
 	protectedConfig := &cartridge.RouteConfig{

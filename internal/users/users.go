@@ -19,8 +19,11 @@ type User struct {
 	EncryptedPassword   string
 	ResetPasswordToken  sql.NullString
 	ResetPasswordSentAt sql.NullTime
-	CreatedAt           time.Time `gorm:"autoCreateTime"`
-	UpdatedAt           time.Time `gorm:"autoUpdateTime"`
+	// SessionsEndedAt is the last logout or password change. A session issued
+	// before it no longer counts.
+	SessionsEndedAt sql.NullTime
+	CreatedAt       time.Time `gorm:"autoCreateTime"`
+	UpdatedAt       time.Time `gorm:"autoUpdateTime"`
 }
 
 // ErrUserExists is returned when attempting to create a user that already exists
@@ -61,7 +64,29 @@ func SetPassword(db *gorm.DB, email, password string) error {
 	if err != nil {
 		return err
 	}
-	return db.Model(user).Update("encrypted_password", string(hashed)).Error
+	// A new password ends the sessions that the old one opened.
+	return db.Model(user).Updates(map[string]any{
+		"encrypted_password": string(hashed),
+		"sessions_ended_at":  time.Now().UTC(),
+	}).Error
+}
+
+// EndSessions ends every session the user has open. The session cookie is
+// signed and stateless, so the server cannot delete it: a logout only counts
+// if a copy of the cookie stops working too.
+func EndSessions(db *gorm.DB, userID uint) error {
+	return db.Model(&User{}).Where("id = ?", userID).Update("sessions_ended_at", time.Now().UTC()).Error
+}
+
+// SessionAlive reports whether a session issued at issuedAt still counts.
+// A cookie from before sessions carried an issue time has the zero time, so
+// it works until the first logout.
+func SessionAlive(db *gorm.DB, userID uint, issuedAt time.Time) bool {
+	user, err := FindByID(db, userID)
+	if err != nil {
+		return false
+	}
+	return !user.SessionsEndedAt.Valid || issuedAt.After(user.SessionsEndedAt.Time)
 }
 
 // CreateUser creates a new user with the supplied credentials
