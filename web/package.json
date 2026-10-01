@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@inertiajs/react": "^2.2.19",
+    "@inertiajs/react": "^3.8.0",
     "@radix-ui/react-switch": "^1.2.6",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",

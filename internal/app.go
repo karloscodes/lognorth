@@ -50,6 +50,10 @@ func NewApp() (*Application, error) {
 	// Set page title
 	lbhttp.SetTitle("LogNorth")
 
+	// The frontend runs Inertia v3, which reads the first page from a JSON
+	// script element, not from an attribute on the root div.
+	inertia.SetScriptElement(true)
+
 	// Create logger
 	logger := cartridge.NewLogger(cfg, nil)
 
