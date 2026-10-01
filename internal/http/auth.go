@@ -3,9 +3,9 @@ package http
 import (
 	"errors"
 	"log/slog"
+	"net/http"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/crypto"
 	"github.com/karloscodes/cartridge/flash"
@@ -22,15 +22,15 @@ func LoginPageAction(ctx *cartridge.Context) error {
 	if err != nil {
 		ctx.Logger.Error("Failed to check if onboarding required on login", slog.Any("error", err))
 	} else if required {
-		return ctx.Redirect("/setup", fiber.StatusFound)
+		return ctx.Redirect("/setup", http.StatusFound)
 	}
 
 	// If already authenticated, redirect to home
-	if ctx.Session.IsAuthenticated(ctx.Ctx) {
-		return ctx.Redirect("/", fiber.StatusFound)
+	if ctx.Session.IsAuthenticated(ctx) {
+		return ctx.Redirect("/", http.StatusFound)
 	}
 
-	return RenderPage(ctx.Ctx, "Login", Props{})
+	return RenderPage(ctx, "Login", Props{})
 }
 
 // LoginAction handles POST /login
@@ -40,8 +40,8 @@ func LoginAction(ctx *cartridge.Context) error {
 	password := ctx.FormValue("password")
 
 	if email == "" || password == "" {
-		flash.SetFlash(ctx.Ctx, "error", "Email and password are required")
-		return ctx.Redirect("/login", fiber.StatusFound)
+		setFlash(ctx, "error", "Email and password are required")
+		return ctx.Redirect("/login", http.StatusFound)
 	}
 
 	db := ctx.DB()
@@ -65,42 +65,42 @@ func LoginAction(ctx *cartridge.Context) error {
 	}
 
 	if !passwordValid {
-		flash.SetFlash(ctx.Ctx, "error", "Invalid email or password")
-		return ctx.Redirect("/login", fiber.StatusFound)
+		setFlash(ctx, "error", "Invalid email or password")
+		return ctx.Redirect("/login", http.StatusFound)
 	}
 
 	// Set session
-	if err := ctx.Session.SetSession(ctx.Ctx, user.ID); err != nil {
+	if err := ctx.Session.SetSession(ctx, user.ID); err != nil {
 		ctx.Logger.Error("Failed to set session", slog.Any("error", err))
-		flash.SetFlash(ctx.Ctx, "error", "Login failed")
-		return ctx.Redirect("/login", fiber.StatusFound)
+		setFlash(ctx, "error", "Login failed")
+		return ctx.Redirect("/login", http.StatusFound)
 	}
 
 	ctx.Logger.Debug("Login successful", slog.String("email", email), slog.Uint64("userId", uint64(user.ID)))
 
-	return ctx.Redirect("/", fiber.StatusFound)
+	return ctx.Redirect("/", http.StatusFound)
 }
 
 // LogoutAction handles POST /logout
 func LogoutAction(ctx *cartridge.Context) error {
-	ctx.Session.ClearSession(ctx.Ctx)
-	flash.SetFlash(ctx.Ctx, "success", "You have been logged out")
-	return ctx.Redirect("/login", fiber.StatusFound)
+	ctx.Session.ClearSession(ctx)
+	setFlash(ctx, "success", "You have been logged out")
+	return ctx.Redirect("/login", http.StatusFound)
 }
 
 // OnboardingPageAction handles GET /setup: the form that creates the owner.
 func OnboardingPageAction(ctx *cartridge.Context) error {
 	if setupDone(ctx) {
-		return ctx.Redirect("/login", fiber.StatusFound)
+		return ctx.Redirect("/login", http.StatusFound)
 	}
-	return RenderPage(ctx.Ctx, "Onboarding", Props{})
+	return RenderPage(ctx, "Onboarding", Props{})
 }
 
 // OnboardingAction handles POST /setup. It creates the owner and logs them in.
 // Once any user exists it refuses, so setup cannot add a second admin.
 func OnboardingAction(ctx *cartridge.Context) error {
 	if setupDone(ctx) {
-		return ctx.Redirect("/login", fiber.StatusFound)
+		return ctx.Redirect("/login", http.StatusFound)
 	}
 
 	email := strings.TrimSpace(ctx.FormValue("email"))
@@ -116,7 +116,7 @@ func OnboardingAction(ctx *cartridge.Context) error {
 		problem = "Passwords do not match"
 	}
 	if problem != "" {
-		return RenderPage(ctx.Ctx, "Onboarding", Props{
+		return RenderPage(ctx, "Onboarding", Props{
 			"email": email,
 			"flash": flash.FlashMessage{Type: "error", Message: problem},
 		})
@@ -124,21 +124,21 @@ func OnboardingAction(ctx *cartridge.Context) error {
 
 	err := users.CreateFirstUser(ctx.DB(), email, password)
 	if errors.Is(err, users.ErrSetupDone) {
-		return ctx.Redirect("/login", fiber.StatusFound)
+		return ctx.Redirect("/login", http.StatusFound)
 	}
 	if err != nil {
 		ctx.Logger.Error("Failed to create user", slog.Any("error", err))
-		return RenderPage(ctx.Ctx, "Onboarding", Props{
+		return RenderPage(ctx, "Onboarding", Props{
 			"email": email,
 			"flash": flash.FlashMessage{Type: "error", Message: "Failed to create account"},
 		})
 	}
 
 	if user, err := users.FindByEmail(ctx.DB(), email); err == nil {
-		ctx.Session.SetSession(ctx.Ctx, user.ID)
+		ctx.Session.SetSession(ctx, user.ID)
 	}
-	flash.SetFlash(ctx.Ctx, "success", "Account created successfully!")
-	return ctx.Redirect("/", fiber.StatusFound)
+	setFlash(ctx, "success", "Account created successfully!")
+	return ctx.Redirect("/", http.StatusFound)
 }
 
 // setupDone reports whether the first user exists.

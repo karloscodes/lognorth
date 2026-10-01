@@ -4,10 +4,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"maps"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 	"google.golang.org/protobuf/proto"
 
@@ -26,25 +26,25 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
 	// Auth via Authorization header (set via OTEL_EXPORTER_OTLP_HEADERS)
-	authHeader := ctx.Ctx.Get("Authorization")
+	authHeader := ctx.Get("Authorization")
 	apiKey := strings.TrimPrefix(authHeader, "Bearer ")
 	if apiKey == "" {
-		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		return ctx.Status(http.StatusUnauthorized).JSON(cartridge.Map{
 			"error": "API key required",
 		})
 	}
 
 	validatedKey, err := apikeys.ValidateAppKey(db, apiKey)
 	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		return ctx.Status(http.StatusUnauthorized).JSON(cartridge.Map{
 			"error": "Invalid API key",
 		})
 	}
 
 	// Decode protobuf
 	var req collectorlogs.ExportLogsServiceRequest
-	if err := proto.Unmarshal(ctx.Ctx.Body(), &req); err != nil {
-		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := proto.Unmarshal(ctx.Body(), &req); err != nil {
+		return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{
 			"error": "Invalid OTLP protobuf",
 		})
 	}
@@ -66,16 +66,16 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 	// On a failed write, say so: OTel exporters retry on 503.
 	if err := events.CreateIngested(db, toStore); err != nil {
 		ctx.Logger.Error("Failed to store OTel events", "error", err)
-		return ctx.Ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": "Could not store events. Retry."})
+		return ctx.Status(http.StatusServiceUnavailable).JSON(cartridge.Map{"error": "Could not store events. Retry."})
 	}
 
-	return ctx.Ctx.Status(fiber.StatusOK).JSON(fiber.Map{"created": len(toStore)})
+	return ctx.Status(http.StatusOK).JSON(cartridge.Map{"created": len(toStore)})
 }
 
 // OtelSinkAction handles POST /v1/traces and /v1/metrics
 // Accepts the request and discards it. Returns 200 so OTel SDKs don't error.
 func OtelSinkAction(ctx *cartridge.Context) error {
-	return ctx.Ctx.Status(fiber.StatusOK).JSON(fiber.Map{})
+	return ctx.Status(http.StatusOK).JSON(cartridge.Map{})
 }
 
 // convertProtoLogRecord transforms an OTLP protobuf LogRecord into an IngestedEvent.

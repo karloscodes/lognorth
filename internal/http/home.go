@@ -29,7 +29,7 @@ func HomePageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
 	if !apikeys.HasAny(db) {
-		return ctx.Ctx.Redirect("/apps")
+		return ctx.Redirect("/apps")
 	}
 
 	// Get applications with stats
@@ -59,7 +59,7 @@ func HomePageAction(ctx *cartridge.Context) error {
 		recentIssues = []events.IssueWithState{}
 	}
 
-	return RenderPage(ctx.Ctx, "Home", Props{
+	return RenderPage(ctx, "Home", Props{
 		"applications": apps,
 		"recentIssues": recentIssues,
 	})

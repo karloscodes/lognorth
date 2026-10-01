@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/sqlite"
 
@@ -26,13 +25,13 @@ import (
 
 // =============================================================================
 // MCP INTEGRATION TESTS
-// These mount the real handlers on a fiber app and drive them over HTTP, so
+// These mount the real handlers on a cartridge server and drive them over HTTP, so
 // the auth check, the JSON-RPC envelope, and the database reads are all the
 // production code paths.
 // =============================================================================
 
 type mcpTestApp struct {
-	app      *fiber.App
+	app      *cartridge.Server
 	db       *sqlite.Manager
 	agentKey string
 	appKey   string
@@ -63,15 +62,10 @@ func setupMCPTestApp(t *testing.T) *mcpTestApp {
 		t.Fatalf("Failed to create app key: %v", err)
 	}
 
-	// Mount the real handlers. The wrapper is what cartridge's router does.
-	app := fiber.New()
-	handle := func(h func(*cartridge.Context) error) fiber.Handler {
-		return func(c *fiber.Ctx) error {
-			return h(&cartridge.Context{Ctx: c, DBManager: manager})
-		}
-	}
-	app.Post("/mcp", handle(lbhttp.MCPAction))
-	app.Post("/api/v1/events", handle(lbhttp.IngestAction))
+	app := newTestServer(t, manager, func(server *cartridge.Server) {
+		server.Post("/mcp", lbhttp.MCPAction, apiRoute)
+		mountIngest(server)
+	})
 
 	return &mcpTestApp{app: app, db: manager, agentKey: agentKey, appKey: appKey, apiKeyID: key.ID}
 }

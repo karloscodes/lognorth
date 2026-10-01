@@ -1,10 +1,10 @@
 package http
 
 import (
+	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/apikeys"
@@ -30,7 +30,7 @@ func formatTimeOrEmpty(t time.Time) string {
 func getAppFromURL(ctx *cartridge.Context) (*apikeys.APIKey, []Application, error) {
 	db := ctx.DB()
 
-	id, err := strconv.ParseUint(ctx.Ctx.Params("id"), 10, 64)
+	id, err := strconv.ParseUint(ctx.Params("id"), 10, 64)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -60,38 +60,38 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 
 	app, apps, err := getAppFromURL(ctx)
 	if err != nil {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Redirect("/")
 	}
 
-	filters := parseAppFilters(ctx.Ctx, app.ID)
+	filters := parseAppFilters(ctx, app.ID)
 	entries, total, err := events.List(db, filters)
 	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch log"})
+		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to fetch log"})
 	}
 
 	// Get histogram data - 48 buckets for the time range
 	histogram := events.GetHistogram(db, app.ID, filters.StartTime, filters.EndTime)
 
-	return RenderPage(ctx.Ctx, "Log", Props{
+	return RenderPage(ctx, "Log", Props{
 		"appId":        app.ID,
 		"appName":      app.Name,
 		"applications": apps,
 		"entries":      entries,
 		"histogram":    histogram,
-		"filters": fiber.Map{
+		"filters": cartridge.Map{
 			"is_error": filters.IsError,
 			"search":   filters.Search,
 			"error":    filters.ErrorHash,
 			"trace":    filters.TraceID,
 			"start_time": func() string {
-				if ctx.Ctx.Query("start_time") == "all" {
+				if ctx.Query("start_time") == "all" {
 					return "all"
 				}
 				return formatTimeOrEmpty(filters.StartTime)
 			}(),
 			"end_time": formatTimeOrEmpty(filters.EndTime),
 		},
-		"pagination": fiber.Map{
+		"pagination": cartridge.Map{
 			"limit":  filters.Limit,
 			"offset": filters.Offset,
 			"total":  total,
@@ -105,15 +105,15 @@ func AppIssuesPageAction(ctx *cartridge.Context) error {
 
 	app, apps, err := getAppFromURL(ctx)
 	if err != nil {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Redirect("/")
 	}
 
 	issues, err := events.ListIssuesWithState(db, app.ID, 100)
 	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch issues"})
+		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to fetch issues"})
 	}
 
-	return RenderPage(ctx.Ctx, "Issues", Props{
+	return RenderPage(ctx, "Issues", Props{
 		"appId":        app.ID,
 		"appName":      app.Name,
 		"applications": apps,
@@ -127,17 +127,17 @@ func AppLogDetailPageAction(ctx *cartridge.Context) error {
 
 	app, apps, err := getAppFromURL(ctx)
 	if err != nil {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Redirect("/")
 	}
 
-	entryId, err := strconv.ParseUint(ctx.Ctx.Params("eventId"), 10, 64)
+	entryId, err := strconv.ParseUint(ctx.Params("eventId"), 10, 64)
 	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID"})
+		return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{"error": "Invalid ID"})
 	}
 
 	entry, err := events.FindByID(db, uint(entryId))
 	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Not found"})
+		return ctx.Status(http.StatusNotFound).JSON(cartridge.Map{"error": "Not found"})
 	}
 
 	relatedEntries := []events.Event{}
@@ -163,26 +163,26 @@ func AppLogDetailPageAction(ctx *cartridge.Context) error {
 		props["issueHash"] = entry.IssueHash
 	}
 
-	return RenderPage(ctx.Ctx, "LogDetail", props)
+	return RenderPage(ctx, "LogDetail", props)
 }
 
 // TracePageAction handles GET /trace/:traceId - redirects to logs filtered by trace
 func TracePageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
-	traceID := ctx.Ctx.Params("traceId")
+	traceID := ctx.Params("traceId")
 
 	if traceID == "" {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Redirect("/")
 	}
 
 	entries, err := events.FindByTraceID(db, traceID)
 	if err != nil || len(entries) == 0 {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Redirect("/")
 	}
 
 	// Redirect to logs filtered by this trace
 	appID := entries[0].APIKeyID
-	return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(appID), 10) + "/log?trace=" + traceID)
+	return ctx.Redirect("/apps/" + strconv.FormatUint(uint64(appID), 10) + "/log?trace=" + traceID)
 }
 
 // EndpointsPageAction handles GET /apps/:id/endpoints
@@ -191,12 +191,12 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 
 	app, apps, err := getAppFromURL(ctx)
 	if err != nil {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Redirect("/")
 	}
 
 	endpoints, err := events.GetEndpointStats(db, app.ID, 50)
 	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch endpoints"})
+		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to fetch endpoints"})
 	}
 
 	// Endpoints alerting now, compared with their own history. The page marks
@@ -206,7 +206,7 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 		alerts = []events.Alert{}
 	}
 
-	return RenderPage(ctx.Ctx, "Endpoints", Props{
+	return RenderPage(ctx, "Endpoints", Props{
 		"appId":        app.ID,
 		"appName":      app.Name,
 		"applications": apps,
@@ -216,7 +216,7 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 	})
 }
 
-func parseAppFilters(c *fiber.Ctx, appID uint) events.ListFilters {
+func parseAppFilters(c *cartridge.Context, appID uint) events.ListFilters {
 	filters := events.ListFilters{
 		APIKeyID:  appID,
 		Search:    c.Query("search"),

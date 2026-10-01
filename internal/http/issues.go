@@ -2,10 +2,10 @@ package http
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/events"
@@ -30,38 +30,38 @@ func parseTimestamp(s string) time.Time {
 // IssueDetailPageAction handles GET /issues/:hash - redirects to app-scoped issue page
 func IssueDetailPageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
-	hash := ctx.Ctx.Params("hash")
+	hash := ctx.Params("hash")
 
 	if hash == "" {
-		return ctx.Ctx.Redirect("/issues")
+		return ctx.Redirect("/issues")
 	}
 
 	issue, err := events.GetIssueByHash(db, hash, 0)
 	if err != nil || issue == nil {
-		return ctx.Ctx.Redirect("/issues")
+		return ctx.Redirect("/issues")
 	}
 
-	return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(issue.APIKeyID), 10) + "/issues/" + hash)
+	return ctx.Redirect("/apps/" + strconv.FormatUint(uint64(issue.APIKeyID), 10) + "/issues/" + hash)
 }
 
 // AppIssueDetailPageAction handles GET /apps/:id/issues/:hash - renders issue detail page
 func AppIssueDetailPageAction(ctx *cartridge.Context) error {
-	hash := ctx.Ctx.Params("hash")
+	hash := ctx.Params("hash")
 
 	app, apps, err := getAppFromURL(ctx)
 	if err != nil {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Redirect("/")
 	}
 
 	if hash == "" {
-		return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(app.ID), 10) + "/issues")
+		return ctx.Redirect("/apps/" + strconv.FormatUint(uint64(app.ID), 10) + "/issues")
 	}
 
 	db := ctx.DB()
 
 	issue, err := events.GetIssueByHash(db, hash, app.ID)
 	if err != nil || issue == nil {
-		return ctx.Ctx.Redirect("/apps/" + strconv.FormatUint(uint64(app.ID), 10) + "/issues")
+		return ctx.Redirect("/apps/" + strconv.FormatUint(uint64(app.ID), 10) + "/issues")
 	}
 
 	// Compute days to cover the full issue history (min 7, max 30)
@@ -124,7 +124,7 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		}
 	}
 
-	return RenderPage(ctx.Ctx, "IssueDetail", Props{
+	return RenderPage(ctx, "IssueDetail", Props{
 		"issue":         issue,
 		"occurrences":   occurrences,
 		"traces":        traces,
@@ -139,77 +139,78 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 // MarkIssueSeenAction handles POST /issues/:hash/seen (kept for API use)
 func MarkIssueSeenAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
-	hash := ctx.Ctx.Params("hash")
+	hash := ctx.Params("hash")
 
 	if hash == "" {
-		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Hash required"})
+		return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{"error": "Hash required"})
 	}
 
 	if err := events.MarkIssueSeen(db, hash); err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to mark seen"})
+		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to mark seen"})
 	}
 
 	// Redirect back
-	referer := ctx.Ctx.Get("Referer")
+	referer := ctx.Get("Referer")
 	if referer == "" {
 		referer = "/issues"
 	}
-	return ctx.Ctx.Redirect(referer, fiber.StatusFound)
+	return ctx.Redirect(referer, http.StatusFound)
 }
 
 // MarkAllIssuesSeenAction handles POST /issues/seen
 func MarkAllIssuesSeenAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
-	apiKeyID := uint(ctx.Ctx.QueryInt("app_id", 0))
+	appID, _ := strconv.Atoi(ctx.Query("app_id"))
+	apiKeyID := uint(appID)
 
 	if err := events.MarkAllIssuesSeen(db, apiKeyID); err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to mark all seen"})
+		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to mark all seen"})
 	}
 
 	// Redirect back to issues page
-	referer := ctx.Ctx.Get("Referer")
+	referer := ctx.Get("Referer")
 	if referer == "" {
 		referer = "/issues"
 	}
-	return ctx.Ctx.Redirect(referer, fiber.StatusFound)
+	return ctx.Redirect(referer, http.StatusFound)
 }
 
 // MuteIssueAction handles POST /issues/:hash/mute
 func MuteIssueAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
-	hash := ctx.Ctx.Params("hash")
+	hash := ctx.Params("hash")
 
 	if hash == "" {
-		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Hash required"})
+		return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{"error": "Hash required"})
 	}
 
 	if err := events.MuteIssue(db, hash); err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to mute"})
+		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to mute"})
 	}
 
-	referer := ctx.Ctx.Get("Referer")
+	referer := ctx.Get("Referer")
 	if referer == "" {
 		referer = "/issues"
 	}
-	return ctx.Ctx.Redirect(referer, fiber.StatusFound)
+	return ctx.Redirect(referer, http.StatusFound)
 }
 
 // UnmuteIssueAction handles POST /issues/:hash/unmute
 func UnmuteIssueAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
-	hash := ctx.Ctx.Params("hash")
+	hash := ctx.Params("hash")
 
 	if hash == "" {
-		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Hash required"})
+		return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{"error": "Hash required"})
 	}
 
 	if err := events.UnmuteIssue(db, hash); err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to unmute"})
+		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to unmute"})
 	}
 
-	referer := ctx.Ctx.Get("Referer")
+	referer := ctx.Get("Referer")
 	if referer == "" {
 		referer = "/issues"
 	}
-	return ctx.Ctx.Redirect(referer, fiber.StatusFound)
+	return ctx.Redirect(referer, http.StatusFound)
 }

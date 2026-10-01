@@ -4,10 +4,10 @@ package http
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/apikeys"
@@ -71,10 +71,10 @@ func IngestAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
 	// Extract API key from Authorization header
-	authHeader := ctx.Ctx.Get("Authorization")
+	authHeader := ctx.Get("Authorization")
 	apiKey := strings.TrimPrefix(authHeader, "Bearer ")
 	if apiKey == "" {
-		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		return ctx.Status(http.StatusUnauthorized).JSON(cartridge.Map{
 			"error": "API key required",
 		})
 	}
@@ -82,13 +82,13 @@ func IngestAction(ctx *cartridge.Context) error {
 	// Validate API key (must be an app key, not agent key)
 	validatedKey, err := apikeys.ValidateAppKey(db, apiKey)
 	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		return ctx.Status(http.StatusUnauthorized).JSON(cartridge.Map{
 			"error": "Invalid API key",
 		})
 	}
 
 	// Parse request body (single event or batch)
-	body := ctx.Ctx.Body()
+	body := ctx.Body()
 
 	var ingestEvents []IngestRequest
 
@@ -100,7 +100,7 @@ func IngestAction(ctx *cartridge.Context) error {
 		// Try single event
 		var single IngestRequest
 		if err := json.Unmarshal(body, &single); err != nil {
-			return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{
 				"error": "Invalid request body",
 			})
 		}
@@ -108,7 +108,7 @@ func IngestAction(ctx *cartridge.Context) error {
 	}
 
 	if len(ingestEvents) > maxEventsPerRequest {
-		return ctx.Ctx.Status(fiber.StatusRequestEntityTooLarge).JSON(fiber.Map{
+		return ctx.Status(http.StatusRequestEntityTooLarge).JSON(cartridge.Map{
 			"error": fmt.Sprintf("at most %d events per request", maxEventsPerRequest),
 		})
 	}
@@ -173,15 +173,15 @@ func IngestAction(ctx *cartridge.Context) error {
 	// On a failed write, say so: SDKs retry on 5xx, and a 201 would drop the events.
 	if err := events.CreateIngested(db, toStore); err != nil {
 		ctx.Logger.Error("Failed to store events", "error", err)
-		return ctx.Ctx.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+		return ctx.Status(http.StatusServiceUnavailable).JSON(cartridge.Map{
 			"error": "Could not store events. Retry.",
 		})
 	}
 
-	response := fiber.Map{"created": len(toStore)}
+	response := cartridge.Map{"created": len(toStore)}
 	if len(errors) > 0 {
 		response["errors"] = errors
 	}
 
-	return ctx.Ctx.Status(fiber.StatusCreated).JSON(response)
+	return ctx.Status(http.StatusCreated).JSON(response)
 }

@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/sqlite"
+	"github.com/karloscodes/cartridge/testsupport"
 	"gorm.io/gorm"
 
 	"lognorth/internal/apikeys"
@@ -128,58 +128,8 @@ func TestEventListing(t *testing.T) {
 
 func TestIngestionAPI(t *testing.T) {
 	db := setupTestDB(t)
-
-	_, fullKey, _ := apikeys.Create(db, "Production")
-
-	app := fiber.New()
-	app.Post("/api/v1/events", func(c *fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(401).JSON(fiber.Map{"error": "API key required"})
-		}
-		apiKey := authHeader[7:] // Remove "Bearer "
-
-		_, err := apikeys.ValidateAppKey(db, apiKey)
-		if err != nil {
-			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
-		}
-
-		var req struct {
-			Message    string         `json:"message"`
-			TraceID    string         `json:"trace_id"`
-			DurationMS int            `json:"duration_ms"`
-			Context    map[string]any `json:"context"`
-		}
-		if err := c.BodyParser(&req); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
-		}
-
-		// Derive is_error from context
-		isError := false
-		if req.Context != nil {
-			if _, ok := req.Context["error"]; ok {
-				isError = true
-			}
-			if status, ok := req.Context["status"].(float64); ok && status >= 500 {
-				isError = true
-			}
-		}
-
-		contextJSON, _ := json.Marshal(req.Context)
-		event := &events.Event{
-			Message:    req.Message,
-			TraceID:    req.TraceID,
-			DurationMS: req.DurationMS,
-			IsError:    isError,
-			Context:    string(contextJSON),
-		}
-		if err := events.Create(db, event); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "Failed to create event"})
-		}
-
-		return c.Status(201).JSON(fiber.Map{"created": 1})
-	})
-
+	key, fullKey, _ := apikeys.Create(db, "Production")
+	server := newTestServer(t, testsupport.NewTestDBManager(db), mountIngest)
 	body := []byte(`{
 		"message": "POST /api/orders → 201",
 		"trace_id": "test-req-1",
@@ -194,7 +144,7 @@ func TestIngestionAPI(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+fullKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req)
+	resp, err := server.Test(req)
 
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
@@ -203,91 +153,68 @@ func TestIngestionAPI(t *testing.T) {
 		respBody, _ := io.ReadAll(resp.Body)
 		t.Fatalf("Expected status 201, got %d: %s", resp.StatusCode, string(respBody))
 	}
-
-	eventList, total, _ := events.List(db, events.ListFilters{Limit: 10})
-	if total != 1 {
-		t.Errorf("Expected 1 event in database, got %d", total)
+	var stored []events.IngestedEvent
+	db.Find(&stored)
+	if len(stored) != 1 {
+		t.Fatalf("Expected 1 stored event, got %d", len(stored))
 	}
-	if eventList[0].Message != "POST /api/orders → 201" {
-		t.Errorf("Expected message 'POST /api/orders → 201', got '%s'", eventList[0].Message)
+	if stored[0].Message != "POST /api/orders → 201" {
+		t.Errorf("Expected message 'POST /api/orders → 201', got '%s'", stored[0].Message)
+	}
+	if stored[0].APIKeyID != key.ID {
+		t.Errorf("Expected the event to belong to app %d, got %d", key.ID, stored[0].APIKeyID)
 	}
 }
 
-func TestIngestionAPIWithoutAuth(t *testing.T) {
-	app := fiber.New()
-	app.Post("/api/v1/events", func(c *fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(401).JSON(fiber.Map{"error": "API key required"})
+func TestIngestionAPIRejectsBadKeys(t *testing.T) {
+	post := func(t *testing.T, authorization string) (int, int64) {
+		t.Helper()
+		db := setupTestDB(t)
+		apikeys.Create(db, "Production")
+		server := newTestServer(t, testsupport.NewTestDBManager(db), mountIngest)
+		req := httptest.NewRequest("POST", "/api/v1/events", bytes.NewReader([]byte(`{"message": "test"}`)))
+		req.Header.Set("Content-Type", "application/json")
+		if authorization != "" {
+			req.Header.Set("Authorization", authorization)
 		}
-		return c.SendStatus(200)
+
+		resp, err := server.Test(req)
+
+		if err != nil {
+			t.Fatalf("Request failed: %v", err)
+		}
+		var stored int64
+		db.Model(&events.IngestedEvent{}).Count(&stored)
+		return resp.StatusCode, stored
+	}
+
+	t.Run("with no Authorization header", func(t *testing.T) {
+		status, stored := post(t, "")
+
+		if status != 401 {
+			t.Errorf("Expected status 401, got %d", status)
+		}
+		if stored != 0 {
+			t.Errorf("Expected nothing stored, got %d events", stored)
+		}
 	})
 
-	body := []byte(`{"message": "test"}`)
-	req := httptest.NewRequest("POST", "/api/v1/events", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
+	t.Run("with a key that does not exist", func(t *testing.T) {
+		status, stored := post(t, "Bearer lgn-not-a-real-key")
 
-	resp, _ := app.Test(req)
-
-	if resp.StatusCode != 401 {
-		t.Errorf("Expected status 401, got %d", resp.StatusCode)
-	}
+		if status != 401 {
+			t.Errorf("Expected status 401, got %d", status)
+		}
+		if stored != 0 {
+			t.Errorf("Expected nothing stored, got %d events", stored)
+		}
+	})
 }
 
 func TestIngestionBatch(t *testing.T) {
 	db := setupTestDB(t)
-
 	_, fullKey, _ := apikeys.Create(db, "Production")
-
-	app := fiber.New()
-	app.Post("/api/v1/events", func(c *fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
-		apiKey := authHeader[7:]
-
-		_, err := apikeys.ValidateAppKey(db, apiKey)
-		if err != nil {
-			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
-		}
-
-		var batch struct {
-			Events []struct {
-				Message    string         `json:"message"`
-				TraceID    string         `json:"trace_id"`
-				DurationMS int            `json:"duration_ms"`
-				Context    map[string]any `json:"context"`
-			} `json:"events"`
-		}
-		if err := c.BodyParser(&batch); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
-		}
-
-		created := 0
-		for _, e := range batch.Events {
-			isError := false
-			if e.Context != nil {
-				if _, ok := e.Context["error"]; ok {
-					isError = true
-				}
-				if status, ok := e.Context["status"].(float64); ok && status >= 500 {
-					isError = true
-				}
-			}
-			contextJSON, _ := json.Marshal(e.Context)
-			event := &events.Event{
-				Message:    e.Message,
-				TraceID:    e.TraceID,
-				DurationMS: e.DurationMS,
-				IsError:    isError,
-				Context:    string(contextJSON),
-			}
-			if err := events.Create(db, event); err == nil {
-				created++
-			}
-		}
-
-		return c.Status(201).JSON(fiber.Map{"created": created})
-	})
-
+	server := newTestServer(t, testsupport.NewTestDBManager(db), mountIngest)
 	body := []byte(`{
 		"events": [
 			{"message": "GET /a → 200", "trace_id": "req-1", "duration_ms": 10, "context": {"status": 200}},
@@ -299,21 +226,24 @@ func TestIngestionBatch(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+fullKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, _ := app.Test(req)
+	resp, _ := server.Test(req)
 
 	if resp.StatusCode != 201 {
 		t.Fatalf("Expected status 201, got %d", resp.StatusCode)
 	}
-
 	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)
 	if result["created"].(float64) != 3 {
 		t.Errorf("Expected 3 created, got %v", result["created"])
 	}
-
-	_, total, _ := events.List(db, events.ListFilters{Limit: 10})
-	if total != 3 {
-		t.Errorf("Expected 3 events in database, got %d", total)
+	var stored, failed int64
+	db.Model(&events.IngestedEvent{}).Count(&stored)
+	db.Model(&events.IngestedEvent{}).Where("is_error = ?", true).Count(&failed)
+	if stored != 3 {
+		t.Errorf("Expected 3 stored events, got %d", stored)
+	}
+	if failed != 1 {
+		t.Errorf("Expected the one 500 to be stored as an error, got %d", failed)
 	}
 }
 
@@ -391,56 +321,7 @@ func TestCompleteSystemFlow(t *testing.T) {
 
 	_, fullKey, _ := apikeys.Create(db, "Test App")
 
-	// Set up minimal app with real ingestion handler
-	app := fiber.New()
-	app.Post("/api/v1/events", func(c *fiber.Ctx) error {
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(401).JSON(fiber.Map{"error": "API key required"})
-		}
-		apiKey := authHeader[7:]
-
-		validatedKey, err := apikeys.ValidateAppKey(db, apiKey)
-		if err != nil {
-			return c.Status(401).JSON(fiber.Map{"error": "Invalid API key"})
-		}
-
-		var req struct {
-			Message    string         `json:"message"`
-			TraceID    string         `json:"trace_id"`
-			DurationMS int            `json:"duration_ms"`
-			Context    map[string]any `json:"context"`
-		}
-		if err := c.BodyParser(&req); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
-		}
-
-		isError := false
-		if req.Context != nil {
-			if _, ok := req.Context["error"]; ok {
-				isError = true
-			}
-			if status, ok := req.Context["status"].(float64); ok && status >= 500 {
-				isError = true
-			}
-		}
-
-		contextJSON, _ := json.Marshal(req.Context)
-		ingested := &events.IngestedEvent{
-			APIKeyID:   validatedKey.ID,
-			Message:    req.Message,
-			TraceID:    req.TraceID,
-			DurationMS: req.DurationMS,
-			IsError:    isError,
-			Context:    string(contextJSON),
-		}
-
-		if err := events.CreateIngested(db, []*events.IngestedEvent{ingested}); err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "Failed to create event"})
-		}
-
-		return c.Status(201).JSON(fiber.Map{"created": 1})
-	})
+	server := newTestServer(t, testsupport.NewTestDBManager(db), mountIngest)
 
 	// Send success event
 	successBody := []byte(`{
@@ -457,7 +338,7 @@ func TestCompleteSystemFlow(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+fullKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := app.Test(req)
+	resp, err := server.Test(req)
 	if err != nil {
 		t.Fatalf("Success request failed: %v", err)
 	}
@@ -481,7 +362,7 @@ func TestCompleteSystemFlow(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+fullKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err = app.Test(req)
+	resp, err = server.Test(req)
 	if err != nil {
 		t.Fatalf("Error request failed: %v", err)
 	}

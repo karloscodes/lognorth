@@ -2,9 +2,9 @@ package http
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/mcp"
@@ -20,11 +20,11 @@ func MCPAction(ctx *cartridge.Context) error {
 	}
 
 	var req mcp.Request
-	if err := json.Unmarshal(ctx.Ctx.Body(), &req); err != nil {
-		return ctx.Ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	if err := json.Unmarshal(ctx.Body(), &req); err != nil {
+		return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{
 			"jsonrpc": "2.0",
 			"id":      nil,
-			"error":   fiber.Map{"code": -32700, "message": "invalid JSON"},
+			"error":   cartridge.Map{"code": -32700, "message": "invalid JSON"},
 		})
 	}
 
@@ -32,32 +32,31 @@ func MCPAction(ctx *cartridge.Context) error {
 	if !answered {
 		// A notification. The spec wants an acknowledgement with no body, and
 		// SendStatus would fill the body with the status text.
-		ctx.Ctx.Status(fiber.StatusAccepted)
-		return nil
+		return ctx.Status(http.StatusAccepted).Send(nil)
 	}
 
-	return ctx.Ctx.JSON(res)
+	return ctx.JSON(res)
 }
 
 // agentAuthorized checks the agent API key in the Authorization header. It
 // writes the 401 itself and reports false, so the caller must stop.
 //
-// It returns a bool rather than an error on purpose: fiber's Status().JSON()
+// It returns a bool rather than an error on purpose: Status().JSON()
 // returns nil when the write succeeds, so an `err != nil` check here would
 // never fire and the handler would serve the data under a 401.
 func agentAuthorized(ctx *cartridge.Context) bool {
-	authHeader := ctx.Ctx.Get("Authorization")
+	authHeader := ctx.Get("Authorization")
 	key := strings.TrimPrefix(authHeader, "Bearer ")
 
 	if key == "" {
-		ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		ctx.Status(http.StatusUnauthorized).JSON(cartridge.Map{
 			"error": "API key required",
 		})
 		return false
 	}
 
 	if err := settings.ValidateAgentKey(ctx.DB(), key); err != nil {
-		ctx.Ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+		ctx.Status(http.StatusUnauthorized).JSON(cartridge.Map{
 			"error": "Invalid agent key",
 		})
 		return false

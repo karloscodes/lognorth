@@ -1,12 +1,11 @@
 package http
 
 import (
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
-	"github.com/karloscodes/cartridge/flash"
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
@@ -73,7 +72,7 @@ func SetupPageAction(ctx *cartridge.Context) error {
 		apps = append(apps, app)
 	}
 
-	return RenderPage(ctx.Ctx, "Setup", Props{
+	return RenderPage(ctx, "Setup", Props{
 		"apiKeys": apps,
 	})
 }
@@ -89,8 +88,8 @@ func CreateAPIKeyAction(ctx *cartridge.Context) error {
 
 	apiKey, fullKey, err := apikeys.Create(db, name)
 	if err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "Failed to create API key")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Failed to create API key")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
 	// Optional: set the ping URL provided at create time. Failure here
@@ -100,106 +99,106 @@ func CreateAPIKeyAction(ctx *cartridge.Context) error {
 	}
 
 	// Store the full key in flash so user can copy it
-	flash.SetFlash(ctx.Ctx, "newKey", fullKey)
-	return ctx.Redirect("/apps", fiber.StatusFound)
+	setFlash(ctx, "newKey", fullKey)
+	return ctx.Redirect("/apps", http.StatusFound)
 }
 
 // RevokeAPIKeyAction handles POST /apps/api-keys/:id/revoke
 func RevokeAPIKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	id, err := ctx.Ctx.ParamsInt("id")
+	id, err := ctx.ParamsInt("id")
 	if err != nil || id <= 0 {
-		flash.SetFlash(ctx.Ctx, "error", "Invalid API key ID")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Invalid API key ID")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
 	if err := apikeys.Revoke(db, uint(id)); err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "Failed to revoke API key")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Failed to revoke API key")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
-	flash.SetFlash(ctx.Ctx, "success", "API key revoked")
-	return ctx.Redirect("/apps", fiber.StatusFound)
+	setFlash(ctx, "success", "API key revoked")
+	return ctx.Redirect("/apps", http.StatusFound)
 }
 
 // RenameAPIKeyAction handles POST /apps/api-keys/:id/rename
 func RenameAPIKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	id, err := ctx.Ctx.ParamsInt("id")
+	id, err := ctx.ParamsInt("id")
 	if err != nil || id <= 0 {
-		flash.SetFlash(ctx.Ctx, "error", "Invalid app")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Invalid app")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
 	if err := apikeys.Rename(db, uint(id), ctx.FormValue("name")); err != nil {
-		flash.SetFlash(ctx.Ctx, "error", err.Error())
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", err.Error())
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
-	flash.SetFlash(ctx.Ctx, "success", "Renamed")
-	return ctx.Redirect("/apps", fiber.StatusFound)
+	setFlash(ctx, "success", "Renamed")
+	return ctx.Redirect("/apps", http.StatusFound)
 }
 
 // SetPingURLAction handles POST /apps/api-keys/:id/ping-url
 func SetPingURLAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	id, err := ctx.Ctx.ParamsInt("id")
+	id, err := ctx.ParamsInt("id")
 	if err != nil || id <= 0 {
-		flash.SetFlash(ctx.Ctx, "error", "Invalid app")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Invalid app")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
 	if err := apikeys.SetPingURL(db, uint(id), ctx.FormValue("url")); err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "Couldn't update URL")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Couldn't update URL")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
-	flash.SetFlash(ctx.Ctx, "success", "Ping URL updated")
-	return ctx.Redirect("/apps", fiber.StatusFound)
+	setFlash(ctx, "success", "Ping URL updated")
+	return ctx.Redirect("/apps", http.StatusFound)
 }
 
 // TogglePingAction handles POST /apps/api-keys/:id/toggle-ping
 func TogglePingAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	id, err := ctx.Ctx.ParamsInt("id")
+	id, err := ctx.ParamsInt("id")
 	if err != nil || id <= 0 {
-		flash.SetFlash(ctx.Ctx, "error", "Invalid app")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Invalid app")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
 	disabled := ctx.FormValue("disabled") == "true"
 	if err := apikeys.SetPingDisabled(db, uint(id), disabled); err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "Couldn't update")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Couldn't update")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
 	if disabled {
-		flash.SetFlash(ctx.Ctx, "success", "Uptime check disabled")
+		setFlash(ctx, "success", "Uptime check disabled")
 	} else {
-		flash.SetFlash(ctx.Ctx, "success", "Uptime check enabled")
+		setFlash(ctx, "success", "Uptime check enabled")
 	}
-	return ctx.Redirect("/apps", fiber.StatusFound)
+	return ctx.Redirect("/apps", http.StatusFound)
 }
 
 // DeleteAPIKeyAction handles DELETE /apps/api-keys/:id (or POST with _method=DELETE)
 func DeleteAPIKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	id, err := ctx.Ctx.ParamsInt("id")
+	id, err := ctx.ParamsInt("id")
 	if err != nil || id <= 0 {
-		flash.SetFlash(ctx.Ctx, "error", "Invalid API key ID")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Invalid API key ID")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
 	if err := apikeys.Delete(db, uint(id)); err != nil {
-		flash.SetFlash(ctx.Ctx, "error", "Failed to delete API key")
-		return ctx.Redirect("/apps", fiber.StatusFound)
+		setFlash(ctx, "error", "Failed to delete API key")
+		return ctx.Redirect("/apps", http.StatusFound)
 	}
 
-	flash.SetFlash(ctx.Ctx, "success", "App deleted")
-	return ctx.Redirect("/apps", fiber.StatusFound)
+	setFlash(ctx, "success", "App deleted")
+	return ctx.Redirect("/apps", http.StatusFound)
 }

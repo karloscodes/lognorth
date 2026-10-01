@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
+	"net/http"
+	"net/netip"
 	"os"
 	"time"
 
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/inertia"
 	cartridgemiddleware "github.com/karloscodes/cartridge/middleware"
@@ -87,8 +89,8 @@ func NewApp() (*Application, error) {
 	// private or loopback address; otherwise every client shares the proxy's
 	// IP in the rate limiters. A client that reaches the app directly cannot
 	// set its own IP this way.
-	serverConfig.ProxyHeader = fiber.HeaderXForwardedFor
-	serverConfig.TrustedProxies = []string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}
+	serverConfig.ProxyHeader = "X-Forwarded-For"
+	serverConfig.TrustedProxies = trustedProxies
 
 	if cfg.IsDevelopment() {
 		// Development: serve from disk for hot-reload
@@ -128,7 +130,6 @@ func NewApp() (*Application, error) {
 
 // MountRoutes sets up all application routes
 func MountRoutes(server *cartridge.Server) {
-	app := server.App()
 	cfg := config.GetConfig()
 
 	// Set up session manager
@@ -165,19 +166,23 @@ func MountRoutes(server *cartridge.Server) {
 	// Onboarding check middleware
 	onboardingCheck := onboardingCheckMiddleware(dbMgr, logger)
 
-	// Health check (no auth, no middleware)
-	app.Get("/_health", func(c *fiber.Ctx) error {
+	// Health check (no auth, no CSRF check)
+	isHealthCheck := func(c *cartridge.Context) bool { return c.Path() == "/_health" }
+	server.Get("/_health", func(c *cartridge.Context) error {
 		return c.SendString("ok")
-	})
+	}, &cartridge.RouteConfig{EnableSecFetchSite: cartridge.Bool(false)})
 
-	// Demo mode: global rate limit + block write operations
+	// Demo mode: global rate limit + block write operations. server.Use runs
+	// on every route, so the health check opts out: the proxy calls it more
+	// often than the limit allows.
 	if cfg.IsDemo() {
-		app.Use(cartridgemiddleware.RateLimiter(
+		server.Use(cartridgemiddleware.RateLimiter(
 			cartridgemiddleware.WithMax(60),
 			cartridgemiddleware.WithDuration(time.Minute),
 			cartridgemiddleware.WithKeyGenerator(clientIP),
+			cartridgemiddleware.WithSkip(isHealthCheck),
 		))
-		app.Use(func(c *fiber.Ctx) error {
+		server.Use(func(c *cartridge.Context) error {
 			method := c.Method()
 			if method == "POST" || method == "PUT" || method == "DELETE" || method == "PATCH" {
 				if strings.HasPrefix(c.Path(), "/api/") {
@@ -193,7 +198,7 @@ func MountRoutes(server *cartridge.Server) {
 	// API routes (no CSRF, uses API key auth + rate limiting)
 	apiConfig := &cartridge.RouteConfig{
 		EnableSecFetchSite: cartridge.Bool(false),
-		CustomMiddleware:   []fiber.Handler{ingestRateLimiter},
+		CustomMiddleware:   []cartridge.HandlerFunc{ingestRateLimiter},
 	}
 	server.Post("/api/v1/events", lbhttp.IngestAction, apiConfig)
 	server.Post("/api/v1/events/batch", lbhttp.IngestAction, apiConfig)
@@ -208,17 +213,17 @@ func MountRoutes(server *cartridge.Server) {
 	// the agent key, rate limited, read-only tools.
 	agentConfig := &cartridge.RouteConfig{
 		EnableSecFetchSite: cartridge.Bool(false),
-		CustomMiddleware:   []fiber.Handler{agentRateLimiter},
+		CustomMiddleware:   []cartridge.HandlerFunc{agentRateLimiter},
 	}
 	server.Post("/mcp", lbhttp.MCPAction, agentConfig)
 
 	// Protected page config (with session auth + onboarding check)
 	// In demo mode, skip auth entirely — everyone sees the app
-	var protectedMiddleware []fiber.Handler
+	var protectedMiddleware []cartridge.HandlerFunc
 	if cfg.IsDemo() {
-		protectedMiddleware = []fiber.Handler{}
+		protectedMiddleware = []cartridge.HandlerFunc{}
 	} else {
-		protectedMiddleware = []fiber.Handler{
+		protectedMiddleware = []cartridge.HandlerFunc{
 			onboardingCheck,
 			sessionMgr.Middleware(),
 		}
@@ -232,7 +237,7 @@ func MountRoutes(server *cartridge.Server) {
 	if cfg.IsDemo() {
 		// In demo mode, redirect login/setup to home
 		demoRedirect := func(ctx *cartridge.Context) error {
-			return ctx.Ctx.Redirect("/")
+			return ctx.Redirect("/")
 		}
 		server.Get("/login", demoRedirect, nil)
 		server.Get("/setup", demoRedirect, nil)
@@ -242,7 +247,7 @@ func MountRoutes(server *cartridge.Server) {
 		}
 		loginPostConfig := &cartridge.RouteConfig{
 			EnableSecFetchSite: cartridge.Bool(true),
-			CustomMiddleware:   []fiber.Handler{loginRateLimiter},
+			CustomMiddleware:   []cartridge.HandlerFunc{loginRateLimiter},
 		}
 		server.Get("/login", lbhttp.LoginPageAction, loginConfig)
 		server.Post("/login", lbhttp.LoginAction, loginPostConfig)
@@ -277,7 +282,7 @@ func MountRoutes(server *cartridge.Server) {
 
 	// Global log redirects to home (force app selection)
 	redirectHome := func(ctx *cartridge.Context) error {
-		return ctx.Ctx.Redirect("/")
+		return ctx.Redirect("/")
 	}
 	server.Get("/log", redirectHome, protectedConfig)
 	server.Get("/issues", redirectHome, protectedConfig)
@@ -305,7 +310,7 @@ func MountRoutes(server *cartridge.Server) {
 
 	// Settings — split into per-concern sub-pages. /settings redirects.
 	server.Get("/settings", func(ctx *cartridge.Context) error {
-		return ctx.Ctx.Redirect("/settings/license")
+		return ctx.Redirect("/settings/license")
 	}, protectedConfig)
 	server.Get("/settings/license", lbhttp.SettingsLicensePageAction, protectedConfig)
 	server.Get("/settings/alerts", lbhttp.SettingsAlertsPageAction, protectedConfig)
@@ -325,29 +330,61 @@ func MountRoutes(server *cartridge.Server) {
 // entries come from the client and can be anything, which is what c.IP()
 // returns. A request that did not come through a trusted proxy is keyed on
 // the connection address.
-func clientIP(c *fiber.Ctx) string {
-	if c.IsProxyTrusted() {
-		if forwarded := c.Get(fiber.HeaderXForwardedFor); forwarded != "" {
+func clientIP(c *cartridge.Context) string {
+	peer := peerIP(c.Request().RemoteAddr)
+	if isTrustedProxy(peer) {
+		if forwarded := c.Get("X-Forwarded-For"); forwarded != "" {
 			entries := strings.Split(forwarded, ",")
 			return strings.TrimSpace(entries[len(entries)-1])
 		}
 	}
-	return c.Context().RemoteIP().String()
+	return peer
+}
+
+// trustedProxies are the peers whose X-Forwarded-For counts: loopback and
+// the private ranges a Docker network uses.
+var trustedProxies = []string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}
+
+// peerIP is the address of the connection, without the port.
+func peerIP(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return remoteAddr
+	}
+	return host
+}
+
+func isTrustedProxy(ip string) bool {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	addr = addr.Unmap()
+	for _, entry := range trustedProxies {
+		if prefix, err := netip.ParsePrefix(entry); err == nil {
+			if prefix.Contains(addr) {
+				return true
+			}
+		} else if trusted, err := netip.ParseAddr(entry); err == nil && trusted == addr {
+			return true
+		}
+	}
+	return false
 }
 
 // onboardingCheckMiddleware redirects to setup if no users exist
-func onboardingCheckMiddleware(dbMgr *database.DBManager, logger *slog.Logger) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+func onboardingCheckMiddleware(dbMgr *database.DBManager, logger *slog.Logger) cartridge.HandlerFunc {
+	return func(c *cartridge.Context) error {
 		db := dbMgr.GetConnection()
 
 		required, err := users.IsOnboardingRequired(db)
 		if err != nil {
 			logger.Error("Failed to check if onboarding required", slog.Any("error", err))
-			return c.Status(fiber.StatusInternalServerError).SendString("System error")
+			return c.Status(http.StatusInternalServerError).SendString("System error")
 		}
 
 		if required {
-			return c.Redirect("/setup", fiber.StatusFound)
+			return c.Redirect("/setup", http.StatusFound)
 		}
 
 		return c.Next()
@@ -355,11 +392,11 @@ func onboardingCheckMiddleware(dbMgr *database.DBManager, logger *slog.Logger) f
 }
 
 // conditionalRateLimiter returns the rate limiter in production, passthrough in dev
-func conditionalRateLimiter(cfg *config.Config, limiter fiber.Handler) fiber.Handler {
+func conditionalRateLimiter(cfg *config.Config, limiter cartridge.HandlerFunc) cartridge.HandlerFunc {
 	if cfg.IsProduction() {
 		return limiter
 	}
-	return func(c *fiber.Ctx) error {
+	return func(c *cartridge.Context) error {
 		return c.Next()
 	}
 }

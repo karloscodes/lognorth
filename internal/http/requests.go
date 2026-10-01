@@ -1,10 +1,10 @@
 package http
 
 import (
+	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/events"
@@ -13,20 +13,20 @@ import (
 // EventsAPIAction handles GET /api/v1/events
 func EventsAPIAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
-	filters := parseFilters(ctx.Ctx)
+	filters := parseFilters(ctx)
 
 	eventList, total, err := events.List(db, filters)
 	if err != nil {
-		return ctx.Ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch events"})
+		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to fetch events"})
 	}
 
-	return ctx.Ctx.JSON(fiber.Map{
+	return ctx.JSON(cartridge.Map{
 		"events": eventList,
 		"total":  total,
 	})
 }
 
-func parseFilters(c *fiber.Ctx) events.ListFilters {
+func parseFilters(c *cartridge.Context) events.ListFilters {
 	filters := events.ListFilters{
 		Search: c.Query("search"),
 		Limit:  50,

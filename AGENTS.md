@@ -102,7 +102,7 @@ make test
 
 ## Project Snapshot
 
-- **Stack**: Go 1.23+ (Fiber, GORM, SQLite, Cartridge) + React 19/TypeScript/Tailwind
+- **Stack**: Go 1.26+ (Cartridge on net/http, GORM, SQLite) + React 19/TypeScript/Tailwind
 - **Architecture**: Phoenix Contexts pattern
 - **Domain**: Self-hosted request debugger
 - **Database**: SQLite with WAL mode

@@ -2,7 +2,7 @@
 package http
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/flash"
 	"github.com/karloscodes/cartridge/inertia"
 
@@ -27,12 +27,12 @@ func SetTitle(title string) {
 type Props = inertia.Props
 
 // RenderPage renders an Inertia page with auto-injected flash
-func RenderPage(c *fiber.Ctx, component string, props inertia.Props) error {
+func RenderPage(c *cartridge.Context, component string, props inertia.Props) error {
 	if props == nil {
 		props = inertia.Props{}
 	}
 	if _, exists := props["flash"]; !exists {
-		props["flash"] = flash.GetFlash(c)
+		props["flash"] = flash.GetFlash(c.Response(), c.Request())
 	}
 
 	cfg := config.GetConfig()
@@ -47,5 +47,11 @@ func RenderPage(c *fiber.Ctx, component string, props inertia.Props) error {
 		props["licenseValid"] = license.IsConfigured()
 	}
 
-	return inertia.RenderPage(c, component, props)
+	return inertia.RenderPage(c.Response(), c.Request(), component, props)
+}
+
+// setFlash stores a one-time message for the next page. In production the
+// cookie is Secure, like the session cookie: a flash can carry a new API key.
+func setFlash(ctx *cartridge.Context, messageType, message string) {
+	flash.SetFlash(ctx.Response(), messageType, message, config.GetConfig().IsProduction())
 }

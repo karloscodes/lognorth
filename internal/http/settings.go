@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/config"
@@ -22,7 +21,7 @@ func renderSettingsPage(ctx *cartridge.Context, component string) error {
 
 	s, err := settings.Get(db)
 	if err != nil {
-		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
+		return ctx.Status(500).JSON(cartridge.Map{"error": "failed to load settings"})
 	}
 
 	if s.BaseURL == "" {
@@ -30,13 +29,13 @@ func renderSettingsPage(ctx *cartridge.Context, component string) error {
 	}
 
 	var userEmail string
-	if userID, ok := ctx.Session.GetUserID(ctx.Ctx); ok {
+	if userID, ok := ctx.Session.GetUserID(ctx); ok {
 		if user, err := users.FindByID(db, userID); err == nil {
 			userEmail = user.Email
 		}
 	}
 
-	return RenderPage(ctx.Ctx, component, Props{
+	return RenderPage(ctx, component, Props{
 		"settings":         s,
 		"hasPassword":      s.HasPassword(),
 		"hasTelegramToken": s.HasTelegramToken(),
@@ -110,13 +109,13 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
 	var input UpdateSettingsInput
-	if err := ctx.Ctx.BodyParser(&input); err != nil {
-		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "invalid input"})
+	if err := ctx.BodyParser(&input); err != nil {
+		return ctx.Status(400).JSON(cartridge.Map{"error": "invalid input"})
 	}
 
 	s, err := settings.Get(db)
 	if err != nil {
-		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
+		return ctx.Status(500).JSON(cartridge.Map{"error": "failed to load settings"})
 	}
 
 	// Update channel
@@ -176,7 +175,7 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 		} else {
 			status, email, err := license.Validate(context.Background(), input.LicenseKey)
 			if err != nil {
-				return ctx.Ctx.Status(503).JSON(fiber.Map{
+				return ctx.Status(503).JSON(cartridge.Map{
 					"error": "Couldn't reach the license server. Try again in a moment.",
 				})
 			}
@@ -186,13 +185,13 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 	}
 
 	if err := settings.Update(db, s); err != nil {
-		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to save settings"})
+		return ctx.Status(500).JSON(cartridge.Map{"error": "failed to save settings"})
 	}
 
 	// Update cached license status
 	license.SetConfigured(s.LicenseStatus == "valid")
 
-	return ctx.Ctx.JSON(fiber.Map{
+	return ctx.JSON(cartridge.Map{
 		"success":        true,
 		"license_status": s.LicenseStatus,
 		"license_email":  s.LicenseEmail,
@@ -205,19 +204,19 @@ func TestNotificationAction(ctx *cartridge.Context) error {
 
 	s, err := settings.Get(db)
 	if err != nil {
-		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "failed to load settings"})
+		return ctx.Status(500).JSON(cartridge.Map{"error": "failed to load settings"})
 	}
 
 	if !s.CanNotify() {
-		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "notifications not configured"})
+		return ctx.Status(400).JSON(cartridge.Map{"error": "notifications not configured"})
 	}
 
 	err = s.SendNotification("LogNorth Test", "This is a test notification. If you received this, notifications are working.")
 	if err != nil {
-		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": err.Error()})
+		return ctx.Status(400).JSON(cartridge.Map{"error": err.Error()})
 	}
 
-	return ctx.Ctx.JSON(fiber.Map{"success": true, "message": "Test notification sent"})
+	return ctx.JSON(cartridge.Map{"success": true, "message": "Test notification sent"})
 }
 
 // CreateAgentKeyAction handles POST /settings/agent-key
@@ -226,11 +225,11 @@ func CreateAgentKeyAction(ctx *cartridge.Context) error {
 
 	fullKey, err := settings.CreateAgentKey(db)
 	if err != nil {
-		return ctx.Ctx.Status(400).JSON(fiber.Map{"error": "Agent key already exists. Use regenerate to create a new one."})
+		return ctx.Status(400).JSON(cartridge.Map{"error": "Agent key already exists. Use regenerate to create a new one."})
 	}
 
 	s, _ := settings.Get(db)
-	return ctx.Ctx.JSON(fiber.Map{"success": true, "key": fullKey, "prefix": s.AgentKeyPrefix})
+	return ctx.JSON(cartridge.Map{"success": true, "key": fullKey, "prefix": s.AgentKeyPrefix})
 }
 
 // RegenerateAgentKeyAction handles POST /settings/agent-key/regenerate
@@ -239,11 +238,11 @@ func RegenerateAgentKeyAction(ctx *cartridge.Context) error {
 
 	fullKey, err := settings.RegenerateAgentKey(db)
 	if err != nil {
-		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "Failed to regenerate agent key"})
+		return ctx.Status(500).JSON(cartridge.Map{"error": "Failed to regenerate agent key"})
 	}
 
 	s, _ := settings.Get(db)
-	return ctx.Ctx.JSON(fiber.Map{"success": true, "key": fullKey, "prefix": s.AgentKeyPrefix})
+	return ctx.JSON(cartridge.Map{"success": true, "key": fullKey, "prefix": s.AgentKeyPrefix})
 }
 
 // RevokeAgentKeyAction handles POST /settings/agent-key/revoke
@@ -251,8 +250,8 @@ func RevokeAgentKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
 	if err := settings.RevokeAgentKey(db); err != nil {
-		return ctx.Ctx.Status(500).JSON(fiber.Map{"error": "Failed to revoke agent key"})
+		return ctx.Status(500).JSON(cartridge.Map{"error": "Failed to revoke agent key"})
 	}
 
-	return ctx.Ctx.JSON(fiber.Map{"success": true})
+	return ctx.JSON(cartridge.Map{"success": true})
 }
