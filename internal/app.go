@@ -170,20 +170,29 @@ func MountRoutes(server *cartridge.Server) {
 	server.Use(lbhttp.SecurityHeaders)
 
 	// Health check (no auth, no CSRF check)
-	isHealthCheck := func(c *cartridge.Context) bool { return c.Path() == "/_health" }
 	server.Get("/_health", func(c *cartridge.Context) error {
 		return c.SendString("ok")
 	}, &cartridge.RouteConfig{EnableSecFetchSite: cartridge.Bool(false)})
 
 	// Demo mode: global rate limit + block write operations. server.Use runs
-	// on every route, so the health check opts out: the proxy calls it more
-	// often than the limit allows.
+	// on every request, so two kinds opt out of the limit. The health check:
+	// the proxy calls it more often than the limit allows. Static files: one
+	// page load fetches several, and a refused script leaves a blank page.
 	if cfg.IsDemo() {
+		publicFiles, _ := fs.Sub(lognorth.PublicFS, "web/public")
+		notAPage := func(c *cartridge.Context) bool {
+			path := c.Path()
+			if path == "/_health" || strings.HasPrefix(path, "/assets/") {
+				return true
+			}
+			info, err := fs.Stat(publicFiles, strings.TrimPrefix(path, "/"))
+			return err == nil && !info.IsDir()
+		}
 		server.Use(cartridgemiddleware.RateLimiter(
 			cartridgemiddleware.WithMax(60),
 			cartridgemiddleware.WithDuration(time.Minute),
 			cartridgemiddleware.WithKeyGenerator(clientIP),
-			cartridgemiddleware.WithSkip(isHealthCheck),
+			cartridgemiddleware.WithSkip(notAPage),
 		))
 		server.Use(func(c *cartridge.Context) error {
 			method := c.Method()

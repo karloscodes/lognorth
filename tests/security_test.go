@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -1060,6 +1061,26 @@ func TestDemo(t *testing.T) {
 
 		if res.StatusCode != http.StatusTooManyRequests {
 			t.Errorf("61st page = %d, want 429", res.StatusCode)
+		}
+	})
+
+	t.Run("static files do not count against the page limit", func(t *testing.T) {
+		sa := setupDemo(t)
+		page, _ := io.ReadAll(sa.doFrom(directPeer, "GET", "/settings/developer", nil, nil).Body)
+		script := regexp.MustCompile(`/assets/[A-Za-z0-9_.-]+\.js`).FindString(string(page))
+		if script == "" {
+			t.Fatal("the page names no script")
+		}
+		for _, file := range []string{script, "/favicon.svg"} {
+			for range 70 {
+				sa.doFrom(directPeer, "GET", file, nil, nil)
+			}
+		}
+
+		for _, file := range []string{script, "/favicon.svg", "/settings/developer"} {
+			if res := sa.doFrom(directPeer, "GET", file, nil, nil); res.StatusCode != http.StatusOK {
+				t.Errorf("GET %s = %d, want 200 after 140 static files", file, res.StatusCode)
+			}
 		}
 	})
 
