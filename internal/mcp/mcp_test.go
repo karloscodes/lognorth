@@ -14,6 +14,7 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/database"
 	"lognorth/internal/events"
+	"lognorth/internal/license"
 	"lognorth/internal/uptime"
 )
 
@@ -30,6 +31,9 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	if err := database.Migrate(db); err != nil {
 		t.Fatalf("Failed to migrate: %v", err)
 	}
+
+	license.SetConfigured(true)
+	t.Cleanup(func() { license.SetConfigured(false) })
 
 	return db
 }

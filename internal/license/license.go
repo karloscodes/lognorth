@@ -2,8 +2,8 @@
 //
 // The flag is set at boot from settings.LicenseStatus, refreshed when the
 // user saves settings, and revalidated daily against Polar to detect
-// revocation/expiry. Domain code (e.g. the event processor) reads it to
-// decide whether to do work.
+// revocation/expiry. The MCP tools read it: agent access is the licensed
+// part, everything else runs without one.
 package license
 
 import (
@@ -18,8 +18,8 @@ import (
 var configured atomic.Bool
 
 // In e2e/test runs the binary boots against a fresh DB with no license
-// key. Forcing IsConfigured()=true in that env keeps the event processor
-// running so ingestion tests can verify the actual flow. Production and
+// key. Forcing IsConfigured()=true in that env keeps the MCP tools
+// answering so e2e tests can read through them. Production and
 // development still respect the stored status.
 var forceConfigured = os.Getenv("LOGNORTH_ENV") == "test"
 

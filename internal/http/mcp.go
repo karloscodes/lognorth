@@ -13,7 +13,7 @@ import (
 
 // MCPAction handles POST /mcp
 // Streamable HTTP transport for the Model Context Protocol, authenticated with
-// the same agent key as the agent read API.
+// the agent key. Tool calls also need a license; internal/mcp checks it.
 func MCPAction(ctx *cartridge.Context) error {
 	if !agentAuthorized(ctx) {
 		return nil

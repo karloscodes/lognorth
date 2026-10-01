@@ -1,5 +1,5 @@
 // Package mcp answers Model Context Protocol calls, so a coding agent can read
-// production logs while it debugs.
+// production logs while it debugs. Tool calls need a license.
 //
 // The transport is Streamable HTTP: one JSON-RPC request per POST, one JSON
 // response back. It lives in the main server process and reads the same
@@ -18,6 +18,7 @@ import (
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
+	"lognorth/internal/license"
 	"lognorth/internal/uptime"
 )
 
@@ -27,6 +28,12 @@ var SupportedProtocols = []string{"2025-06-18", "2025-03-26", "2024-11-05"}
 
 // Version is the server version reported to clients. The binary sets it.
 var Version = "dev"
+
+// Unlicensed is what every tool answers without a license. LogNorth is free;
+// agent access is the paid part. The handshake and the tool list still work,
+// so the agent connects, reads this, and tells its user what to do.
+const Unlicensed = "Agent access needs a LogNorth license. Everything else in LogNorth is free. " +
+	"Tell the user to buy a license at https://lognorth.com ($99, once) and add the key in Settings > License."
 
 type Request struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -62,7 +69,11 @@ func Handle(db *gorm.DB, req Request) (*Response, bool) {
 	case "tools/list":
 		res.Result = map[string]any{"tools": Tools}
 	case "tools/call":
-		res.Result = callTool(db, req.Params)
+		if license.IsConfigured() {
+			res.Result = callTool(db, req.Params)
+		} else {
+			res.Result = toolError(Unlicensed)
+		}
 	case "ping":
 		res.Result = map[string]any{}
 	default:

@@ -19,6 +19,7 @@ import (
 	"lognorth/internal/events"
 	lbhttp "lognorth/internal/http"
 	"lognorth/internal/jobs"
+	"lognorth/internal/license"
 	"lognorth/internal/settings"
 )
 
@@ -60,6 +61,10 @@ func setupMCPTestApp(t *testing.T) *mcpTestApp {
 	if err != nil {
 		t.Fatalf("Failed to create app key: %v", err)
 	}
+
+	// Agent access is the licensed part, so the tests run licensed.
+	license.SetConfigured(true)
+	t.Cleanup(func() { license.SetConfigured(false) })
 
 	app := newTestServer(t, manager, func(server *cartridge.Server) {
 		server.Post("/mcp", lbhttp.MCPAction, apiRoute)
@@ -234,6 +239,60 @@ func TestMCPHandshake(t *testing.T) {
 	if res.Result.ServerInfo.Name != "lognorth" {
 		t.Errorf("serverInfo.name = %q, want lognorth", res.Result.ServerInfo.Name)
 	}
+}
+
+// LogNorth is free. Agent access is what the license buys.
+func TestMCPToolCallsNeedALicense(t *testing.T) {
+	listApps := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_apps","arguments":{}}}`
+
+	t.Run("without a license, a tool call says where to buy one", func(t *testing.T) {
+		ta := setupMCPTestApp(t)
+		license.SetConfigured(false)
+
+		status, body := ta.rpc(t, ta.agentKey, listApps)
+
+		if status != 200 {
+			t.Fatalf("status = %d, want 200 so the agent reads the message: %s", status, body)
+		}
+		if !bytes.Contains([]byte(body), []byte(`"isError":true`)) {
+			t.Errorf("body = %s, want a tool error", body)
+		}
+		if !bytes.Contains([]byte(body), []byte("https://lognorth.com")) {
+			t.Errorf("body = %s, want the place to buy a license", body)
+		}
+		if bytes.Contains([]byte(body), []byte("checkout-prod")) {
+			t.Errorf("body = %s, want no app data without a license", body)
+		}
+	})
+
+	t.Run("without a license, the agent still connects and lists the tools", func(t *testing.T) {
+		ta := setupMCPTestApp(t)
+		license.SetConfigured(false)
+
+		_, handshake := ta.rpc(t, ta.agentKey,
+			`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}`)
+		_, tools := ta.rpc(t, ta.agentKey, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
+
+		if !bytes.Contains([]byte(handshake), []byte(`"name":"lognorth"`)) {
+			t.Errorf("handshake = %s, want the server info", handshake)
+		}
+		if !bytes.Contains([]byte(tools), []byte(`"name":"search_logs"`)) {
+			t.Errorf("tools = %s, want the tool list", tools)
+		}
+	})
+
+	t.Run("with a license, a tool call returns the data", func(t *testing.T) {
+		ta := setupMCPTestApp(t)
+
+		status, body := ta.rpc(t, ta.agentKey, listApps)
+
+		if status != 200 {
+			t.Fatalf("status = %d: %s", status, body)
+		}
+		if !bytes.Contains([]byte(body), []byte("checkout-prod")) {
+			t.Errorf("body = %s, want the app", body)
+		}
+	})
 }
 
 func TestMCPToolsList(t *testing.T) {
