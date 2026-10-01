@@ -1,6 +1,9 @@
 // Package mcp answers Model Context Protocol calls, so a coding agent can read
 // production logs while it debugs. Tool calls need a license.
 //
+// This directory is under the Fair Core License (see LICENSE.md), not MIT like
+// the rest of the repo: the license key check must stay.
+//
 // The transport is Streamable HTTP: one JSON-RPC request per POST, one JSON
 // response back. It lives in the main server process and reads the same
 // contexts the web UI reads. Every tool is read-only. An agent can look,

@@ -3,10 +3,13 @@
 Know when things break. Self-hosted logs, errors, alerts, and uptime.
 
 LogNorth is open source under the MIT license, and free to run. Agent access
-(Claude Code, Cursor, the `north` CLI) needs a license: $99, once, at
-[lognorth.com](https://lognorth.com). The check is in `internal/mcp`. You can
-delete it. If LogNorth earns its place on your server, buy the license instead:
-it pays for the work.
+(Claude Code, Cursor, the `north` CLI) needs a license key: $99, once, at
+[lognorth.com](https://lognorth.com).
+
+The agent code lives in `internal/mcp` under the
+[Fair Core License](./internal/mcp/LICENSE.md). You can read it and change it,
+but not remove or bypass the license key check. Each release of it becomes
+Apache 2.0 two years after it ships. See [LICENSE](./LICENSE).
 
 ## Quick Start
 

@@ -51,6 +51,9 @@ read-only tools: `list_apps`, `list_alerts`, `list_endpoints`,
 `endpoint_timeline`, `uptime_timeline`, `list_issues`, `search_logs`,
 `get_event`. Tool calls need a valid license (`license.IsConfigured()`); without
 one every tool answers `mcp.Unlicensed`. Nothing else checks the license.
+`internal/mcp` is under the Fair Core License (`internal/mcp/LICENSE.md`); the
+rest of the repo is MIT. Keep the license check and the tools inside that
+directory.
 There is no REST read API. The protocol lives in `internal/mcp`;
 the handler is `internal/http/mcp.go`.
 
