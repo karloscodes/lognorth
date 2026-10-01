@@ -6,7 +6,7 @@ require (
 	github.com/karloscodes/cartridge v1.3.0
 	github.com/karloscodes/matcha v0.12.18
 	go.opentelemetry.io/proto/otlp v1.11.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 	gorm.io/gorm v1.31.2
 )
 
