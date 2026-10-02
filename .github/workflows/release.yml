@@ -247,6 +247,9 @@ jobs:
             karloscodes/lognorth:latest
             ghcr.io/karloscodes/lognorth-releases:${{ steps.version.outputs.VERSION }}
             ghcr.io/karloscodes/lognorth-releases:latest
+          # The image says its own version, so a tool that runs `latest` can name what runs.
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
 
       - name: Publish to public releases repo
         env:
