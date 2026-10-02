@@ -497,6 +497,18 @@ func main() {
 		}
 	}
 
+	// The rows go in transactions of a few thousand events. One commit for
+	// each row wrote every page it changed to the write-ahead log again: the
+	// log grew to 4 GB for a database of 40 MB, at every start of the demo.
+	const seedBatch = 2000
+	tx := db.Begin()
+	next := func() {
+		if err := tx.Commit().Error; err != nil {
+			log.Fatalf("Failed to save the demo data: %v", err)
+		}
+		tx = db.Begin()
+	}
+
 	fmt.Println("  Generating HTTP events...")
 	httpCount := 0
 	httpErrors := 0
@@ -510,6 +522,9 @@ func main() {
 	daysBack := 60
 
 	for i := 0; i < httpTarget; i++ {
+		if i > 0 && i%seedBatch == 0 {
+			next()
+		}
 		// Timestamp distribution: more recent = more likely
 		// Use exponential decay - most events in last 7 days
 		dayOffset := int(float64(daysBack) * (1 - rand.Float64()*rand.Float64()))
@@ -615,7 +630,7 @@ func main() {
 			events.PopulateErrorFields(event, ctx)
 		}
 
-		if err := events.Create(db, event); err != nil {
+		if err := events.Create(tx, event); err != nil {
 			continue
 		}
 		countRequest(apiKey.ID, ctx.Path, isError, duration, timestamp)
@@ -629,7 +644,7 @@ func main() {
 				childOffset := time.Duration(10+rand.Intn(duration/2)) * time.Millisecond
 				childMsg := pickInternalOperation()
 				childDuration := 1 + rand.Intn(30)
-				createEvent(db, apiKey.ID, traceID, timestamp.Add(childOffset), childMsg, &events.EventContext{}, childDuration, false)
+				createEvent(tx, apiKey.ID, traceID, timestamp.Add(childOffset), childMsg, &events.EventContext{}, childDuration, false)
 			}
 		}
 
@@ -650,7 +665,7 @@ func main() {
 				}
 
 				if jobName != "" {
-					createLinkedJob(db, apiKey.ID, traceID, timestamp.Add(100*time.Millisecond), jobName, isInIncident)
+					createLinkedJob(tx, apiKey.ID, traceID, timestamp.Add(100*time.Millisecond), jobName, isInIncident)
 				}
 			}
 		}
@@ -670,6 +685,9 @@ func main() {
 	jobTarget := 12000
 
 	for i := 0; i < jobTarget; i++ {
+		if i > 0 && i%seedBatch == 0 {
+			next()
+		}
 		dayOffset := int(float64(daysBack) * (1 - rand.Float64()*rand.Float64()))
 		hourOffset := rand.Intn(24)
 		minuteOffset := rand.Intn(60)
@@ -713,7 +731,7 @@ func main() {
 				childCtx.StackTrace = errDef.stack
 			}
 
-			createEvent(db, apiKey.ID, traceID, timestamp.Add(childOffset), childMsg, childCtx, childDuration, childIsError)
+			createEvent(tx, apiKey.ID, traceID, timestamp.Add(childOffset), childMsg, childCtx, childDuration, childIsError)
 		}
 
 		// Create main job event
@@ -748,7 +766,7 @@ func main() {
 			events.PopulateErrorFields(event, ctx)
 		}
 
-		if err := events.Create(db, event); err != nil {
+		if err := events.Create(tx, event); err != nil {
 			continue
 		}
 		jobCount++
@@ -866,7 +884,7 @@ func main() {
 			IsError:    false,
 		}
 		event.SetContext(ctx)
-		events.Create(db, event)
+		events.Create(tx, event)
 		countRequest(apiKey.ID, ctx.Path, false, trace.duration, timestamp)
 		recentTraceCount++
 
@@ -874,13 +892,13 @@ func main() {
 		for c, childMsg := range trace.children {
 			childOffset := time.Duration((c+1)*trace.duration/(len(trace.children)+1)) * time.Millisecond
 			childDuration := 5 + rand.Intn(50)
-			createEvent(db, apiKey.ID, traceID, timestamp.Add(childOffset), childMsg, &events.EventContext{}, childDuration, false)
+			createEvent(tx, apiKey.ID, traceID, timestamp.Add(childOffset), childMsg, &events.EventContext{}, childDuration, false)
 			recentTraceCount++
 		}
 
 		// Trigger job if applicable (after request completes)
 		if trace.triggerJob != "" {
-			createLinkedJob(db, apiKey.ID, traceID, timestamp.Add(time.Duration(trace.duration+100)*time.Millisecond), trace.triggerJob, false)
+			createLinkedJob(tx, apiKey.ID, traceID, timestamp.Add(time.Duration(trace.duration+100)*time.Millisecond), trace.triggerJob, false)
 			recentTraceCount++
 		}
 	}
@@ -927,7 +945,7 @@ func main() {
 		event.SetContext(ctx)
 		events.PopulateErrorFields(event, ctx)
 
-		if err := events.Create(db, event); err != nil {
+		if err := events.Create(tx, event); err != nil {
 			continue
 		}
 		countRequest(apiKey.ID, ctx.Path, true, event.DurationMS, timestamp)
@@ -935,8 +953,16 @@ func main() {
 	}
 
 	fmt.Printf("  Generated %d burst errors\n", burstCount)
-	if err := saveRequestStats(db); err != nil {
+	if err := saveRequestStats(tx); err != nil {
 		log.Fatalf("Failed to save endpoint stats: %v", err)
+	}
+	if err := tx.Commit().Error; err != nil {
+		log.Fatalf("Failed to save the demo data: %v", err)
+	}
+	// Leave a log file with nothing in it: without this it keeps the size of
+	// its largest moment, on the disk and in every copy of the storage.
+	if err := dbManager.CheckpointWAL("TRUNCATE"); err != nil {
+		log.Printf("Failed to checkpoint the write-ahead log: %v", err)
 	}
 	fmt.Printf("  Summed requests into %d endpoint stat buckets\n", len(requestStats))
 	fmt.Println()
