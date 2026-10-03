@@ -77,8 +77,13 @@
   }
   html {
     overflow-y: scroll; /* Prevent layout shift from scrollbar */
+    /* Keep the gutter when an overlay locks the page scroll, so the
+       centered content does not shift sideways. */
+    scrollbar-gutter: stable;
+    /* Thin, mid-gray thumb on a transparent track, as on Fusionaly.
+       --dim (#8a837e) is the theme's mid gray. */
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) transparent;
+    scrollbar-color: hsl(var(--dim)) transparent;
   }
   body {
     @apply bg-background text-foreground;
