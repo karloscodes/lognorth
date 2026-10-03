@@ -68,10 +68,11 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 		}
 	}
 
-	// On a failed write, say so: OTel exporters retry on 503.
+	// On a failed write, say so: OTel exporters retry on 503 and honor
+	// Retry-After.
 	if err := events.CreateIngested(db, toStore); err != nil {
 		ctx.Logger.Error("Failed to store OTel events", "error", err)
-		return ctx.Status(http.StatusServiceUnavailable).JSON(cartridge.Map{"error": "Could not store events. Retry."})
+		return retryLater(ctx)
 	}
 
 	return ctx.Status(http.StatusOK).JSON(cartridge.Map{"created": len(toStore)})

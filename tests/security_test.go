@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1231,6 +1232,83 @@ func TestIngestReadsGzip(t *testing.T) {
 
 		if res.StatusCode != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401: the key comes first, not the 400 for a bad body", res.StatusCode)
+		}
+	})
+}
+
+// A batch the server cannot store must come back as "retry later", with a
+// wait, so the client keeps the events instead of losing them.
+func TestIngestSaysWhenToRetry(t *testing.T) {
+	failingStore := func(t *testing.T) (*securityApp, string) {
+		t.Helper()
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+		if err := sa.db.Exec("DROP TABLE ingested_events").Error; err != nil {
+			t.Fatalf("could not break the store: %v", err)
+		}
+		return sa, key
+	}
+	send := func(t *testing.T, sa *securityApp, path, key, contentType, body string) *http.Response {
+		t.Helper()
+		req := httptest.NewRequest("POST", path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+key)
+		req.Header.Set("Content-Type", contentType)
+		res, err := sa.app.Server.Test(req)
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		return res
+	}
+
+	t.Run("a JSON batch that cannot be stored answers 503 with Retry-After", func(t *testing.T) {
+		sa, key := failingStore(t)
+
+		res := send(t, sa, "/api/v1/events/batch", key, "application/json", `{"events":[{"message":"GET / 200"}]}`)
+
+		if res.StatusCode != http.StatusServiceUnavailable {
+			t.Errorf("status = %d, want 503", res.StatusCode)
+		}
+		if got := res.Header.Get("Retry-After"); got != "5" {
+			t.Errorf("Retry-After = %q, want 5", got)
+		}
+	})
+
+	t.Run("an OpenTelemetry batch that cannot be stored answers 503 with Retry-After", func(t *testing.T) {
+		sa, key := failingStore(t)
+		record := append([]byte{0x2a, 0x0c, 0x0a, 0x0a}, "otel hello"...)
+		scope := append([]byte{0x12, byte(len(record))}, record...)
+		resource := append([]byte{0x12, byte(len(scope))}, scope...)
+		request := append([]byte{0x0a, byte(len(resource))}, resource...)
+
+		res := send(t, sa, "/otel/v1/logs", key, "application/x-protobuf", string(request))
+
+		if res.StatusCode != http.StatusServiceUnavailable {
+			t.Errorf("status = %d, want 503", res.StatusCode)
+		}
+		if got := res.Header.Get("Retry-After"); got != "5" {
+			t.Errorf("Retry-After = %q, want 5", got)
+		}
+	})
+
+	t.Run("a client over the rate limit is told when the window resets", func(t *testing.T) {
+		sa := setupProductionApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+		var last *httptest.ResponseRecorder
+		for range 1001 {
+			req := httptest.NewRequest("POST", "/api/v1/events", strings.NewReader(`{"message":"GET / 200"}`))
+			req.RemoteAddr = directPeer
+			req.Header.Set("Authorization", "Bearer "+key)
+			req.Header.Set("Content-Type", "application/json")
+			last = httptest.NewRecorder()
+			sa.app.Server.ServeHTTP(last, req)
+		}
+
+		if last.Code != http.StatusTooManyRequests {
+			t.Fatalf("request 1,001 = %d, want 429", last.Code)
+		}
+		seconds, err := strconv.Atoi(last.Header().Get("Retry-After"))
+		if err != nil || seconds < 1 || seconds > 60 {
+			t.Errorf("Retry-After = %q, want the seconds until the window resets (1 to 60)", last.Header().Get("Retry-After"))
 		}
 	})
 }

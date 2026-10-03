@@ -85,6 +85,20 @@ func ingestBody(ctx *cartridge.Context) ([]byte, error) {
 	return inflated, nil
 }
 
+// retryAfterSeconds is how long a client waits before it sends a batch
+// again after a 503. A failed write is usually a busy database, which clears
+// in moments; five seconds also matches the SDKs' flush interval.
+const retryAfterSeconds = "5"
+
+// retryLater answers a batch the server could not store. The client keeps
+// the events and sends them again after Retry-After, so none is lost.
+func retryLater(ctx *cartridge.Context) error {
+	ctx.Set("Retry-After", retryAfterSeconds)
+	return ctx.Status(http.StatusServiceUnavailable).JSON(cartridge.Map{
+		"error": "Could not store events. Retry.",
+	})
+}
+
 // rejectBody answers a body that ingestBody could not read.
 func rejectBody(ctx *cartridge.Context, err error) error {
 	status := http.StatusBadRequest
@@ -225,12 +239,10 @@ func IngestAction(ctx *cartridge.Context) error {
 		})
 	}
 
-	// On a failed write, say so: SDKs retry on 5xx, and a 201 would drop the events.
+	// On a failed write, say so: a 201 would drop the events.
 	if err := events.CreateIngested(db, toStore); err != nil {
 		ctx.Logger.Error("Failed to store events", "error", err)
-		return ctx.Status(http.StatusServiceUnavailable).JSON(cartridge.Map{
-			"error": "Could not store events. Retry.",
-		})
+		return retryLater(ctx)
 	}
 
 	response := cartridge.Map{"created": len(toStore)}
