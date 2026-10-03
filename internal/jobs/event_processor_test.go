@@ -55,41 +55,12 @@ func newJobCtx(db *gorm.DB) *cartridge.JobContext {
 	}
 }
 
-func TestEventProcessor_SkipsWhenLicenseMissing(t *testing.T) {
+func TestEventProcessor_ProcessesWithoutLicense(t *testing.T) {
 	db := setupProcessorDB(t)
 	seedIngested(t, db)
 
 	prev := license.IsConfigured()
 	license.SetConfigured(false)
-	t.Cleanup(func() { license.SetConfigured(prev) })
-
-	if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
-		t.Fatalf("ProcessBatch: %v", err)
-	}
-
-	var unprocessed int64
-	if err := db.Model(&events.IngestedEvent{}).Count(&unprocessed).Error; err != nil {
-		t.Fatalf("count unprocessed: %v", err)
-	}
-	if unprocessed != 1 {
-		t.Fatalf("expected 1 unprocessed event (license blocks processing), got %d", unprocessed)
-	}
-
-	var processed int64
-	if err := db.Model(&events.Event{}).Count(&processed).Error; err != nil {
-		t.Fatalf("count events: %v", err)
-	}
-	if processed != 0 {
-		t.Fatalf("expected 0 processed events, got %d", processed)
-	}
-}
-
-func TestEventProcessor_ProcessesWhenLicensed(t *testing.T) {
-	db := setupProcessorDB(t)
-	seedIngested(t, db)
-
-	prev := license.IsConfigured()
-	license.SetConfigured(true)
 	t.Cleanup(func() { license.SetConfigured(prev) })
 
 	if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {

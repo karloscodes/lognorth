@@ -40,8 +40,8 @@ func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		}
 	}
 
-	// Without a license, ingested events wait unprocessed. Keep that backlog
-	// within the retention period (90 days when retention is "forever").
+	// An ingested event that fails to process stays in the backlog. Keep that
+	// backlog within the retention period (90 days when retention is "forever").
 	backlog := retention
 	if backlog == 0 {
 		backlog = 90 * 24 * time.Hour

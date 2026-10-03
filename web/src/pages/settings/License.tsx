@@ -76,7 +76,7 @@ export default function SettingsLicense({ settings }: Props) {
         )}
       </div>
       <p className="text-subtle text-sm mb-6">
-        Required to process events. Without one, events still arrive but aren't processed.
+        LogNorth is free for one app. A license adds unlimited apps: $99, once.
       </p>
 
       <div>

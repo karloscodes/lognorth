@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/events"
+	"lognorth/internal/license"
 	"lognorth/internal/uptime"
 )
 
@@ -73,13 +75,23 @@ func SetupPageAction(ctx *cartridge.Context) error {
 	}
 
 	return RenderPage(ctx, "Setup", Props{
-		"apiKeys": apps,
+		"apiKeys":   apps,
+		"canAddApp": apikeys.CanCreate(db, license.IsConfigured()) == nil,
 	})
 }
 
 // CreateAPIKeyAction handles POST /apps/api-keys (PRG pattern)
 func CreateAPIKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
+
+	if err := apikeys.CanCreate(db, license.IsConfigured()); err != nil {
+		message := "Failed to create API key"
+		if errors.Is(err, apikeys.ErrLicenseNeeded) {
+			message = err.Error()
+		}
+		setFlash(ctx, "error", message)
+		return ctx.Redirect("/apps", http.StatusFound)
+	}
 
 	name := ctx.FormValue("name")
 	if name == "" {

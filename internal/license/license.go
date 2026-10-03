@@ -2,8 +2,8 @@
 //
 // The flag is set at boot from settings.LicenseStatus, refreshed when the
 // user saves settings, and revalidated daily against Polar to detect
-// revocation/expiry. Domain code (e.g. the event processor) reads it to
-// decide whether to do work.
+// revocation/expiry. LogNorth is free for one app; the license adds
+// unlimited apps, so app creation reads it.
 package license
 
 import (
@@ -17,12 +17,6 @@ import (
 
 var configured atomic.Bool
 
-// In e2e/test runs the binary boots against a fresh DB with no license
-// key. Forcing IsConfigured()=true in that env keeps the event processor
-// running so ingestion tests can verify the actual flow. Production and
-// development still respect the stored status.
-var forceConfigured = os.Getenv("LOGNORTH_ENV") == "test"
-
 // SetConfigured updates the cached license status.
 func SetConfigured(v bool) {
 	configured.Store(v)
@@ -30,7 +24,7 @@ func SetConfigured(v bool) {
 
 // IsConfigured returns true when a valid license is in place.
 func IsConfigured() bool {
-	return forceConfigured || configured.Load()
+	return configured.Load()
 }
 
 // Validate checks a license key against Polar.
