@@ -163,7 +163,7 @@ if [ "$HAS_TS_SDK" = true ]; then
     fi
     if [ -n "$TS_SDK_PATH" ]; then
         echo "  Linking SDK to example app..."
-        npm link @karloscodes/lognorth-sdk --silent 2>/dev/null || true
+        npm link lognorth --silent 2>/dev/null || true
     fi
 
     echo "  Running test..."

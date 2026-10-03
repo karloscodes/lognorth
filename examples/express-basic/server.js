@@ -1,6 +1,6 @@
 import express from 'express';
-import LogNorth from '@karloscodes/lognorth-sdk';
-import { logNorthExpress } from '@karloscodes/lognorth-sdk/express';
+import LogNorth from 'lognorth';
+import { logNorthExpress } from 'lognorth/express';
 
 const app = express();
 const PORT = process.env.PORT || 3000;

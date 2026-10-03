@@ -13,7 +13,7 @@
  *   LOGNORTH_API_KEY=lb_your_key_here npm test
  */
 
-import LogNorth from '@karloscodes/lognorth-sdk';
+import LogNorth from 'lognorth';
 
 const LOGNORTH_URL = process.env.LOGNORTH_URL || 'http://localhost:8080';
 const LOGNORTH_API_KEY = process.env.LOGNORTH_API_KEY;
