@@ -90,7 +90,7 @@ rm -f "$TEST_DB_PATH" "${TEST_DB_PATH}-shm" "${TEST_DB_PATH}-wal"
 LOGNORTH_ENV=test \
 LOGNORTH_DB_PATH="$TEST_DB_PATH" \
 LOGNORTH_PORT="$TEST_PORT" \
-./tmp/test-lognorth > /tmp/lognorth-test-server.log 2>&1 &
+./tmp/test-lognorth > ./tmp/test-server.log 2>&1 &
 LOGNORTH_PID=$!
 
 echo "  Server PID: $LOGNORTH_PID"
@@ -109,7 +109,7 @@ while [ $attempt -lt $max_attempts ]; do
         echo -e "${RED}❌ Server failed to start within 30 seconds${NC}"
         echo ""
         echo "Server logs:"
-        cat /tmp/lognorth-test-server.log
+        cat ./tmp/test-server.log
         exit 1
     fi
     sleep 1
