@@ -83,7 +83,7 @@ dev:
 watch-go:
 	@echo "Watching Go files..."
 	@mkdir -p $(TMP_DIR)
-	LOGNORTH_ENV=development watchexec -r -e go -w . -i web -i tmp -i storage -i node_modules -- go run cmd/lognorth/main.go
+	LOGNORTH_ENV=development watchexec -r -e go -w . -i web -i tmp -i storage -i node_modules -- go run -tags polarsandbox cmd/lognorth/main.go
 
 # Watch for changes in web files (vite dev server handles this)
 watch-web:
@@ -93,7 +93,7 @@ watch-web:
 # Run Go server once (without file watching)
 dev-server:
 	@mkdir -p $(TMP_DIR)
-	LOGNORTH_ENV=development go build -o $(TMP_DIR)/lognorth-server cmd/lognorth/main.go
+	LOGNORTH_ENV=development go build -tags polarsandbox -o $(TMP_DIR)/lognorth-server cmd/lognorth/main.go
 	LOGNORTH_ENV=development $(TMP_DIR)/lognorth-server
 
 # Run Go tests

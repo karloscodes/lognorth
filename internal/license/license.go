@@ -8,12 +8,14 @@ package license
 
 import (
 	"context"
-	"os"
 	"sync/atomic"
 	"time"
 
 	"lognorth/internal/polar"
 )
+
+// trySandbox is set only by the polarsandbox build tag (sandbox.go).
+var trySandbox bool
 
 var configured atomic.Bool
 
@@ -35,8 +37,9 @@ func IsConfigured() bool {
 // keep whatever they have stored — flipping a paying customer to invalid
 // because Polar had a bad day is not OK.
 //
-// Sandbox is tried first in development so devs can use sandbox keys;
-// production is the fallback there and the only call in production.
+// Only a build with the polarsandbox tag (make dev) tries the sandbox first,
+// so devs can use sandbox keys. The tag, not LOGNORTH_ENV, decides: a
+// self-hoster sets the environment, and a sandbox "purchase" is free.
 func Validate(ctx context.Context, key string) (status, email string, err error) {
 	if key == "" {
 		return "", "", nil
@@ -46,7 +49,7 @@ func Validate(ctx context.Context, key string) (status, email string, err error)
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	if os.Getenv("LOGNORTH_ENV") == "development" || os.Getenv("LOGNORTH_ENV") == "" {
+	if trySandbox {
 		client.BaseURL = polar.SandboxBaseURL
 		if resp, sandboxErr := client.ValidateLicense(ctx, polar.SandboxOrgID, key); sandboxErr == nil && resp != nil && resp.ID != "" {
 			return polar.LicenseStatus(resp), resp.Customer.Email, nil
