@@ -410,7 +410,7 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 	}
 
 	var entries []Event
-	if err := eventsQuery.Order("timestamp DESC").Limit(100).Find(&entries).Error; err != nil {
+	if err := eventsQuery.Order("timestamp DESC, id DESC").Limit(100).Find(&entries).Error; err != nil {
 		return nil, err
 	}
 	if len(entries) == 0 {

@@ -203,7 +203,7 @@ func FindByID(db *gorm.DB, id uint) (*Event, error) {
 // FindByTraceID retrieves all events with the same trace ID
 func FindByTraceID(db *gorm.DB, traceID string) ([]Event, error) {
 	var events []Event
-	if err := db.Where("trace_id = ?", traceID).Order("timestamp ASC").Find(&events).Error; err != nil {
+	if err := db.Where("trace_id = ?", traceID).Order("timestamp ASC, id ASC").Find(&events).Error; err != nil {
 		return nil, err
 	}
 	return events, nil
@@ -294,7 +294,11 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 		query = query.Offset(filters.Offset)
 	}
 
-	order := "timestamp DESC"
+	// Newest first by the time each event happened, not when it arrived. Events
+	// with the same time keep the order they were logged in: a client sends
+	// them oldest first, so the id breaks the tie. Following the log
+	// (after_id) shows events as they arrive instead.
+	order := "timestamp DESC, id DESC"
 	if filters.AfterID > 0 {
 		order = "id ASC"
 	}
