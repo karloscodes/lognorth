@@ -461,13 +461,16 @@ func TestSessionCookie(t *testing.T) {
 	t.Run("a tampered cookie is rejected", func(t *testing.T) {
 		sa := setupSecurityApp(t)
 		cookie := sa.login()
-		last := cookie[len(cookie)-1:]
+		// Flip the first character of the payload. Every bit of it is used,
+		// unlike the last character of the signature, whose low bits the
+		// decoder ignores.
+		at := len("lognorth_session=")
 		swapped := "A"
-		if last == "A" {
+		if cookie[at:at+1] == "A" {
 			swapped = "B"
 		}
 
-		status := open(sa, cookie[:len(cookie)-1]+swapped)
+		status := open(sa, cookie[:at]+swapped+cookie[at+1:])
 
 		if status != http.StatusFound {
 			t.Errorf("status = %d, want 302 to the login page", status)
