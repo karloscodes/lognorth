@@ -7,8 +7,7 @@ import (
 )
 
 // IngestedEvent is a raw event waiting for the processor. Ingest writes it,
-// the processor moves it into events and deletes it. Without a license, rows
-// wait here until one is added, then get processed retroactively.
+// the processor moves it into events and deletes it.
 type IngestedEvent struct {
 	ID         uint `gorm:"primaryKey"`
 	APIKeyID   uint
@@ -69,7 +68,7 @@ func NextIngested(db *gorm.DB, afterID uint, limit int) ([]IngestedEvent, error)
 }
 
 // DeleteIngestedOlderThan removes waiting events older than the given duration.
-// Without a license nothing is processed, so this keeps the table bounded.
+// A row that fails to process stays, so this keeps the table bounded.
 func DeleteIngestedOlderThan(db *gorm.DB, olderThan time.Duration) (int64, error) {
 	result := db.Where("created_at < ?", time.Now().UTC().Add(-olderThan)).Delete(&IngestedEvent{})
 	return result.RowsAffected, result.Error

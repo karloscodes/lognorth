@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
 import { AuthShell, FIELD, SUBMIT, Notice } from '@/components/auth-shell'
 import { uptimeLabel, percent, type UptimeState } from '@/lib/uptime'
@@ -26,6 +27,7 @@ interface Flash {
 interface Props {
   apiKeys?: APIKey[]
   flash?: Flash
+  canAddApp?: boolean
 }
 
 // "[copy]" that confirms for 2 seconds, and only once the clipboard took it.
@@ -43,7 +45,7 @@ function CopyButton({ text, className = '' }: { text: string; className?: string
   )
 }
 
-export default function Setup({ apiKeys = [], flash }: Props) {
+export default function Setup({ apiKeys = [], flash, canAddApp = true }: Props) {
   const newKey = flash?.type === 'newKey' ? flash.message : undefined
   const flashError = flash?.type === 'error' ? flash.message : undefined
   const activeApps = apiKeys.filter((k) => k.active)
@@ -80,7 +82,7 @@ export default function Setup({ apiKeys = [], flash }: Props) {
         {activeApps.map((app) => (
           <AppRow key={app.id} app={app} />
         ))}
-        <AddApp />
+        {canAddApp ? <AddApp /> : <AddAppNeedsLicense />}
       </div>
     </Layout>
   )
@@ -210,6 +212,17 @@ function AppRow({ app }: { app: APIKey }) {
         </div>
       )}
     </div>
+  )
+}
+
+function AddAppNeedsLicense() {
+  return (
+    <p className="border-t border-dashed border-border px-[18px] py-3 text-[13px] text-subtle">
+      LogNorth is free for one app. A license adds unlimited apps.{' '}
+      <Link href="/settings/license" className="font-bold text-foreground underline hover:no-underline">
+        Add your license →
+      </Link>
+    </p>
   )
 }
 

@@ -6,7 +6,6 @@ import (
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
-	"lognorth/internal/license"
 )
 
 // EventProcessor moves ingested events into the events table
@@ -25,12 +24,6 @@ const processBatchSize = 100
 // the next run without blocking the rows after it.
 func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 	db := ctx.DB
-
-	// Without a valid license, events still land in ingested_events but
-	// are not processed. Buying a license processes them retroactively.
-	if !license.IsConfigured() {
-		return nil
-	}
 
 	// Loaded once per run: settings for alerts, names for alert subjects.
 	alerts, err := events.NewAlertEngine(db)

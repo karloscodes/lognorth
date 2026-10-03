@@ -7,7 +7,6 @@ import (
 	"github.com/karloscodes/cartridge/inertia"
 
 	"lognorth/internal/config"
-	"lognorth/internal/license"
 )
 
 var devMode bool
@@ -39,12 +38,6 @@ func RenderPage(c *cartridge.Context, component string, props inertia.Props) err
 
 	if cfg.IsDemo() {
 		props["isDemo"] = true
-	}
-
-	// Surface license status to the layout so it can warn when events
-	// are arriving but not being processed.
-	if _, exists := props["licenseValid"]; !exists {
-		props["licenseValid"] = license.IsConfigured()
 	}
 
 	return inertia.RenderPage(c.Response(), c.Request(), component, props)
