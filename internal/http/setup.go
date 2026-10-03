@@ -1,7 +1,6 @@
 package http
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -76,7 +75,7 @@ func SetupPageAction(ctx *cartridge.Context) error {
 
 	return RenderPage(ctx, "Setup", Props{
 		"apiKeys":   apps,
-		"canAddApp": apikeys.CanCreate(db, license.IsConfigured()) == nil,
+		"canAddApp": license.IsConfigured() || !apikeys.FreeAppTaken(db),
 	})
 }
 
@@ -84,12 +83,8 @@ func SetupPageAction(ctx *cartridge.Context) error {
 func CreateAPIKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 
-	if err := apikeys.CanCreate(db, license.IsConfigured()); err != nil {
-		message := "Failed to create API key"
-		if errors.Is(err, apikeys.ErrLicenseNeeded) {
-			message = err.Error()
-		}
-		setFlash(ctx, "error", message)
+	if !license.IsConfigured() && apikeys.FreeAppTaken(db) {
+		setFlash(ctx, "error", "LogNorth is free for one app. A license adds unlimited apps.")
 		return ctx.Redirect("/apps", http.StatusFound)
 	}
 

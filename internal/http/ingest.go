@@ -86,8 +86,8 @@ func ingestBody(ctx *cartridge.Context) ([]byte, error) {
 }
 
 // retryAfterSeconds is how long a client waits before it sends a batch
-// again after a 503. A failed write is usually a busy database, which clears
-// in moments; five seconds also matches the SDKs' flush interval.
+// again after a 503. A failed write is usually a busy database, which
+// clears in moments.
 const retryAfterSeconds = "5"
 
 // retryLater answers a batch the server could not store. The client keeps

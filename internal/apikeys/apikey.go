@@ -24,25 +24,14 @@ var (
 // FreeApps is how many active apps LogNorth runs without a license.
 const FreeApps = 1
 
-// ErrLicenseNeeded means the free app is in use: another app needs a license.
-var ErrLicenseNeeded = errors.New("LogNorth is free for one app. A license adds unlimited apps.")
-
-// CanCreate reports whether another app may be added. Without a license,
-// only one app may be active. A revoked app does not count, so an owner who
-// revokes the free app can add a new one. Apps that already exist are never
-// touched: an install with more apps from before keeps them all.
-func CanCreate(db *gorm.DB, licensed bool) error {
-	if licensed {
-		return nil
-	}
+// FreeAppTaken reports whether the free app is in use, so another app needs
+// a license. A revoked app does not count: an owner who revokes the free app
+// can add a new one. Apps that already exist are never touched, so an
+// install with more apps from before keeps them all.
+func FreeAppTaken(db *gorm.DB) bool {
 	var active int64
-	if err := db.Model(&APIKey{}).Where("active = ?", true).Count(&active).Error; err != nil {
-		return err
-	}
-	if active >= FreeApps {
-		return ErrLicenseNeeded
-	}
-	return nil
+	db.Model(&APIKey{}).Where("active = ?", true).Count(&active)
+	return active >= FreeApps
 }
 
 // KeyType distinguishes between key types
