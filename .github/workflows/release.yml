@@ -232,9 +232,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # A tag with a hyphen (v0.26.0-rc.1) is a release candidate: it never moves
+      # `latest`, which every install pulls at night, and its release is a prerelease.
       - name: Get version from tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          if [[ "$VERSION" == *-* ]]; then echo "RC=true" >> $GITHUB_OUTPUT; else echo "RC=false" >> $GITHUB_OUTPUT; fi
 
       - name: Build and push Docker images
         uses: docker/build-push-action@v7
@@ -244,9 +249,9 @@ jobs:
           push: true
           tags: |
             karloscodes/lognorth:${{ steps.version.outputs.VERSION }}
-            karloscodes/lognorth:latest
             ghcr.io/karloscodes/lognorth-releases:${{ steps.version.outputs.VERSION }}
-            ghcr.io/karloscodes/lognorth-releases:latest
+            ${{ steps.version.outputs.RC == 'false' && 'karloscodes/lognorth:latest' || '' }}
+            ${{ steps.version.outputs.RC == 'false' && 'ghcr.io/karloscodes/lognorth-releases:latest' || '' }}
           # The image says its own version, so a tool that runs `latest` can name what runs.
           labels: |
             org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
@@ -267,7 +272,9 @@ jobs:
           cd ..
 
           # Upload to public releases repo
-          gh release create "v${VERSION}" \
+          PRERELEASE=""
+          if [ "${{ steps.version.outputs.RC }}" = "true" ]; then PRERELEASE="--prerelease"; fi
+          gh release create "v${VERSION}" $PRERELEASE \
             --repo karloscodes/lognorth-releases \
             --title "LogNorth v${VERSION}" \
             --notes "Release v${VERSION}" \
