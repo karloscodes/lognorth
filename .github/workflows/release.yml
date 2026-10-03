@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*'
+  # Release a tag by hand when its push started nothing, for example when the
+  # tagged commit's message asks CI to skip: gh workflow run release.yml --ref v1.2.3
+  workflow_dispatch:
 
 permissions:
   contents: write
