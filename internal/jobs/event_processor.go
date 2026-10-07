@@ -1,6 +1,8 @@
 package jobs
 
 import (
+	"errors"
+
 	"github.com/karloscodes/cartridge"
 	"gorm.io/gorm"
 
@@ -81,6 +83,9 @@ func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*eve
 		stats := events.NewStatBatch()
 		for _, ie := range batch {
 			event, path, err := moveEvent(tx, ie)
+			if errors.Is(err, errAlreadyMoved) {
+				continue
+			}
 			if err != nil {
 				ctx.Logger.Error("Failed to process event", "ingested_id", ie.ID, "error", err)
 				continue
@@ -98,9 +103,15 @@ func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*eve
 	return moved, nil
 }
 
+// errAlreadyMoved means another processor moved the staging row first. During
+// a deploy the old and the new container both run a processor, and both can
+// read the same row before either deletes it.
+var errAlreadyMoved = errors.New("ingested event already moved")
+
 // moveEvent turns one staging row into an event and returns the event and its
 // endpoint path. Inside a transaction it runs under a savepoint, so a failure
-// undoes only this event.
+// undoes only this event. It deletes the staging row first: when that deletes
+// nothing, another processor has the event, and moveEvent stores no copy.
 func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, string, error) {
 	event := &events.Event{
 		APIKeyID:   ie.APIKeyID,
@@ -117,10 +128,14 @@ func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, string, err
 	}
 
 	err := db.Transaction(func(tx *gorm.DB) error {
-		if err := events.Create(tx, event); err != nil {
-			return err
+		deleted := tx.Delete(&events.IngestedEvent{}, ie.ID)
+		if deleted.Error != nil {
+			return deleted.Error
 		}
-		return tx.Delete(&events.IngestedEvent{}, ie.ID).Error
+		if deleted.RowsAffected == 0 {
+			return errAlreadyMoved
+		}
+		return events.Create(tx, event)
 	})
 	path := ""
 	if eventCtx != nil {

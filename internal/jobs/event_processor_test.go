@@ -127,3 +127,46 @@ func TestEventProcessor_BatchWithFailingEvent(t *testing.T) {
 		t.Errorf("endpoint stats for /poison = %d, want 0 (rolled back)", poisonStats)
 	}
 }
+
+// During a deploy the old and the new container both run a processor. Both
+// can read the same staging rows before either moves them.
+func TestEventProcessor_TwoProcessorsMoveABatchOnce(t *testing.T) {
+	db := setupProcessorDB(t)
+	key, _, err := apikeys.Create(db, "Test App")
+	if err != nil {
+		t.Fatalf("create api key: %v", err)
+	}
+	if err := events.CreateIngested(db, []*events.IngestedEvent{
+		{APIKeyID: key.ID, Message: "GET /a", Context: `{"path":"/a","status":200}`},
+		{APIKeyID: key.ID, Message: "GET /b", Context: `{"path":"/b","status":200}`},
+	}); err != nil {
+		t.Fatalf("create ingested: %v", err)
+	}
+	batch, err := events.NextIngested(db, 0, processBatchSize) // both processors read this
+	if err != nil {
+		t.Fatalf("read batch: %v", err)
+	}
+
+	first, err := moveEvents(newJobCtx(db), batch)
+	if err != nil {
+		t.Fatalf("first processor: %v", err)
+	}
+	second, err := moveEvents(newJobCtx(db), batch)
+	if err != nil {
+		t.Fatalf("second processor: %v", err)
+	}
+
+	if len(first) != 2 || len(second) != 0 {
+		t.Errorf("moved %d then %d, want 2 then 0", len(first), len(second))
+	}
+	var stored int64
+	db.Model(&events.Event{}).Count(&stored)
+	if stored != 2 {
+		t.Errorf("events = %d, want 2 (no copies)", stored)
+	}
+	var total int64
+	db.Model(&events.EndpointStat{}).Select("COALESCE(SUM(total), 0)").Scan(&total)
+	if total != 2 {
+		t.Errorf("endpoint stat total = %d, want 2", total)
+	}
+}
