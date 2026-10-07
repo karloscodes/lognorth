@@ -2,13 +2,13 @@
 package users
 
 import (
+	"context"
 	"database/sql"
 	"errors"
-	"log/slog"
 	"time"
 
+	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/crypto"
-	"github.com/karloscodes/cartridge/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -96,7 +96,7 @@ var ErrSetupDone = errors.New("setup is already done")
 // CreateFirstUser creates the owner during setup. The "no users yet" check
 // and the insert run in one write transaction, so two setup sessions cannot
 // both create a user.
-func CreateFirstUser(db *gorm.DB, email, password string) error {
+func CreateFirstUser(dbManager cartridge.DBManager, email, password string) error {
 	if email == "" {
 		return errors.New("email cannot be empty")
 	}
@@ -109,7 +109,7 @@ func CreateFirstUser(db *gorm.DB, email, password string) error {
 		return err
 	}
 
-	return sqlite.PerformWrite(slog.Default(), db, func(tx *gorm.DB) error {
+	return cartridge.Write(context.Background(), dbManager, func(tx *gorm.DB) error {
 		var count int64
 		if err := tx.Model(&User{}).Count(&count).Error; err != nil {
 			return err
@@ -146,8 +146,7 @@ func CreateUser(db *gorm.DB, email, password string) error {
 		EncryptedPassword: string(hashedPassword),
 	}
 
-	logger := slog.Default()
-	return sqlite.PerformWrite(logger, db, func(tx *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
 		return tx.Create(&newUser).Error
 	})
 }

@@ -150,7 +150,7 @@ func OnboardingAction(ctx *cartridge.Context) error {
 		})
 	}
 
-	err := users.CreateFirstUser(ctx.DB(), email, password)
+	err := users.CreateFirstUser(ctx.DBManager, email, password)
 	if errors.Is(err, users.ErrSetupDone) {
 		return ctx.Redirect("/login", http.StatusFound)
 	}
