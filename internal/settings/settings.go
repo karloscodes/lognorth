@@ -165,6 +165,10 @@ func (s *Settings) CanNotify() bool {
 
 // SendNotification sends a notification via the configured channel
 func (s *Settings) SendNotification(title, message string) error {
+	// Titles carry event data: a path or error message from an SDK. Email and
+	// ntfy put the title in a header, where a line break starts a new header.
+	title = oneLine.Replace(title)
+
 	switch s.NotifyChannel {
 	case "ntfy":
 		return s.sendViaNtfy(title, message)
@@ -178,6 +182,8 @@ func (s *Settings) SendNotification(title, message string) error {
 		return fmt.Errorf("no notification channel configured")
 	}
 }
+
+var oneLine = strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ")
 
 // sendViaNtfy sends notification via ntfy.sh
 func (s *Settings) sendViaNtfy(title, message string) error {
