@@ -378,7 +378,7 @@ func TestCompleteSystemFlow(t *testing.T) {
 	}
 
 	// Verify events table is empty (not processed yet)
-	eventList, total, _ := events.List(db, events.ListFilters{Limit: 10})
+	_, total, _ := events.List(db, events.ListFilters{Limit: 10})
 	if total != 0 {
 		t.Errorf("Expected 0 processed events before job runs, got %d", total)
 	}
@@ -396,7 +396,7 @@ func TestCompleteSystemFlow(t *testing.T) {
 	}
 
 	// Verify events are now in events table
-	eventList, total, _ = events.List(db, events.ListFilters{Limit: 10})
+	eventList, total, _ := events.List(db, events.ListFilters{Limit: 10})
 	if total != 2 {
 		t.Errorf("Expected 2 processed events, got %d", total)
 	}

@@ -9,11 +9,8 @@ import (
 	"lognorth/internal/config"
 )
 
-var devMode bool
-
 // SetDevMode enables development mode
 func SetDevMode(enabled bool) {
-	devMode = enabled
 	inertia.SetDevMode(enabled)
 }
 
