@@ -26,36 +26,57 @@ func TruncateTo5Min(t time.Time) time.Time {
 	return t.Truncate(5 * time.Minute)
 }
 
-// RecordEndpointStat increments stats for an endpoint
-func RecordEndpointStat(db *gorm.DB, apiKeyID uint, path string, isError bool, durationMS int, timestamp time.Time) error {
+// StatBatch counts endpoint stats for many events and writes each bucket
+// once. Each bucket row is read once, the events apply in order, and the row
+// is written once, so the result matches one upsert per event.
+type StatBatch struct {
+	stats map[statKey]*EndpointStat
+	order []statKey
+}
+
+type statKey struct {
+	apiKeyID uint
+	path     string
+	bucket   time.Time
+}
+
+// NewStatBatch returns an empty batch.
+func NewStatBatch() *StatBatch {
+	return &StatBatch{stats: map[statKey]*EndpointStat{}}
+}
+
+// Add counts one event. It reads the bucket row the first time it sees the
+// bucket. Use the same transaction for Add and Flush.
+func (b *StatBatch) Add(tx *gorm.DB, apiKeyID uint, path string, isError bool, durationMS int, timestamp time.Time) error {
 	if path == "" {
 		return nil
 	}
-
 	// UTC: SQLite compares times as text, so all buckets need the same offset.
-	bucket := TruncateTo5Min(timestamp.UTC())
+	key := statKey{apiKeyID, path, TruncateTo5Min(timestamp.UTC())}
 
-	// Upsert: increment counters
-	var stat EndpointStat
-	result := db.Where("api_key_id = ? AND path = ? AND bucket = ?", apiKeyID, path, bucket).First(&stat)
-
-	if result.Error == gorm.ErrRecordNotFound {
-		// Create new
-		stat = EndpointStat{
-			APIKeyID:    apiKeyID,
-			Path:        path,
-			Bucket:      bucket,
-			Total:       1,
-			Errors:      0,
-			AvgDuration: durationMS,
+	stat, seen := b.stats[key]
+	if !seen {
+		var row EndpointStat
+		err := tx.Where("api_key_id = ? AND path = ? AND bucket = ?", key.apiKeyID, key.path, key.bucket).
+			Limit(1).Find(&row).Error
+		if err != nil {
+			return err
 		}
+		if row.ID != 0 {
+			stat = &row
+		}
+		b.order = append(b.order, key)
+	}
+
+	if stat == nil {
+		stat = &EndpointStat{APIKeyID: apiKeyID, Path: path, Bucket: key.bucket, Total: 1, AvgDuration: durationMS}
 		if isError {
 			stat.Errors = 1
 		}
-		return db.Create(&stat).Error
+		b.stats[key] = stat
+		return nil
 	}
 
-	// Update existing
 	stat.Total++
 	if isError {
 		stat.Errors++
@@ -64,8 +85,18 @@ func RecordEndpointStat(db *gorm.DB, apiKeyID uint, path string, isError bool, d
 	if durationMS > 0 {
 		stat.AvgDuration = (stat.AvgDuration*(int(stat.Total)-1) + durationMS) / int(stat.Total)
 	}
+	b.stats[key] = stat
+	return nil
+}
 
-	return db.Save(&stat).Error
+// Flush writes every bucket the batch touched.
+func (b *StatBatch) Flush(tx *gorm.DB) error {
+	for _, key := range b.order {
+		if err := tx.Save(b.stats[key]).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // LastCompleteBucketTime returns the start of the last complete 5-minute bucket.

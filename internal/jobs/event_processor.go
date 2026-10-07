@@ -18,10 +18,12 @@ func NewEventProcessor() *EventProcessor {
 
 const processBatchSize = 100
 
-// ProcessBatch moves every waiting event. Each event moves in its own
-// transaction: insert into events, record endpoint stats, delete the staging
-// row. A crash never processes an event twice, and a row that fails stays for
-// the next run without blocking the rows after it.
+// ProcessBatch moves every waiting event, processBatchSize events per write
+// transaction. Each event moves under its own savepoint: insert into events,
+// record endpoint stats, delete the staging row. A crash never processes an
+// event twice, and a row that fails rolls back alone and stays for the next
+// run without blocking the rows after it. Alerts go out after the commit, so
+// a slow email never holds the write lock.
 func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 	db := ctx.DB
 
@@ -39,18 +41,21 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		if err != nil {
 			return err
 		}
+		if len(batch) == 0 {
+			break
+		}
+		afterID = batch[len(batch)-1].ID
 
-		for _, ie := range batch {
-			afterID = ie.ID
-			event, err := moveEvent(db, ie)
-			if err != nil {
-				ctx.Logger.Error("Failed to process event", "ingested_id", ie.ID, "error", err)
-				continue
-			}
-			processed++
+		moved, err := moveEvents(ctx, batch)
+		if err != nil {
+			// Busy: the rows stay, and the next run moves them.
+			return err
+		}
+		processed += len(moved)
 
+		for _, event := range moved {
 			if event.IsError {
-				if err := alerts.CheckNewErrorOrRegression(event, appName(db, appNames, ie.APIKeyID)); err != nil {
+				if err := alerts.CheckNewErrorOrRegression(event, appName(db, appNames, event.APIKeyID)); err != nil {
 					ctx.Logger.Error("Failed to send error alert", "issue", event.IssueHash, "error", err)
 				}
 			}
@@ -67,8 +72,36 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 	return nil
 }
 
-// moveEvent turns one staging row into an event in a single transaction.
-func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, error) {
+// moveEvents moves a batch in one write transaction and returns the events
+// it stored. Endpoint stats count only the events that moved, and each stat
+// bucket is written once per batch.
+func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*events.Event, error) {
+	var moved []*events.Event
+	err := ctx.WriteTx(func(tx *gorm.DB) error {
+		stats := events.NewStatBatch()
+		for _, ie := range batch {
+			event, path, err := moveEvent(tx, ie)
+			if err != nil {
+				ctx.Logger.Error("Failed to process event", "ingested_id", ie.ID, "error", err)
+				continue
+			}
+			if err := stats.Add(tx, ie.APIKeyID, path, ie.IsError, ie.DurationMS, event.Timestamp); err != nil {
+				return err
+			}
+			moved = append(moved, event)
+		}
+		return stats.Flush(tx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return moved, nil
+}
+
+// moveEvent turns one staging row into an event and returns the event and its
+// endpoint path. Inside a transaction it runs under a savepoint, so a failure
+// undoes only this event.
+func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, string, error) {
 	event := &events.Event{
 		APIKeyID:   ie.APIKeyID,
 		Message:    ie.Message,
@@ -87,14 +120,13 @@ func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, error) {
 		if err := events.Create(tx, event); err != nil {
 			return err
 		}
-		if eventCtx != nil && eventCtx.Path != "" {
-			if err := events.RecordEndpointStat(tx, ie.APIKeyID, eventCtx.Path, ie.IsError, ie.DurationMS, event.Timestamp); err != nil {
-				return err
-			}
-		}
 		return tx.Delete(&events.IngestedEvent{}, ie.ID).Error
 	})
-	return event, err
+	path := ""
+	if eventCtx != nil {
+		path = eventCtx.Path
+	}
+	return event, path, err
 }
 
 func appName(db *gorm.DB, cache map[uint]string, apiKeyID uint) string {

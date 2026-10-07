@@ -83,3 +83,47 @@ func TestEventProcessor_ProcessesWithoutLicense(t *testing.T) {
 		t.Fatalf("expected 1 processed event, got %d", processed)
 	}
 }
+
+func TestEventProcessor_BatchWithFailingEvent(t *testing.T) {
+	db := setupProcessorDB(t)
+	key, _, err := apikeys.Create(db, "Test App")
+	if err != nil {
+		t.Fatalf("create api key: %v", err)
+	}
+	seed := []*events.IngestedEvent{
+		{APIKeyID: key.ID, Message: "GET /a", Context: `{"path":"/a","status":200}`},
+		{APIKeyID: key.ID, Message: "poison", Context: `{"path":"/poison","status":200}`},
+		{APIKeyID: key.ID, Message: "GET /b", Context: `{"path":"/b","status":200}`},
+	}
+	if err := events.CreateIngested(db, seed); err != nil {
+		t.Fatalf("create ingested: %v", err)
+	}
+	// The last step of a move deletes the staging row. Failing there means
+	// the event and its endpoint stat were already written, so only a
+	// savepoint rollback can undo them.
+	if err := db.Exec(`CREATE TRIGGER poison BEFORE DELETE ON ingested_events
+		WHEN OLD.message = 'poison' BEGIN SELECT RAISE(ABORT, 'poison'); END`).Error; err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+
+	err = NewEventProcessor().ProcessBatch(newJobCtx(db))
+
+	if err != nil {
+		t.Fatalf("ProcessBatch: %v", err)
+	}
+	var messages []string
+	db.Model(&events.Event{}).Order("id").Pluck("message", &messages)
+	if len(messages) != 2 || messages[0] != "GET /a" || messages[1] != "GET /b" {
+		t.Errorf("events = %v, want [GET /a GET /b]", messages)
+	}
+	var waiting []string
+	db.Model(&events.IngestedEvent{}).Pluck("message", &waiting)
+	if len(waiting) != 1 || waiting[0] != "poison" {
+		t.Errorf("waiting = %v, want [poison]", waiting)
+	}
+	var poisonStats int64
+	db.Model(&events.EndpointStat{}).Where("path = ?", "/poison").Count(&poisonStats)
+	if poisonStats != 0 {
+		t.Errorf("endpoint stats for /poison = %d, want 0 (rolled back)", poisonStats)
+	}
+}
