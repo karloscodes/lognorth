@@ -31,6 +31,11 @@ func NewDBManager(cfg *config.Config, logger *slog.Logger) *DBManager {
 		EnableWAL:    true,
 		TxImmediate:  true,
 		BusyTimeout:  5000,
+		// Search and stats scan the events table. Reading it through mmap
+		// made them 23-38% faster on 500k events; a larger cache_size made
+		// them slower. An I/O error on a mapped page stops the process
+		// instead of failing the query.
+		Pragmas: []string{"PRAGMA mmap_size = 268435456"},
 	}
 
 	return &DBManager{
