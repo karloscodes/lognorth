@@ -3,7 +3,7 @@ module lognorth
 go 1.26
 
 require (
-	github.com/karloscodes/cartridge v1.4.0
+	github.com/karloscodes/cartridge v1.5.0
 	github.com/karloscodes/matcha v0.12.18
 	go.opentelemetry.io/proto/otlp v1.11.0
 	google.golang.org/protobuf v1.36.11
