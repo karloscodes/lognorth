@@ -42,8 +42,9 @@ func DropProcessedState(db *gorm.DB) error {
 	return nil
 }
 
-// CreateIngested stores events in one transaction: all of them or none.
-func CreateIngested(db *gorm.DB, events []*IngestedEvent) error {
+// CreateIngested stores events. Call it inside one write transaction, so it
+// stores all of them or none.
+func CreateIngested(tx *gorm.DB, events []*IngestedEvent) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -55,9 +56,7 @@ func CreateIngested(db *gorm.DB, events []*IngestedEvent) error {
 		e.Timestamp = e.Timestamp.UTC()
 		e.CreatedAt = now
 	}
-	return db.Transaction(func(tx *gorm.DB) error {
-		return tx.CreateInBatches(events, 200).Error
-	})
+	return tx.CreateInBatches(events, 200).Error
 }
 
 // NextIngested returns up to limit waiting events with an id above afterID, oldest first.

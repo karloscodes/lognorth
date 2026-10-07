@@ -11,6 +11,7 @@ import (
 
 	"github.com/karloscodes/cartridge"
 	"google.golang.org/protobuf/proto"
+	"gorm.io/gorm"
 
 	collectorlogs "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
@@ -86,7 +87,15 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 
 	// On a failed write, say so: OTel exporters retry on 503 and honor
 	// Retry-After.
-	if err := events.CreateIngested(db, toStore); err != nil {
+	if len(toStore) > 0 {
+		err = ctx.WriteTx(func(tx *gorm.DB) error {
+			if err := events.CreateIngested(tx, toStore); err != nil {
+				return err
+			}
+			return apikeys.TouchLastUsed(tx, validatedKey)
+		})
+	}
+	if err != nil {
 		ctx.Logger.Error("Failed to store OTel events", "error", err)
 		return retryLater(ctx)
 	}

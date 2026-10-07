@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/karloscodes/cartridge"
+	"gorm.io/gorm"
 
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
@@ -269,7 +270,15 @@ func IngestAction(ctx *cartridge.Context) error {
 	}
 
 	// On a failed write, say so: a 201 would drop the events.
-	if err := events.CreateIngested(db, toStore); err != nil {
+	if len(toStore) > 0 {
+		err = ctx.WriteTx(func(tx *gorm.DB) error {
+			if err := events.CreateIngested(tx, toStore); err != nil {
+				return err
+			}
+			return apikeys.TouchLastUsed(tx, validatedKey)
+		})
+	}
+	if err != nil {
 		ctx.Logger.Error("Failed to store events", "error", err)
 		return retryLater(ctx)
 	}

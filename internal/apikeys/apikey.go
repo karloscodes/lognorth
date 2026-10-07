@@ -102,19 +102,25 @@ func Create(db *gorm.DB, name string) (*APIKey, string, error) {
 	return apiKey, key, nil
 }
 
-// ValidateAppKey checks if an API key is valid, active, and is an app key (for ingestion)
+// ValidateAppKey checks if an API key is valid, active, and is an app key (for
+// ingestion). It only reads; record the use with TouchLastUsed in the write
+// that stores the events.
 func ValidateAppKey(db *gorm.DB, key string) (*APIKey, error) {
 	var apiKey APIKey
 	if err := db.Where("key = ? AND active = ? AND key_type = ?", key, true, KeyTypeApp).First(&apiKey).Error; err != nil {
 		return nil, err
 	}
-
-	// At most one write per minute per key: ingest is the hot path.
-	if time.Since(apiKey.LastUsed) > time.Minute {
-		db.Model(&apiKey).Update("last_used", time.Now())
-	}
-
 	return &apiKey, nil
+}
+
+// TouchLastUsed records that the key sent events. It writes at most once a
+// minute per key, because ingest is the hot path. Call it inside the write
+// transaction that stores the events, so one request takes one write turn.
+func TouchLastUsed(tx *gorm.DB, apiKey *APIKey) error {
+	if time.Since(apiKey.LastUsed) <= time.Minute {
+		return nil
+	}
+	return tx.Model(apiKey).Update("last_used", time.Now()).Error
 }
 
 // List retrieves all app API keys (excludes agent keys)
