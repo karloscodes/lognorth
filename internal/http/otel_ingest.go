@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
 	"strings"
@@ -54,16 +55,31 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 		})
 	}
 
+	if countLogRecords(&req) > maxOtelRecordsPerRequest {
+		return ctx.Status(http.StatusRequestEntityTooLarge).JSON(cartridge.Map{
+			"error": fmt.Sprintf("at most %d log records per request", maxOtelRecordsPerRequest),
+		})
+	}
+
 	var toStore []*events.IngestedEvent
+	storedBytes := 0
 
 	for _, rl := range req.GetResourceLogs() {
 		resourceAttrs := flattenProtoAttributes(rl.GetResource())
 
 		for _, sl := range rl.GetScopeLogs() {
 			for _, lr := range sl.GetLogRecords() {
-				if ingested := convertProtoLogRecord(lr, resourceAttrs, validatedKey.ID); ingested != nil {
-					toStore = append(toStore, ingested)
+				ingested := convertProtoLogRecord(lr, resourceAttrs, validatedKey.ID)
+				if ingested == nil {
+					continue
 				}
+				// Every record repeats the resource attributes, so a small
+				// request can ask for far more bytes than it carries.
+				storedBytes += len(ingested.Message) + len(ingested.Context)
+				if storedBytes > maxOtelStoredBytes {
+					return rejectBody(ctx, errBodyTooLarge)
+				}
+				toStore = append(toStore, ingested)
 			}
 		}
 	}
@@ -76,6 +92,23 @@ func OtelIngestAction(ctx *cartridge.Context) error {
 	}
 
 	return ctx.Status(http.StatusOK).JSON(cartridge.Map{"created": len(toStore)})
+}
+
+// maxOtelRecordsPerRequest sits above the OpenTelemetry Collector's default
+// batch of 8192, so a stock exporter never hits it.
+const maxOtelRecordsPerRequest = 10000
+
+// maxOtelStoredBytes caps the messages and contexts one request stores.
+const maxOtelStoredBytes = 4 * maxInflatedBody
+
+func countLogRecords(req *collectorlogs.ExportLogsServiceRequest) int {
+	n := 0
+	for _, rl := range req.GetResourceLogs() {
+		for _, sl := range rl.GetScopeLogs() {
+			n += len(sl.GetLogRecords())
+		}
+	}
+	return n
 }
 
 // OtelSinkAction handles POST /v1/traces and /v1/metrics

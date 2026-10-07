@@ -12,12 +12,18 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/testsupport"
+	collectorlogs "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	logspb "go.opentelemetry.io/proto/otlp/logs/v1"
+	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
+	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 
 	"lognorth/internal"
@@ -1235,6 +1241,114 @@ func TestIngestReadsGzip(t *testing.T) {
 
 		if res.StatusCode != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401: the key comes first, not the 400 for a bad body", res.StatusCode)
+		}
+	})
+}
+
+// An app key ships with the app, so a small request must not make the server
+// hold far more than it sent.
+func TestIngestBoundsWhatOneRequestCosts(t *testing.T) {
+	gzipPost := func(sa *securityApp, path, key, contentType string, body []byte) *http.Response {
+		var buf bytes.Buffer
+		w := gzip.NewWriter(&buf)
+		w.Write(body)
+		w.Close()
+		req := httptest.NewRequest("POST", path, &buf)
+		req.Header.Set("Authorization", "Bearer "+key)
+		req.Header.Set("Content-Type", contentType)
+		req.Header.Set("Content-Encoding", "gzip")
+		res, err := sa.app.Server.Test(req, -1)
+		if err != nil {
+			sa.t.Fatalf("request failed: %v", err)
+		}
+		return res
+	}
+	logRecords := func(count int, resourceAttr string) []byte {
+		records := make([]*logspb.LogRecord, count)
+		for i := range records {
+			records[i] = &logspb.LogRecord{Body: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "a"}}}
+		}
+		body, _ := proto.Marshal(&collectorlogs.ExportLogsServiceRequest{ResourceLogs: []*logspb.ResourceLogs{{
+			Resource: &resourcepb.Resource{Attributes: []*commonpb.KeyValue{{
+				Key: "host.name", Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: resourceAttr}},
+			}}},
+			ScopeLogs: []*logspb.ScopeLogs{{LogRecords: records}},
+		}}})
+		return body
+	}
+	storedCount := func(sa *securityApp) int64 {
+		var n int64
+		sa.db.Model(&events.IngestedEvent{}).Count(&n)
+		return n
+	}
+
+	t.Run("a JSON batch of millions of empty events is refused", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+		body := []byte(`{"events":[` + strings.Repeat(`{},`, 5_000_000) + `{}]}`)
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+
+		res := gzipPost(sa, "/api/v1/events/batch", key, "application/json", body)
+
+		runtime.ReadMemStats(&after)
+		if res.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Errorf("status = %d, want 413", res.StatusCode)
+		}
+		if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 200<<20 {
+			t.Errorf("allocated %d MB for a 15 MB body, want the decode to stop at the limit", allocated>>20)
+		}
+		if n := storedCount(sa); n != 0 {
+			t.Errorf("stored %d events, want none", n)
+		}
+	})
+
+	t.Run("a JSON batch at the limit is stored", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+		body := `{"events":[` + strings.TrimSuffix(strings.Repeat(`{"message":"GET / 200"},`, 1000), ",") + `]}`
+
+		res := gzipPost(sa, "/api/v1/events/batch", key, "application/json", []byte(body))
+
+		if res.StatusCode != http.StatusCreated || storedCount(sa) != 1000 {
+			t.Errorf("status = %d, stored = %d; want 201 and 1000", res.StatusCode, storedCount(sa))
+		}
+	})
+
+	t.Run("OpenTelemetry records that repeat a large resource attribute are refused", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+		body := logRecords(200, strings.Repeat("h", 1<<20))
+
+		res := gzipPost(sa, "/otel/v1/logs", key, "application/x-protobuf", body)
+
+		if res.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Errorf("status = %d, want 413 for 200 MB of context from a %d KB request", res.StatusCode, len(body)/1024)
+		}
+		if n := storedCount(sa); n != 0 {
+			t.Errorf("stored %d events, want none", n)
+		}
+	})
+
+	t.Run("OpenTelemetry requests over the record limit are refused", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+
+		res := gzipPost(sa, "/otel/v1/logs", key, "application/x-protobuf", logRecords(10001, "web-1"))
+
+		if res.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Errorf("status = %d, want 413", res.StatusCode)
+		}
+	})
+
+	t.Run("an OpenTelemetry Collector batch is stored", func(t *testing.T) {
+		sa := setupSecurityApp(t)
+		_, key, _ := apikeys.Create(sa.db, "shop")
+
+		res := gzipPost(sa, "/otel/v1/logs", key, "application/x-protobuf", logRecords(8192, "web-1"))
+
+		if res.StatusCode != http.StatusOK || storedCount(sa) != 8192 {
+			t.Errorf("status = %d, stored = %d; want 200 and 8192", res.StatusCode, storedCount(sa))
 		}
 	})
 }

@@ -111,9 +111,49 @@ func rejectBody(ctx *cartridge.Context, err error) error {
 // maxEventsPerRequest caps one request. The SDKs send batches of 10.
 const maxEventsPerRequest = 1000
 
-// IngestBatchRequest represents a batch of events
-type IngestBatchRequest struct {
-	Events []IngestRequest `json:"events"`
+var errTooManyEvents = errors.New("too many events")
+
+// decodeEvents reads a batch ({"events": [...]}) or a single event. It decodes
+// a batch one event at a time and stops past maxEventsPerRequest, so a small
+// gzip body of millions of empty events cannot fill memory before the check.
+func decodeEvents(body []byte) ([]IngestRequest, error) {
+	var batch struct {
+		Events json.RawMessage `json:"events"`
+	}
+	if err := json.Unmarshal(body, &batch); err == nil && len(batch.Events) > 0 {
+		events, err := decodeBatch(batch.Events)
+		if err == nil && len(events) > 0 {
+			return events, nil
+		}
+		if errors.Is(err, errTooManyEvents) {
+			return nil, err
+		}
+	}
+
+	var single IngestRequest
+	if err := json.Unmarshal(body, &single); err != nil {
+		return nil, err
+	}
+	return []IngestRequest{single}, nil
+}
+
+func decodeBatch(raw json.RawMessage) ([]IngestRequest, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	if tok, err := dec.Token(); err != nil || tok != json.Delim('[') {
+		return nil, errors.New("events is not an array")
+	}
+	var events []IngestRequest
+	for dec.More() {
+		if len(events) == maxEventsPerRequest {
+			return nil, errTooManyEvents
+		}
+		var event IngestRequest
+		if err := dec.Decode(&event); err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	return events, nil
 }
 
 // Validate checks required fields and returns an error message if invalid
@@ -159,26 +199,15 @@ func IngestAction(ctx *cartridge.Context) error {
 		return rejectBody(ctx, err)
 	}
 
-	var ingestEvents []IngestRequest
-
-	// Try batch format first
-	var batch IngestBatchRequest
-	if err := json.Unmarshal(body, &batch); err == nil && len(batch.Events) > 0 {
-		ingestEvents = batch.Events
-	} else {
-		// Try single event
-		var single IngestRequest
-		if err := json.Unmarshal(body, &single); err != nil {
-			return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{
-				"error": "Invalid request body",
-			})
-		}
-		ingestEvents = []IngestRequest{single}
-	}
-
-	if len(ingestEvents) > maxEventsPerRequest {
+	ingestEvents, err := decodeEvents(body)
+	if errors.Is(err, errTooManyEvents) {
 		return ctx.Status(http.StatusRequestEntityTooLarge).JSON(cartridge.Map{
 			"error": fmt.Sprintf("at most %d events per request", maxEventsPerRequest),
+		})
+	}
+	if err != nil {
+		return ctx.Status(http.StatusBadRequest).JSON(cartridge.Map{
+			"error": "Invalid request body",
 		})
 	}
 
