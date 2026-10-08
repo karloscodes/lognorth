@@ -22,7 +22,8 @@ fail() { echo "FAIL - $*" >&2; exit 1; }
 web() { curl -s -H "Host: $host" "$@"; }
 post() { web -o /dev/null -w '%{http_code} %{redirect_url}' -H "Origin: http://$host" "$@"; }
 login() { post -d "email=$email" --data-urlencode "password=$1" http://127.0.0.1/login; }
-key() { docker exec "$1" printenv PRIVATE_KEY; }
+# The private key of the container that runs: lognorth, or lognorth-next after a swap.
+key() { docker exec "$(docker ps --format '{{.Names}}' | grep -m1 -E '^lognorth(-next)?$')" printenv PRIVATE_KEY; }
 
 docker rm -f lognorth-e2e-registry >/dev/null 2>&1 || true
 docker run -d --name lognorth-e2e-registry -p 127.0.0.1:5000:5000 registry:2 >/dev/null
@@ -42,7 +43,7 @@ created="$(post -d "email=$email" -d "password=$password" -d "confirm_password=$
 [[ "$created" == 302" http://127.0.0.1/" ]] || fail "the setup on the older install did not create the account: $created"
 [[ "$(login "$password")" == 302" http://127.0.0.1/" ]] || fail "the older install does not log in"
 [[ -f /etc/cron.d/lognorth-update ]] || fail "the older installer made no nightly update"
-old_key="$(key lognorth)"
+old_key="$(key)"
 pass "the older installer runs LogNorth, and its account logs in"
 
 echo "--- the move, as the docs say"
@@ -57,7 +58,7 @@ pass "/up answers after the move"
 [[ "$(login "$password")" == 302" http://127.0.0.1/" ]] || fail "the account does not log in after the move"
 pass "the account stays"
 status="$(sudo chasen-server status lognorth)" # not in a pipe: grep -q stops early, and pipefail fails the status
-[[ "$(key "$(docker ps --format '{{.Names}}' | grep -m1 '^lognorth')")" == "$old_key" ]] || fail "the session key changed: every login ends"
+[[ -n "$old_key" && "$(key)" == "$old_key" ]] || fail "the session key changed: every login ends"
 pass "the session key stays, so the logins stay"
 grep -q "Updates:  each night" <<<"$status" || fail "the nightly updates of Chasen are off"
 [[ ! -f /etc/cron.d/lognorth-update ]] || fail "the nightly update of the older installer is still there"
