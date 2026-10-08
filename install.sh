@@ -1,6 +1,6 @@
 #!/bin/bash
 # Installs LogNorth on this server with Chasen (https://chasenhq.com):
-# HTTPS, hourly checked backups of the database, and an update each night.
+# HTTPS, live backups of the database, and an update each night.
 #   curl -fsSL https://lognorth.com/install | sudo bash
 #
 # It asks for the domain. LOGNORTH_DOMAIN gives it without a question.
