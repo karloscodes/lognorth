@@ -363,6 +363,13 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
 
       <main className="mx-auto max-w-6xl px-4 py-10 md:px-8">{children}</main>
 
+      <footer className="pb-6 text-center text-xs text-dim md:pb-12">
+        LogNorth, by{' '}
+        <a href="https://x.com/karloscodes" target="_blank" rel="noopener" className="hover:text-foreground">
+          @karloscodes
+        </a>
+      </footer>
+
       {/* Hint badges: only while navigate mode is open. */}
       {prefix && (
         <div className="pointer-events-none fixed inset-0 z-[55] hidden md:block" aria-hidden="true">
