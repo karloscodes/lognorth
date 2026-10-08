@@ -50,7 +50,7 @@ pass "the setup creates the account, and its password logs in"
 
 echo "--- the installer again: an update that keeps the data"
 again="$(install 2>&1)" || { echo "$again"; fail "the second run failed"; }
-echo "$again" | grep -q "LogNorth is up to date" || fail "the second run did not update: $again"
+grep -q "LogNorth is up to date" <<<"$again" || fail "the second run did not update: $again"
 [[ "$(login "$password")" == 302" http://127.0.0.1/" ]] || fail "the login fails after the second run"
 pass "a second run updates, and the data stays"
 
@@ -58,7 +58,7 @@ echo "--- a server of the older installer"
 echo "0 3 * * * root /usr/local/bin/lognorth update" | sudo tee /etc/cron.d/lognorth-update >/dev/null
 old="$(install 2>&1)"
 sudo rm /etc/cron.d/lognorth-update
-echo "$old" | grep -q "Nothing changed" || fail "install.sh did not leave a server of the older installer alone: $old"
+grep -q "Nothing changed" <<<"$old" || fail "install.sh did not leave a server of the older installer alone: $old"
 pass "install.sh leaves a server of the older installer alone"
 
 echo "All checks passed."

@@ -68,7 +68,7 @@ pass "the domain stays"
 
 echo "--- the install line on the moved server: an update"
 again="$(sudo LOGNORTH_IMAGE="$image" bash install.sh 2>&1)"
-echo "$again" | grep -q "LogNorth is up to date" || fail "the install line did not update the moved server: $again"
+grep -q "LogNorth is up to date" <<<"$again" || fail "the install line did not update the moved server: $again"
 [[ "$(login "$password")" == 302" http://127.0.0.1/" ]] || fail "the login fails after the update"
 pass "the install line updates the moved server"
 
