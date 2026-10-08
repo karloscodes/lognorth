@@ -23,6 +23,18 @@ func TestGetBaseURL(t *testing.T) {
 		}
 	})
 
+	t.Run("with BASE_URL from Chasen and no domain", func(t *testing.T) {
+		Reset()
+		os.Unsetenv("LOGNORTH_DOMAIN")
+		t.Setenv("BASE_URL", "https://logs.example.com")
+
+		c := GetConfig()
+
+		if url := c.GetBaseURL(); url != "https://logs.example.com" {
+			t.Errorf("expected 'https://logs.example.com', got %s", url)
+		}
+	})
+
 	t.Run("development without domain", func(t *testing.T) {
 		Reset()
 		os.Unsetenv("LOGNORTH_DOMAIN")
@@ -100,4 +112,56 @@ func TestDatabaseDSN(t *testing.T) {
 	if dsn != expected {
 		t.Errorf("expected DSN %s, got %s", expected, dsn)
 	}
+}
+
+func TestPrivateKey(t *testing.T) {
+	t.Cleanup(Reset)
+
+	t.Run("production reads PRIVATE_KEY, the name Chasen gives it", func(t *testing.T) {
+		Reset()
+		os.Unsetenv("LOGNORTH_PRIVATE_KEY")
+		t.Setenv("LOGNORTH_ENV", "production")
+		t.Setenv("PRIVATE_KEY", "key-from-chasen")
+
+		c := GetConfig()
+
+		if c.PrivateKey != "key-from-chasen" {
+			t.Errorf("expected the key from PRIVATE_KEY, got %q", c.PrivateKey)
+		}
+	})
+
+	t.Run("LOGNORTH_PRIVATE_KEY wins over PRIVATE_KEY", func(t *testing.T) {
+		Reset()
+		t.Setenv("LOGNORTH_ENV", "production")
+		t.Setenv("LOGNORTH_PRIVATE_KEY", "own-key")
+		t.Setenv("PRIVATE_KEY", "key-from-chasen")
+
+		c := GetConfig()
+
+		if c.PrivateKey != "own-key" {
+			t.Errorf("expected LOGNORTH_PRIVATE_KEY, got %q", c.PrivateKey)
+		}
+	})
+}
+
+func TestLogDirectory(t *testing.T) {
+	t.Cleanup(Reset)
+
+	t.Run("defaults to logs in the working directory", func(t *testing.T) {
+		Reset()
+		os.Unsetenv("LOGNORTH_LOGS_DIR")
+
+		if dir := GetConfig().GetLogDirectory(); dir != "logs" {
+			t.Errorf("expected logs, got %s", dir)
+		}
+	})
+
+	t.Run("reads LOGNORTH_LOGS_DIR", func(t *testing.T) {
+		Reset()
+		t.Setenv("LOGNORTH_LOGS_DIR", "/app/logs")
+
+		if dir := GetConfig().GetLogDirectory(); dir != "/app/logs" {
+			t.Errorf("expected /app/logs, got %s", dir)
+		}
+	})
 }

@@ -2,6 +2,7 @@
 package config
 
 import (
+	"cmp"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -27,6 +28,8 @@ type Config struct {
 	PrivateKey  string
 	StoragePath string
 	Domain      string
+	BaseURL     string
+	LogsDir     string
 }
 
 var (
@@ -48,14 +51,18 @@ func GetConfig() *Config {
 			PrivateKey:  privateKey,
 			StoragePath: storagePath,
 			Domain:      os.Getenv("LOGNORTH_DOMAIN"),
+			// Chasen (https://chasenhq.com) sets BASE_URL, and PRIVATE_KEY below.
+			BaseURL: os.Getenv("BASE_URL"),
+			LogsDir: getEnv("LOGNORTH_LOGS_DIR", "logs"),
 		}
 	})
 	return cfg
 }
 
-// getPrivateKey returns the private key from env, file, or generates a new one
+// getPrivateKey returns the private key from env, file, or generates a new one.
+// PRIVATE_KEY is the name that Chasen gives it.
 func getPrivateKey(env string, storagePath string) string {
-	key := os.Getenv("LOGNORTH_PRIVATE_KEY")
+	key := cmp.Or(os.Getenv("LOGNORTH_PRIVATE_KEY"), os.Getenv("PRIVATE_KEY"))
 
 	// Production requires explicit private key (unless demo mode)
 	if env == Production && os.Getenv("LOGNORTH_DEMO") != "true" {
@@ -189,9 +196,10 @@ func (c *Config) GetLogLevel() string {
 	}
 }
 
-// GetLogDirectory returns the logs directory
+// GetLogDirectory returns the logs directory: LOGNORTH_LOGS_DIR, or logs in
+// the working directory.
 func (c *Config) GetLogDirectory() string {
-	return "logs"
+	return c.LogsDir
 }
 
 // GetLogMaxSizeMB returns the max log file size in MB
@@ -213,6 +221,9 @@ func (c *Config) GetLogMaxAgeDays() int {
 func (c *Config) GetBaseURL() string {
 	if c.Domain != "" {
 		return "https://" + c.Domain
+	}
+	if c.BaseURL != "" {
+		return c.BaseURL
 	}
 	if c.IsDevelopment() {
 		return "http://localhost:3000"

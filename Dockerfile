@@ -56,7 +56,11 @@ RUN chmod +x /app/entrypoint.sh /app/lognorth-server /app/lnctl /app/seed-demo
 
 ENV LOGNORTH_ENV=production \
   LOGNORTH_STORAGE_PATH=/app/storage \
+  LOGNORTH_LOGS_DIR=/app/logs \
   LOGNORTH_PORT=8080
+
+# The data: Chasen backs up this volume, and a plain docker run should mount it.
+VOLUME /app/storage
 
 EXPOSE 8080
 

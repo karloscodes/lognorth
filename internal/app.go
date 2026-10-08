@@ -186,10 +186,12 @@ func MountRoutes(server *cartridge.Server) {
 	// Onboarding check middleware
 	onboardingCheck := onboardingCheckMiddleware(dbMgr, logger)
 
-	// Health check (no auth, no CSRF check)
-	server.Get("/_health", func(c *cartridge.Context) error {
+	// Health check (no auth, no CSRF check). /up is the path that Chasen asks.
+	health := func(c *cartridge.Context) error {
 		return c.SendString("ok")
-	}, &cartridge.RouteConfig{EnableSecFetchSite: cartridge.Bool(false)})
+	}
+	server.Get("/_health", health, &cartridge.RouteConfig{EnableSecFetchSite: cartridge.Bool(false)})
+	server.Get("/up", health, &cartridge.RouteConfig{EnableSecFetchSite: cartridge.Bool(false)})
 
 	// Demo mode: global rate limit + block write operations. server.Use runs
 	// on every request, so two kinds opt out of the limit. The health check:
@@ -199,7 +201,7 @@ func MountRoutes(server *cartridge.Server) {
 		publicFiles, _ := fs.Sub(lognorth.PublicFS, "web/public")
 		notAPage := func(c *cartridge.Context) bool {
 			path := c.Path()
-			if path == "/_health" || strings.HasPrefix(path, "/assets/") {
+			if path == "/_health" || path == "/up" || strings.HasPrefix(path, "/assets/") {
 				return true
 			}
 			info, err := fs.Stat(publicFiles, strings.TrimPrefix(path, "/"))

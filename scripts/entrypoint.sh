@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-LOG_DIR="/app/logs"
+LOG_DIR="${LOGNORTH_LOGS_DIR:-/app/logs}"
 
 mkdir -p "$LOG_DIR"
 
