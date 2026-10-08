@@ -63,6 +63,19 @@ Every alert email ends with `/lognorth:investigate <path or issue hash>`, a
 command in the plugin repo (`lognorth-releases`). Keep the tool names in sync
 with that plugin's skill and with the `lognorth` command.
 
+### Install
+
+New installs run on Chasen (chasenhq.com). `install.sh` is the script behind
+`curl -fsSL lognorth.com/install | bash`: it installs chasen-server and deploys
+`karloscodes/lognorth:latest` with nightly updates. Each release attaches it to
+the `lognorth-releases` release, and lognorth.com/install redirects to the
+newest one. `cmd/manager` (the `lognorth` command, built on matcha) stays for
+servers of the older installer: keep its release binaries. On Chasen the image
+needs no settings: it reads `PRIVATE_KEY` and `BASE_URL`, which Chasen sets.
+`e2e/chasen.sh`, `e2e/installer.sh`, and `e2e/move-to-chasen.sh` test the three
+paths; `.github/workflows/chasen.yml` runs them on GitHub's runners, never on
+the self-hosted one, because they install chasen-server on the machine.
+
 ### Alerting
 
 Per-error alerts (new error, regression) are in `internal/events/alerting.go`.
