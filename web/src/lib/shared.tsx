@@ -160,7 +160,7 @@ export interface Issue {
 export const errorConfig = {
   error: {
     icon: AlertTriangle,
-    colors: 'text-[#e11d48] bg-[#e11d48]/10',
+    colors: 'text-error bg-error/10',
     label: 'Error',
   },
   success: {
@@ -177,7 +177,7 @@ export const getConfig = (isError: boolean) =>
 
 export const statusColor = (status?: number) => {
   if (!status) return 'text-foreground/50'
-  if (status >= 500) return 'text-[#e11d48] font-semibold'
+  if (status >= 500) return 'text-error font-semibold'
   if (status >= 400) return 'text-foreground'
   return 'text-foreground/50'
 }

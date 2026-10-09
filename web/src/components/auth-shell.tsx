@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 
-// Text inputs on the form pages: a thin border that turns white on focus.
+// Text inputs on the form pages: a thin border that turns to the foreground color on focus.
 export const FIELD =
   'w-full border border-border bg-raise/40 px-3 py-2 text-[13px] text-foreground placeholder:text-dim focus:border-foreground focus:outline-none'
 

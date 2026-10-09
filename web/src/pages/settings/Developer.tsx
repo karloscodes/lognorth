@@ -133,7 +133,7 @@ export default function SettingsDeveloper({ agentKeyPrefix: initialPrefix = '' }
             <button
               type="button"
               onClick={revokeAgentKey}
-              className="px-4 py-2 border border-red-500/30 text-sm font-bold text-error hover:border-red-500 hover:bg-error/10 transition-colors"
+              className="px-4 py-2 border border-error/30 text-sm font-bold text-error hover:border-error hover:bg-error/10 transition-colors"
             >
               Revoke
             </button>
