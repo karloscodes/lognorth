@@ -3,6 +3,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { router } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
 import { TraceTree } from '@/components/trace-tree'
+import { UserSteps } from '@/components/user-steps'
 import { StackTrace } from '@/components/stack-trace'
 import { statusColor, parseContext } from '@/lib/shared'
 import type { Application, LogEntry, LogContext } from '@/lib/shared'
@@ -16,6 +17,7 @@ interface Props {
   appName?: string
   applications?: Application[]
   issueHash?: string
+  stepsBefore?: LogEntry[] | null
 }
 
 function routeLabel(ctx: LogContext): string | null {
@@ -49,7 +51,7 @@ function KeyValues({ pairs, keyWidth }: { pairs: [string, ReactNode][]; keyWidth
   )
 }
 
-export default function LogDetail({ entry, entryContext, relatedEntries, appId, appName, applications, issueHash }: Props) {
+export default function LogDetail({ entry, entryContext, relatedEntries, appId, appName, applications, issueHash, stepsBefore }: Props) {
   const logPath = `/apps/${appId}/log`
   const ctx = entryContext || parseContext(entry.context)
   const isHttpRequest = ctx.method && ctx.path
@@ -177,6 +179,8 @@ export default function LogDetail({ entry, entryContext, relatedEntries, appId, 
           traceId={entry.trace_id}
         />
       )}
+
+      {ctx.user && <UserSteps steps={stepsBefore} user={ctx.user} until={entry.timestamp} logPath={logPath} />}
 
       {ctx.stack_trace && (
         <div className="mb-7 [&>.pane]:mt-0">

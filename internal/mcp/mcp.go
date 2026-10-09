@@ -155,7 +155,9 @@ var Tools = []map[string]any{
 	{
 		"name": "list_issues",
 		"description": "List grouped errors with occurrence counts, trend, and when each was first and last seen. " +
-			"Start here when asked what is broken in production. Pass an issue's hash to search_logs to get its events.",
+			"Start here when asked what is broken in production. Pass an issue's hash to search_logs to get its events. " +
+			"An issue with `after` is a symptom: in most of the requests it failed in (over 7 days), the issue in `after` failed first in the same request, " +
+			"and that issue is rare elsewhere. Fix the issue in `after` first.",
 		"inputSchema": map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"app_id": map[string]any{"type": "integer", "description": "Restrict to one app, from list_apps."}},
@@ -184,7 +186,8 @@ var Tools = []map[string]any{
 	{
 		"name": "get_event",
 		"description": "Fetch one log event by id, with its full context and every other event sharing its trace. " +
-			"Use it after search_logs to see the whole request that failed. error_file and error_line point at the code.",
+			"Use it after search_logs to see the whole request that failed. error_file and error_line point at the code. " +
+			"When the event carries a user, stepsBefore lists that user's requests in the 30 minutes before it, oldest first: the steps to reproduce it.",
 		"inputSchema": map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"id": map[string]any{"type": "integer", "description": "Event id from search_logs."}},
@@ -483,6 +486,7 @@ func getEvent(db *gorm.DB, args map[string]any) (any, error) {
 		"event":         event,
 		"eventContext":  eventContext,
 		"relatedEvents": related,
+		"stepsBefore":   events.StepsBefore(db, event),
 	}, nil
 }
 
@@ -492,7 +496,22 @@ func listIssues(db *gorm.DB, args map[string]any) (any, error) {
 		return nil, fmt.Errorf("could not read the issues: %w", err)
 	}
 
-	return map[string]any{"issues": issues}, nil
+	// Each issue with the issues that failed first in its requests.
+	type issueWithCauses struct {
+		events.IssueWithState
+		After []events.IssueLink `json:"after,omitempty"`
+	}
+	causes := map[uint]map[string][]events.IssueLink{}
+	result := make([]issueWithCauses, 0, len(issues))
+	for _, issue := range issues {
+		byIssue, ok := causes[issue.APIKeyID]
+		if !ok {
+			byIssue, _ = events.CausesByIssue(db, issue.APIKeyID, time.Now())
+			causes[issue.APIKeyID] = byIssue
+		}
+		result = append(result, issueWithCauses{issue, byIssue[issue.Hash]})
+	}
+	return map[string]any{"issues": result}, nil
 }
 
 func clampLimit(limit int) int {

@@ -96,6 +96,17 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 	}
 
 	reach, _ := events.GetIssueReach(db, hash, app.ID)
+	chains, _ := events.ChainsOf(db, app.ID, hash, time.Now())
+
+	// What the newest user who hit this issue did before it.
+	steps := []events.Event{}
+	stepsUser := ""
+	for i := range issue.Entries {
+		if c, err := issue.Entries[i].GetContext(); err == nil && c.User != "" {
+			steps, stepsUser = events.StepsBefore(db, &issue.Entries[i]), c.User
+			break
+		}
+	}
 
 	// The outages this issue surged in, when the app has an uptime URL.
 	outages := []uptime.IssueOutage{}
@@ -143,6 +154,9 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		"paths":         paths,
 		"reach":         reach,
 		"outages":       outages,
+		"chains":        chains,
+		"steps":         steps,
+		"stepsUser":     stepsUser,
 		"releases":      events.ReleasesBetween(db, app.ID, time.Now().AddDate(0, 0, -90), time.Now()), // the heatmap can reach back past `days`
 		"appId":         app.ID,
 		"appName":       app.Name,

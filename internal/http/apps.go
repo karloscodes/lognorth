@@ -117,12 +117,17 @@ func AppIssuesPageAction(ctx *cartridge.Context) error {
 	if err != nil {
 		return ctx.Status(http.StatusInternalServerError).JSON(cartridge.Map{"error": "Failed to fetch issues"})
 	}
+	causes, _ := events.CausesByIssue(db, app.ID, time.Now())
+	if causes == nil {
+		causes = map[string][]events.IssueLink{}
+	}
 
 	return RenderPage(ctx, "Issues", Props{
 		"appId":        app.ID,
 		"appName":      app.Name,
 		"applications": apps,
 		"issues":       issues,
+		"causes":       causes,
 	})
 }
 
@@ -162,6 +167,7 @@ func AppLogDetailPageAction(ctx *cartridge.Context) error {
 		"entry":          entry,
 		"entryContext":   entryContext,
 		"relatedEntries": relatedEntries,
+		"stepsBefore":    events.StepsBefore(db, entry),
 	}
 
 	if entry.IsError && entry.IssueHash != "" {

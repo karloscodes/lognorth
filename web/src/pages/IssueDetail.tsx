@@ -9,6 +9,7 @@ import { pageKey } from '@/lib/keys'
 import { usePageCommand } from '@/lib/commands'
 import { StackTrace } from '@/components/stack-trace'
 import { shortDuration } from '@/lib/uptime'
+import { UserSteps } from '@/components/user-steps'
 import { shortRelease, type Release } from '@/components/release-marks'
 
 interface PathCount {
@@ -33,8 +34,21 @@ interface IssueOutage {
   count: number
 }
 
+// Another issue failing first in this issue's requests (a cause), or this
+// issue failing first in another's (a symptom), over 7 days.
+interface IssueLink {
+  hash: string
+  error: string
+  error_class?: string
+  traces: number
+  of: number
+}
+
 interface Props {
   issue: IssueDetailType
+  chains?: { causes: IssueLink[]; symptoms: IssueLink[] }
+  steps?: LogEntry[] | null
+  stepsUser?: string
   reach?: Reach
   outages?: IssueOutage[] | null
   releases?: Release[] | null
@@ -47,7 +61,7 @@ interface Props {
   applications?: Application[]
 }
 
-export default function IssueDetail({ issue, reach, outages, releases, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
+export default function IssueDetail({ issue, chains, steps, stepsUser, reach, outages, releases, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
   const issuesPath = `/apps/${appId}/issues`
   const toggleMute = () => router.post(`/issues/${issue.hash}/${issue.muted ? 'unmute' : 'mute'}`, {}, { preserveScroll: true })
   usePageCommand('mute', () => toggleMute())
@@ -144,6 +158,8 @@ export default function IssueDetail({ issue, reach, outages, releases, occurrenc
         <Stat label="where it happened" value={wherePaths.length ? `${wherePaths.length} endpoint${wherePaths.length !== 1 ? 's' : ''}` : 'no requests'} />
       </div>
 
+      <Chains chains={chains} appId={appId} />
+
       {stackTrace && <StackTrace trace={stackTrace} errorFile={errorFile} />}
 
       <FrequencyHeatmap occurrences={occurrences} firstSeen={issue.first_seen} releases={releases} />
@@ -164,6 +180,10 @@ export default function IssueDetail({ issue, reach, outages, releases, occurrenc
         </div>
       )}
 
+      {stepsUser && steps && steps.length > 0 && (
+        <UserSteps steps={steps} user={stepsUser} until={recentEntries.find((e) => parseContext(e.context).user === stepsUser)?.timestamp ?? issue.last_seen} logPath={logPath} />
+      )}
+
       {/* Request context: the log lines around the newest traced error. */}
       {latestTraced && latestTraceEntries && latestTraceEntries.length > 1 && latestTraceEntries.some((e) => e.id === latestTraced.id) && (
         <div className="mt-7">
@@ -180,6 +200,36 @@ export default function IssueDetail({ issue, reach, outages, releases, occurrenc
         </div>
       )}
     </Layout>
+  )
+}
+
+// The issues this one comes after in its own failed requests (fix those
+// first), and the issues it comes before in theirs.
+function Chains({ chains, appId }: { chains?: { causes: IssueLink[]; symptoms: IssueLink[] }; appId: number }) {
+  if (!chains || (chains.causes.length === 0 && chains.symptoms.length === 0)) return null
+  const name = (l: IssueLink) => l.error_class || l.error
+  return (
+    <div className="pane mt-7 px-4 pb-3 pt-6 text-[13px]">
+      <span className="pane-title">in the same requests · 7 days</span>
+      {chains.causes.map((l) => (
+        <a key={l.hash} href={`/apps/${appId}/issues/${l.hash}`} className="block py-1 hover:underline">
+          <span className="text-subtle">fails after </span>
+          <span className="font-bold text-error">{name(l)}</span>
+          <span className="text-subtle">
+            {' '}in {l.traces} of {l.of} of these requests. Fix that first →
+          </span>
+        </a>
+      ))}
+      {chains.symptoms.map((l) => (
+        <a key={l.hash} href={`/apps/${appId}/issues/${l.hash}`} className="block py-1 hover:underline">
+          <span className="text-subtle">comes before </span>
+          <span className="text-foreground">{name(l)}</span>
+          <span className="text-subtle">
+            {' '}in {l.traces} of its {l.of} failed requests →
+          </span>
+        </a>
+      ))}
+    </div>
   )
 }
 

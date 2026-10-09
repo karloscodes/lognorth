@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -652,6 +653,74 @@ func TestUptimeTimeline(t *testing.T) {
 
 		if text := toolErrorText(t, result); !strings.Contains(text, "no app with id 42") {
 			t.Errorf("error = %q, want the missing app", text)
+		}
+	})
+}
+
+func TestIssueCausesAndSteps(t *testing.T) {
+	fail := func(t *testing.T, db *gorm.DB, appID uint, class, trace, user string, at time.Time) {
+		t.Helper()
+		ctx := events.EventContext{ErrorClass: class, Error: class, ErrorFile: "app.rb", ErrorLine: 1, User: user}
+		event := &events.Event{APIKeyID: appID, Timestamp: at, IsError: true, Message: class, TraceID: trace}
+		event.SetContext(&ctx)
+		events.PopulateErrorFields(event, &ctx)
+		events.Create(db, event)
+	}
+
+	t.Run("list_issues names the issue that failed first in a symptom's requests", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		db.Create(&events.EndpointStat{APIKeyID: appID, Path: "/", Bucket: time.Now().Add(-time.Hour), Total: 1000})
+		for i := range 5 {
+			at := time.Now().Add(-time.Duration(i+1) * time.Hour)
+			fail(t, db, appID, "Redis::TimeoutError", fmt.Sprint("t", i), "", at)
+			fail(t, db, appID, "NoMethodError", fmt.Sprint("t", i), "", at.Add(time.Millisecond))
+		}
+
+		result := call(t, db, "tools/call", `{"name":"list_issues","arguments":{}}`)
+
+		var out struct {
+			Issues []struct {
+				ErrorClass string `json:"error_class"`
+				After      []struct {
+					ErrorClass string `json:"error_class"`
+					Traces     int    `json:"traces"`
+				} `json:"after"`
+			} `json:"issues"`
+		}
+		json.Unmarshal([]byte(toolText(t, result)), &out)
+		for _, issue := range out.Issues {
+			if issue.ErrorClass == "NoMethodError" && (len(issue.After) != 1 || issue.After[0].ErrorClass != "Redis::TimeoutError" || issue.After[0].Traces != 5) {
+				t.Errorf("after = %+v, want Redis in 5 requests", issue.After)
+			}
+			if issue.ErrorClass == "Redis::TimeoutError" && len(issue.After) != 0 {
+				t.Errorf("Redis has after = %+v, want none", issue.After)
+			}
+		}
+	})
+
+	t.Run("get_event lists the user's steps before the error", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		now := time.Now()
+		ctx := events.EventContext{Method: "GET", Path: "/cart", Status: 200, User: "42"}
+		step := &events.Event{APIKeyID: appID, Timestamp: now.Add(-time.Minute), Message: "GET /cart"}
+		step.SetContext(&ctx)
+		events.Create(db, step)
+		fail(t, db, appID, "NoMethodError", "t1", "42", now)
+		var errorID uint
+		db.Model(&events.Event{}).Where("is_error = 1").Select("id").Scan(&errorID)
+
+		result := call(t, db, "tools/call", fmt.Sprintf(`{"name":"get_event","arguments":{"id":%d}}`, errorID))
+
+		var out struct {
+			StepsBefore []struct {
+				Message string `json:"message"`
+			} `json:"stepsBefore"`
+		}
+		json.Unmarshal([]byte(toolText(t, result)), &out)
+		if len(out.StepsBefore) != 1 || out.StepsBefore[0].Message != "GET /cart" {
+			t.Errorf("stepsBefore = %+v, want GET /cart", out.StepsBefore)
 		}
 	})
 }

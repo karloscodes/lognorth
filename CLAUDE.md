@@ -104,6 +104,14 @@ correlations stay out of the UI, the emails, and the MCP tools.
   times its own rate over the day before (`events.SurgedDuring`). An issue that
   errs all day never qualifies. `uptime.RecentOutages` joins the two for the
   issue page, the down email, and `uptime_timeline`.
+- **Same request:** issue A is a cause of issue B when A failed first in the
+  same trace in at least 80% of B's failed requests (5 or more, 7 days), and A
+  is at least 5 times more common there than in all requests (the lift keeps
+  out an error that happens everywhere). `events.ChainsOf` feeds the issue
+  page, `events.CausesByIssue` the issue list and `list_issues` (`after`).
+- **Same user:** `events.StepsBefore` lists the requests (a method and a path)
+  of an error's user in the 30 minutes before it, for the issue page, the log
+  detail, and `get_event` (`stepsBefore`).
 - **Deploys:** the SDKs log `Release <version> started` at boot. The processor
   keeps each release's first time in `releases` (`events.NoteRelease`), and
   the logs chart, the uptime strip, and the issue heatmap mark it

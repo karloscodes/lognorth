@@ -7,8 +7,12 @@ import type { Application, Issue } from '@/lib/shared'
 import { pageKey } from '@/lib/keys'
 import { usePageCommand } from '@/lib/commands'
 
+// The issues that failed first in an issue's requests, by issue hash.
+type Causes = Record<string, { hash: string; error: string; error_class?: string; traces: number; of: number }[]>
+
 interface Props {
   issues?: Issue[]
+  causes?: Causes
   appId?: number
   appName?: string
   applications?: Application[]
@@ -24,7 +28,7 @@ const ago = (iso: string) =>
     .replace(/ months?/, 'mo')
     .replace(/ years?/, 'y') + ' ago'
 
-export default function Issues({ issues = [], appId, appName, applications }: Props) {
+export default function Issues({ issues = [], causes = {}, appId, appName, applications }: Props) {
   const issuePath = (issue: Issue) => `/apps/${appId || issue.api_key_id}/issues/${issue.hash}`
   const activeIssues = issues.filter((i) => i.active)
   const staleIssues = issues.filter((i) => !i.active)
@@ -84,6 +88,7 @@ export default function Issues({ issues = [], appId, appName, applications }: Pr
         key={issue.hash}
         ref={(el) => (rowRefs.current[i] = el)}
         issue={issue}
+        after={causes[issue.hash]}
         href={issuePath(issue)}
         appName={showAppName ? appNameById.get(issue.api_key_id) : undefined}
         stale={stale}
@@ -162,6 +167,7 @@ function Sparkline({ daily = [], hot }: { daily?: number[]; hot: boolean }) {
 
 interface RowProps {
   issue: Issue
+  after?: Causes[string]
   href: string
   appName?: string
   stale: boolean
@@ -171,7 +177,7 @@ interface RowProps {
   ref: (el: HTMLDivElement | null) => void
 }
 
-function IssueRow({ issue, href, appName, stale, selected, onSelect, onMute, ref }: RowProps) {
+function IssueRow({ issue, after, href, appName, stale, selected, onSelect, onMute, ref }: RowProps) {
   const unseen = issue.unseen && !stale && !issue.muted
   const extraPaths = (issue.paths?.length ?? 0) - 1
   const where = issue.error_file ? `${issue.error_file}${issue.error_line ? `:${issue.error_line}` : ''}` : ''
@@ -201,6 +207,11 @@ function IssueRow({ issue, href, appName, stale, selected, onSelect, onMute, ref
           )}
           {where && ` · ${where}`}
         </p>
+        {after && after.length > 0 && (
+          <p className="mt-1 truncate text-xs text-subtle">
+            ↳ after <span className="text-error">{after[0].error_class || after[0].error}</span> in {after[0].traces} of {after[0].of} requests
+          </p>
+        )}
       </a>
 
       <div className="flex items-center gap-5">
