@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/karloscodes/cartridge"
 	"github.com/karloscodes/cartridge/sqlite"
@@ -168,5 +169,30 @@ func TestEventProcessor_TwoProcessorsMoveABatchOnce(t *testing.T) {
 	db.Model(&events.EndpointStat{}).Select("COALESCE(SUM(total), 0)").Scan(&total)
 	if total != 2 {
 		t.Errorf("endpoint stat total = %d, want 2", total)
+	}
+}
+
+func TestEventProcessor_NotesReleases(t *testing.T) {
+	db := setupProcessorDB(t)
+	key, _, err := apikeys.Create(db, "Test App")
+	if err != nil {
+		t.Fatalf("create api key: %v", err)
+	}
+	started := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	if err := events.CreateIngested(db, []*events.IngestedEvent{
+		{APIKeyID: key.ID, Message: "Release a1b2c3d started", Context: `{"release":"a1b2c3d"}`, Timestamp: started},
+		{APIKeyID: key.ID, Message: "boom", IsError: true, Context: `{"error":"boom","release":"a1b2c3d"}`, Timestamp: started.Add(time.Minute)},
+		{APIKeyID: key.ID, Message: "GET / → 200", Context: `{"path":"/","status":200}`, Timestamp: started},
+	}); err != nil {
+		t.Fatalf("create ingested: %v", err)
+	}
+
+	if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
+		t.Fatalf("ProcessBatch: %v", err)
+	}
+
+	releases := events.ReleasesBetween(db, key.ID, started.Add(-time.Hour), time.Now())
+	if len(releases) != 1 || releases[0].Version != "a1b2c3d" || !releases[0].FirstSeen.Equal(started) {
+		t.Fatalf("expected a1b2c3d deployed at its start, got %+v", releases)
 	}
 }

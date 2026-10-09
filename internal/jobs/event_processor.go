@@ -135,7 +135,15 @@ func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, string, err
 		if deleted.RowsAffected == 0 {
 			return errAlreadyMoved
 		}
-		return events.Create(tx, event)
+		if err := events.Create(tx, event); err != nil {
+			return err
+		}
+		// A release start or an error names the version that ran: the first
+		// one seen is the deploy the charts mark.
+		if eventCtx != nil {
+			return events.NoteRelease(tx, event.APIKeyID, eventCtx.Release, event.Timestamp)
+		}
+		return nil
 	})
 	path := ""
 	if eventCtx != nil {

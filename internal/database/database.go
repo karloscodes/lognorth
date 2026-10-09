@@ -86,6 +86,7 @@ func Migrate(db *gorm.DB) error {
 		&events.IssueSeen{},
 		&events.EndpointStat{},
 		&events.SpikeState{},
+		&events.Release{},
 		&settings.Settings{},
 		&users.User{},
 		&uptime.Check{},

@@ -71,6 +71,10 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 
 	// Get histogram data - 48 buckets for the time range
 	histogram := events.GetHistogram(db, app.ID, filters.StartTime, filters.EndTime)
+	releases := []events.Release{}
+	if len(histogram) > 0 {
+		releases = events.ReleasesBetween(db, app.ID, histogram[0].Timestamp, time.Now())
+	}
 
 	return RenderPage(ctx, "Log", Props{
 		"appId":        app.ID,
@@ -78,6 +82,7 @@ func AppLogPageAction(ctx *cartridge.Context) error {
 		"applications": apps,
 		"entries":      entries,
 		"histogram":    histogram,
+		"releases":     releases,
 		"filters": cartridge.Map{
 			"is_error": filters.IsError,
 			"search":   filters.Search,
@@ -213,6 +218,7 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 		"endpoints":    endpoints,
 		"alerts":       alerts,
 		"uptime":       uptime.ReportFor(db, *app, time.Now(), 24*time.Hour, 96),
+		"releases":     events.ReleasesBetween(db, app.ID, time.Now().Add(-24*time.Hour), time.Now()),
 	})
 }
 

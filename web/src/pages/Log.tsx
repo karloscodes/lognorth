@@ -4,6 +4,7 @@ import { Layout } from '@/components/layout'
 import { statusColor, parseContext, PageHeader, Mono } from '@/lib/shared'
 import type { Application, LogEntry } from '@/lib/shared'
 import { pageKey } from '@/lib/keys'
+import { ReleaseMarks, type Release } from '@/components/release-marks'
 
 // Format as "Feb 25 20:15:07.152"
 const formatTime = (date: Date) => {
@@ -71,6 +72,7 @@ interface Props {
   filters?: Filters
   pagination?: Pagination
   histogram?: HistogramBucket[]
+  releases?: Release[]
   appId?: number
   appName?: string
   applications?: Application[]
@@ -175,7 +177,7 @@ function GroupedLog({ group, appId }: { group: LogGroup; appId?: number }) {
   )
 }
 
-function LogHistogram({ buckets: rawBuckets }: { buckets: HistogramBucket[] }) {
+function LogHistogram({ buckets: rawBuckets, releases }: { buckets: HistogramBucket[]; releases?: Release[] }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
 
   if (!rawBuckets || rawBuckets.length === 0) return null
@@ -195,11 +197,15 @@ function LogHistogram({ buckets: rawBuckets }: { buckets: HistogramBucket[] }) {
 
   const maxTotal = Math.max(...buckets.map(b => b.total), 1)
   const hoveredBucket = hoveredIdx !== null ? buckets[hoveredIdx] : null
+  const from = new Date(buckets[0].timestamp).getTime()
+  const bucketMs = rawBuckets.length > 1 ? new Date(rawBuckets[1].timestamp).getTime() - from : 3_600_000
+  const to = new Date(buckets[buckets.length - 1].timestamp).getTime() + bucketMs
 
   return (
     <div className="pane relative mb-7 px-[18px] pb-3 pt-6">
-      <span className="pane-title">requests · errors in red</span>
-      <div className="flex h-16 items-end gap-0.5">
+      <span className="pane-title">requests · errors in red{releases?.length ? ' · deploys dashed' : ''}</span>
+      <div className="relative flex h-16 items-end gap-0.5">
+        <ReleaseMarks releases={releases} from={from} to={to} />
         {buckets.map((bucket, i) => {
           const successHeight = ((bucket.total - bucket.errors) / maxTotal) * 100
           const errorHeight = (bucket.errors / maxTotal) * 100
@@ -281,7 +287,7 @@ const getStartTimeForPreset = (preset: DatePreset): string | undefined => {
   return undefined
 }
 
-export default function Log({ entries: initialEntries = [], filters = {}, pagination = { limit: 50, offset: 0, total: 0 }, histogram = [], appId, appName, applications }: Props) {
+export default function Log({ entries: initialEntries = [], filters = {}, pagination = { limit: 50, offset: 0, total: 0 }, histogram = [], releases = [], appId, appName, applications }: Props) {
   const [entries, setEntries] = useState(initialEntries)
   const [search, setSearch] = useState(filters.search || '')
   const [errorFilter, setErrorFilter] = useState<string>(
@@ -470,7 +476,7 @@ export default function Log({ entries: initialEntries = [], filters = {}, pagina
         )}
       </div>
 
-      {!liveEnabled && histogram.length > 0 && <LogHistogram buckets={histogram} />}
+      {!liveEnabled && histogram.length > 0 && <LogHistogram buckets={histogram} releases={releases} />}
 
       {entries.length === 0 ? (
         <div className="border border-dashed border-border py-16 text-center">

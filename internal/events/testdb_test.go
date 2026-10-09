@@ -19,7 +19,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
-	if err := db.AutoMigrate(&Event{}, &IngestedEvent{}, &IssueSeen{}, &EndpointStat{}, &SpikeState{}); err != nil {
+	if err := db.AutoMigrate(&Event{}, &IngestedEvent{}, &IssueSeen{}, &EndpointStat{}, &SpikeState{}, &Release{}); err != nil {
 		t.Fatalf("Failed to migrate: %v", err)
 	}
 	if err := AutoMigrateSPC(db); err != nil {

@@ -143,6 +143,7 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		"paths":         paths,
 		"reach":         reach,
 		"outages":       outages,
+		"releases":      events.ReleasesBetween(db, app.ID, time.Now().AddDate(0, 0, -90), time.Now()), // the heatmap can reach back past `days`
 		"appId":         app.ID,
 		"appName":       app.Name,
 		"applications":  apps,

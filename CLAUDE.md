@@ -104,6 +104,10 @@ correlations stay out of the UI, the emails, and the MCP tools.
   times its own rate over the day before (`events.SurgedDuring`). An issue that
   errs all day never qualifies. `uptime.RecentOutages` joins the two for the
   issue page, the down email, and `uptime_timeline`.
+- **Deploys:** the SDKs log `Release <version> started` at boot. The processor
+  keeps each release's first time in `releases` (`events.NoteRelease`), and
+  the logs chart, the uptime strip, and the issue heatmap mark it
+  (`components/release-marks.tsx`). No other source sets a deploy time.
 
 ### Event Model
 

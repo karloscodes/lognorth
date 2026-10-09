@@ -9,6 +9,7 @@ import { pageKey } from '@/lib/keys'
 import { usePageCommand } from '@/lib/commands'
 import { StackTrace } from '@/components/stack-trace'
 import { shortDuration } from '@/lib/uptime'
+import { shortRelease, type Release } from '@/components/release-marks'
 
 interface PathCount {
   path: string
@@ -36,6 +37,7 @@ interface Props {
   issue: IssueDetailType
   reach?: Reach
   outages?: IssueOutage[] | null
+  releases?: Release[] | null
   occurrences: OccurrencePoint[] | null
   traces: Record<string, LogEntry[]> | null
   alsoHappensAt?: RelatedLocation[] | null
@@ -45,7 +47,7 @@ interface Props {
   applications?: Application[]
 }
 
-export default function IssueDetail({ issue, reach, outages, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
+export default function IssueDetail({ issue, reach, outages, releases, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
   const issuesPath = `/apps/${appId}/issues`
   const toggleMute = () => router.post(`/issues/${issue.hash}/${issue.muted ? 'unmute' : 'mute'}`, {}, { preserveScroll: true })
   usePageCommand('mute', () => toggleMute())
@@ -144,7 +146,7 @@ export default function IssueDetail({ issue, reach, outages, occurrences, traces
 
       {stackTrace && <StackTrace trace={stackTrace} errorFile={errorFile} />}
 
-      <FrequencyHeatmap occurrences={occurrences} firstSeen={issue.first_seen} />
+      <FrequencyHeatmap occurrences={occurrences} firstSeen={issue.first_seen} releases={releases} />
 
       {outages && outages.length > 0 && <Outages outages={outages} issueHash={issue.hash} logPath={logPath} />}
 
@@ -220,10 +222,6 @@ function Stat({ label, value, sub }: { label: string; value: React.ReactNode; su
   )
 }
 
-// A git SHA as its first 7 characters; any other release name as it is.
-function shortRelease(release: string): string {
-  return /^[0-9a-f]{12,}$/i.test(release) ? release.slice(0, 7) : release
-}
 
 // "also at line 45 (12×), and in other.rb:10 (3×)": the same error elsewhere.
 function AlsoHappensAt({ locations, appId }: { locations?: RelatedLocation[] | null; appId: number }) {
@@ -298,10 +296,10 @@ const CELL = 11 // px, with a 2px gap
 const EMPTY = 'hsl(var(--raise))'
 const errorShade = (alpha: number) => `hsl(var(--error) / ${alpha})`
 
-function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrencePoint[] | null; firstSeen: string }) {
+function FrequencyHeatmap({ occurrences, firstSeen, releases }: { occurrences: OccurrencePoint[] | null; firstSeen: string; releases?: Release[] | null }) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [numCols, setNumCols] = React.useState(0)
-  const [hovered, setHovered] = React.useState<{ day: Date; bucket: (typeof TIME_BUCKETS)[number]; count: number } | null>(null)
+  const [hovered, setHovered] = React.useState<{ day: Date; bucket: (typeof TIME_BUCKETS)[number]; count: number; deploys?: string[] } | null>(null)
 
   // Measure before paint so the grid fills the full width.
   React.useLayoutEffect(() => {
@@ -323,6 +321,15 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
     if (isNaN(d.getTime())) continue
     const key = `${format(d, 'yyyy-MM-dd')} ${String(d.getHours()).padStart(2, '0')}`
     countMap.set(key, (countMap.get(key) || 0) + p.count)
+  }
+  // Deploys by the same local day and 2-hour cell: an outlined cell.
+  const deployMap = new Map<string, string[]>()
+  for (const r of releases ?? []) {
+    const d = new Date(r.first_seen)
+    const bucket = TIME_BUCKETS.find((b) => d.getHours() >= b.start && d.getHours() <= b.end)
+    if (!bucket) continue
+    const key = `${format(d, 'yyyy-MM-dd')} ${bucket.label}`
+    deployMap.set(key, [...(deployMap.get(key) ?? []), shortRelease(r.version)])
   }
   const bucketCount = (dayStr: string, bucket: (typeof TIME_BUCKETS)[number]) => {
     let total = 0
@@ -349,6 +356,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
     <div className="pane mt-7 px-4 pb-4 pt-6" ref={containerRef}>
       <span className="pane-title">
         frequency · {weeks} week{weeks !== 1 ? 's' : ''}
+        {deployMap.size > 0 && ' · deploys outlined'}
       </span>
       <span className="pane-right">
         less
@@ -379,13 +387,19 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                 {TIME_BUCKETS.flatMap((bucket) =>
                   days.map((day, i) => {
                     const count = bucketCount(format(day, 'yyyy-MM-dd'), bucket)
+                    const deploys = deployMap.get(`${format(day, 'yyyy-MM-dd')} ${bucket.label}`)
                     const isHovered = hovered?.day === day && hovered?.bucket === bucket
                     return (
                       <div
                         key={`${bucket.label}-${i}`}
                         className={`cursor-crosshair ${hovered && !isHovered ? 'opacity-40' : ''}`}
-                        style={{ aspectRatio: '1', background: count > 0 ? errorShade(Math.max(0.35, count / maxBucket)) : EMPTY }}
-                        onMouseEnter={() => setHovered({ day, bucket, count })}
+                        style={{
+                          aspectRatio: '1',
+                          background: count > 0 ? errorShade(Math.max(0.35, count / maxBucket)) : EMPTY,
+                          outline: deploys ? '1px solid hsl(var(--subtle))' : undefined,
+                          outlineOffset: -1,
+                        }}
+                        onMouseEnter={() => setHovered({ day, bucket, count, deploys })}
                         onMouseLeave={() => setHovered(null)}
                       />
                     )
@@ -412,6 +426,7 @@ function FrequencyHeatmap({ occurrences, firstSeen }: { occurrences: OccurrenceP
                 <span className="text-foreground">
                   {hovered.count} error{hovered.count !== 1 ? 's' : ''}
                 </span>
+                {hovered.deploys && <> · deployed {hovered.deploys.join(', ')}</>}
               </>
             )}
           </p>

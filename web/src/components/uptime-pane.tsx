@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ReleaseMarks, type Release } from '@/components/release-marks'
 import { format } from 'date-fns'
 import { uptimeLabel, percent, shortDuration, failureText, type UptimeReport, type UptimeCheck, type UptimeBar } from '@/lib/uptime'
 
@@ -11,7 +12,7 @@ function checkSummary(c: UptimeCheck): string {
 // The app's URL ping over the last 24 hours: one bar per 15 minutes, red where
 // a ping failed, plus the latest result and the latest failure. A red bar
 // opens the app's errors in its 15 minutes.
-export function UptimePane({ report, logPath }: { report: UptimeReport; logPath: string }) {
+export function UptimePane({ report, logPath, releases }: { report: UptimeReport; logPath: string; releases?: Release[] }) {
   const label = uptimeLabel(report)
   const [hovered, setHovered] = useState<number | null>(null)
 
@@ -43,7 +44,14 @@ export function UptimePane({ report, logPath }: { report: UptimeReport; logPath:
 
       <div className="relative" onMouseLeave={() => setHovered(null)}>
         {hovered !== null && <BarTooltip bar={report.bars[hovered]} index={hovered} total={report.bars.length} barMs={barMs} />}
-        <div className="flex h-7 items-stretch gap-px">
+        <div className="relative flex h-7 items-stretch gap-px">
+          {report.bars.length > 0 && (
+            <ReleaseMarks
+              releases={releases}
+              from={new Date(report.bars[0].start).getTime()}
+              to={new Date(report.bars[0].start).getTime() + report.bars.length * barMs}
+            />
+          )}
           {report.bars.map((bar, i) => {
             const label = `${format(new Date(bar.start), 'HH:mm')}: ${bar.checks} pings, ${bar.fails} failed`
             if (bar.fails > 0) {
