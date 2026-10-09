@@ -9,8 +9,9 @@ function checkSummary(c: UptimeCheck): string {
 }
 
 // The app's URL ping over the last 24 hours: one bar per 15 minutes, red where
-// a ping failed, plus the latest result and the latest failure.
-export function UptimePane({ report }: { report: UptimeReport }) {
+// a ping failed, plus the latest result and the latest failure. A red bar
+// opens the app's errors in its 15 minutes.
+export function UptimePane({ report, logPath }: { report: UptimeReport; logPath: string }) {
   const label = uptimeLabel(report)
   const [hovered, setHovered] = useState<number | null>(null)
 
@@ -43,20 +44,28 @@ export function UptimePane({ report }: { report: UptimeReport }) {
       <div className="relative" onMouseLeave={() => setHovered(null)}>
         {hovered !== null && <BarTooltip bar={report.bars[hovered]} index={hovered} total={report.bars.length} barMs={barMs} />}
         <div className="flex h-7 items-stretch gap-px">
-          {report.bars.map((bar, i) => (
-            <i
-              key={i}
-              onMouseEnter={() => setHovered(i)}
-              className={`flex-1 cursor-crosshair ${
-                bar.checks === 0
-                  ? 'bg-line'
-                  : bar.fails > 0
-                    ? hovered === i ? 'bg-error' : 'bg-error/80'
-                    : hovered === i ? 'bg-foreground' : 'bg-dim'
-              }`}
-              aria-label={`${format(new Date(bar.start), 'HH:mm')}: ${bar.checks} pings, ${bar.fails} failed`}
-            />
-          ))}
+          {report.bars.map((bar, i) => {
+            const label = `${format(new Date(bar.start), 'HH:mm')}: ${bar.checks} pings, ${bar.fails} failed`
+            if (bar.fails > 0) {
+              return (
+                <a
+                  key={i}
+                  href={errorsIn(logPath, bar, barMs)}
+                  onMouseEnter={() => setHovered(i)}
+                  className={`flex-1 ${hovered === i ? 'bg-error' : 'bg-error/80'}`}
+                  aria-label={`${label}. Open the errors of these minutes`}
+                />
+              )
+            }
+            return (
+              <i
+                key={i}
+                onMouseEnter={() => setHovered(i)}
+                className={`flex-1 cursor-crosshair ${bar.checks === 0 ? 'bg-line' : hovered === i ? 'bg-foreground' : 'bg-dim'}`}
+                aria-label={label}
+              />
+            )
+          })}
         </div>
       </div>
       <div className="mt-1.5 flex justify-between text-[10px] text-dim">
@@ -90,6 +99,14 @@ export function UptimePane({ report }: { report: UptimeReport }) {
   )
 }
 
+// The app's errors logged during one bar.
+function errorsIn(logPath: string, bar: UptimeBar, barMs: number): string {
+  const start = new Date(bar.start)
+  const end = new Date(start.getTime() + barMs)
+  const params = new URLSearchParams({ is_error: 'true', start_time: start.toISOString(), end_time: end.toISOString() })
+  return `${logPath}?${params}`
+}
+
 // What happened in one bar: shown above the strip while the mouse is on it.
 function BarTooltip({ bar, index, total, barMs }: { bar: UptimeBar; index: number; total: number; barMs: number }) {
   const start = new Date(bar.start)
@@ -116,6 +133,7 @@ function BarTooltip({ bar, index, total, barMs }: { bar: UptimeBar; index: numbe
               {failureText(f.label)} <span className="text-dim">×{f.count}</span>
             </p>
           ))}
+          {bar.fails > 0 && <p className="mt-1 text-dim">click for the errors of these minutes</p>}
         </>
       )}
     </div>

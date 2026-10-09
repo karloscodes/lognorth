@@ -151,7 +151,7 @@ export default function Endpoints({ endpoints: endpointsProp, alerts = [], uptim
         }
       />
 
-      {uptime && <UptimePane report={uptime} />}
+      {uptime && <UptimePane report={uptime} logPath={`/apps/${appId}/log`} />}
 
       {endpoints.length === 0 ? (
         <EmptyState title="Quiet so far" description="Requests appear once your app is connected." />
