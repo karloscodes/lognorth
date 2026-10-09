@@ -74,6 +74,7 @@ type EventContext struct {
 	Error       string            `json:"error,omitempty"`
 	Environment string            `json:"environment,omitempty"`
 	User        string            `json:"user,omitempty"`
+	Release     string            `json:"release,omitempty"` // the version that ran, on errors
 	IP          string            `json:"ip,omitempty"`
 	UserAgent   string            `json:"user_agent,omitempty"`
 	Headers     map[string]string `json:"headers,omitempty"`

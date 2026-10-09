@@ -14,8 +14,17 @@ interface PathCount {
   count: number
 }
 
+// Who the issue hit and in which releases, from its own events.
+interface Reach {
+  users: number
+  releases: number
+  first_release?: string
+  last_release?: string
+}
+
 interface Props {
   issue: IssueDetailType
+  reach?: Reach
   occurrences: OccurrencePoint[] | null
   traces: Record<string, LogEntry[]> | null
   alsoHappensAt?: RelatedLocation[] | null
@@ -25,7 +34,7 @@ interface Props {
   applications?: Application[]
 }
 
-export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
+export default function IssueDetail({ issue, reach, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
   const issuesPath = `/apps/${appId}/issues`
   const toggleMute = () => router.post(`/issues/${issue.hash}/${issue.muted ? 'unmute' : 'mute'}`, {}, { preserveScroll: true })
   usePageCommand('mute', () => toggleMute())
@@ -104,9 +113,21 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
       </div>
 
       <div className="mt-7 grid grid-cols-2 border border-border md:grid-cols-4 [&>div:nth-child(n+3)]:max-md:border-t [&>div:nth-child(odd)]:max-md:border-l-0 [&>div]:border-l [&>div]:border-line [&>div:first-child]:border-l-0">
-        <Stat label="times" value={<Mono className="text-[30px] font-bold leading-none text-error">{issue.count}×</Mono>} />
-        <Stat label="first seen" value={formatDistanceToNow(new Date(issue.first_seen), { addSuffix: true })} />
-        <Stat label="last seen" value={formatDistanceToNow(new Date(issue.last_seen), { addSuffix: true })} />
+        <Stat
+          label="times"
+          value={<Mono className="text-[30px] font-bold leading-none text-error">{issue.count}×</Mono>}
+          sub={reach?.users ? `${reach.users} user${reach.users !== 1 ? 's' : ''}` : undefined}
+        />
+        <Stat
+          label="first seen"
+          value={formatDistanceToNow(new Date(issue.first_seen), { addSuffix: true })}
+          sub={reach?.first_release ? `in ${shortRelease(reach.first_release)}` : undefined}
+        />
+        <Stat
+          label="last seen"
+          value={formatDistanceToNow(new Date(issue.last_seen), { addSuffix: true })}
+          sub={reach?.last_release && reach.releases > 1 ? `in ${shortRelease(reach.last_release)}, ${reach.releases} releases` : undefined}
+        />
         <Stat label="where it happened" value={wherePaths.length ? `${wherePaths.length} endpoint${wherePaths.length !== 1 ? 's' : ''}` : 'no requests'} />
       </div>
 
@@ -147,13 +168,19 @@ export default function IssueDetail({ issue, occurrences, traces, alsoHappensAt,
   )
 }
 
-function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
   return (
     <div className="px-[18px] py-3.5">
       <p className="text-xs text-dim">{label}</p>
       <div className="mt-0.5 text-[15px] text-foreground">{value}</div>
+      {sub && <p className="mt-1 text-xs text-subtle">{sub}</p>}
     </div>
   )
+}
+
+// A git SHA as its first 7 characters; any other release name as it is.
+function shortRelease(release: string): string {
+  return /^[0-9a-f]{12,}$/i.test(release) ? release.slice(0, 7) : release
 }
 
 // "also at line 45 (12×), and in other.rb:10 (3×)": the same error elsewhere.

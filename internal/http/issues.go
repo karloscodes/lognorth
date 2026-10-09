@@ -94,6 +94,8 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		paths = []events.PathCount{}
 	}
 
+	reach, _ := events.GetIssueReach(db, hash, app.ID)
+
 	events.MarkIssueSeen(db, hash)
 
 	// Load trace siblings for the top 20 entries
@@ -130,6 +132,7 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		"traces":        traces,
 		"alsoHappensAt": alsoHappensAt,
 		"paths":         paths,
+		"reach":         reach,
 		"appId":         app.ID,
 		"appName":       app.Name,
 		"applications":  apps,
