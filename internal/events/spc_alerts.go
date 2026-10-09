@@ -40,7 +40,7 @@ func UpdateSPCSeverity(db *gorm.DB, state *SpikeState, severity string, errors i
 	}
 
 	if state.Severity == "" {
-		state.SpikeStartAt = time.Now()
+		state.SpikeStartAt = time.Now().UTC()
 	}
 	state.Severity = MaxSeverity(state.Severity, severity)
 	state.ErrorCount += errors
@@ -53,13 +53,13 @@ func UpdateSPCSeverity(db *gorm.DB, state *SpikeState, severity string, errors i
 func GetUnnotifiedCriticalSpikes(db *gorm.DB) []SpikeState {
 	var spikes []SpikeState
 	db.Where("severity = ? AND last_alert_at < spike_start_at AND last_alert_at < ?",
-		"critical", time.Now().Add(-AlertCooldown)).Find(&spikes)
+		"critical", time.Now().UTC().Add(-AlertCooldown)).Find(&spikes)
 	return spikes
 }
 
 // MarkSpikeNotified marks the spike as notified.
 func MarkSpikeNotified(db *gorm.DB, state *SpikeState) {
-	state.LastAlertAt = time.Now()
+	state.LastAlertAt = time.Now().UTC()
 	db.Save(state)
 }
 
@@ -70,7 +70,7 @@ func QueueDigestItem(db *gorm.DB, apiKeyID uint, path, message, severity string)
 		Path:      path,
 		Message:   message,
 		Severity:  severity,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}
 	db.Create(&item)
 }
@@ -124,7 +124,7 @@ func UpdateSilenceSeverity(db *gorm.DB, state *SilenceState, severity string) {
 	}
 
 	if state.Severity == "" {
-		state.SilenceStartAt = time.Now()
+		state.SilenceStartAt = time.Now().UTC()
 	}
 	state.Severity = MaxSeverity(state.Severity, severity)
 	state.CleanChecks = 0
@@ -135,12 +135,12 @@ func UpdateSilenceSeverity(db *gorm.DB, state *SilenceState, severity string) {
 func GetUnnotifiedCriticalSilences(db *gorm.DB) []SilenceState {
 	var silences []SilenceState
 	db.Where("severity = ? AND last_alert_at < silence_start_at AND last_alert_at < ?",
-		"critical", time.Now().Add(-AlertCooldown)).Find(&silences)
+		"critical", time.Now().UTC().Add(-AlertCooldown)).Find(&silences)
 	return silences
 }
 
 // MarkSilenceNotified marks the silence as notified.
 func MarkSilenceNotified(db *gorm.DB, state *SilenceState) {
-	state.LastAlertAt = time.Now()
+	state.LastAlertAt = time.Now().UTC()
 	db.Save(state)
 }

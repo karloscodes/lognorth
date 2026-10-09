@@ -13,7 +13,8 @@ import (
 	"lognorth/internal/settings"
 )
 
-// digestHour is the earliest hour, server time (UTC), the digest goes out.
+// digestHour is the earliest hour the digest goes out, in server time: UTC in
+// the Docker image, or the zone in TZ, the same clock quiet hours use.
 const digestHour = 9
 
 // DigestSender sends the daily digest of warnings.
