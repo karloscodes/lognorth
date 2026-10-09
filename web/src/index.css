@@ -28,47 +28,127 @@
 }
 
 @layer base {
-  /* Terminal theme: warm stone neutrals, one lime accent, rose for errors.
-     Same palette as lognorth.com. */
+  /* Themes. North is the default: warm stone neutrals, one lime accent, rose
+     for errors, the same palette as lognorth.com. A theme sets the eleven
+     base tokens; the shadcn tokens below derive from them. The accent stays
+     green in every theme, because it means live and up. */
   :root {
     --background: 20 14% 4%;       /* #0c0a09 */
     --foreground: 60 9% 98%;       /* #fafaf9 */
-
-    --card: 20 14% 4%;
-    --card-foreground: 60 9% 98%;
-
-    --popover: 20 14% 4%;
-    --popover-foreground: 60 9% 98%;
-
-    --primary: 60 9% 98%;
-    --primary-foreground: 20 14% 4%;
-
-    --secondary: 24 10% 10%;       /* #1c1917 raised surface */
-    --secondary-foreground: 60 9% 98%;
-
-    --muted: 24 10% 10%;
-    --muted-foreground: 24 5% 64%; /* #a8a29e */
-
-    --accent: 81 78% 55%;          /* #a3e635 lime */
-    --accent-foreground: 24 10% 10%;
-
-    --destructive: 347 77% 50%;    /* #e11d48 */
-    --destructive-foreground: 60 9% 98%;
-
-    --border: 30 6% 25%;           /* #44403c strong line */
-    --input: 30 6% 25%;
-    --ring: 60 9% 98%;
-
-    /* text levels and hairlines */
+    --raise: 24 10% 10%;           /* #1c1917 selected row, status bar */
     --text: 24 6% 83%;             /* #d6d3d1 body copy */
     --subtle: 24 5% 64%;           /* #a8a29e secondary */
     --dim: 25 5% 52%;              /* #8a837e tertiary, ~5.3:1 */
     --line: 12 6% 15%;             /* #292524 hairline */
-    --raise: 24 10% 10%;           /* #1c1917 */
+    --border: 30 6% 25%;           /* #44403c strong line */
+    --accent: 81 78% 55%;          /* #a3e635 lime */
+    --accent-foreground: 24 10% 10%;
     --error: 347 77% 50%;          /* #e11d48 */
 
+    --card: var(--background);
+    --card-foreground: var(--foreground);
+    --popover: var(--background);
+    --popover-foreground: var(--foreground);
+    --primary: var(--foreground);
+    --primary-foreground: var(--background);
+    --secondary: var(--raise);
+    --secondary-foreground: var(--foreground);
+    --muted: var(--raise);
+    --muted-foreground: var(--subtle);
+    --destructive: var(--error);
+    --destructive-foreground: var(--foreground);
+    --input: var(--border);
+    --ring: var(--foreground);
+
     --radius: 0;
+    color-scheme: dark;
   }
+
+  [data-theme="light"] {
+    color-scheme: light;
+    --background: 60 9% 98%;        /* #fafaf9 */
+    --foreground: 20 14% 4%;        /* #0c0a09 */
+    --raise: 30 11% 93%;            /* #efedeb */
+    --text: 12 6% 15%;              /* #292524 */
+    --subtle: 33 5% 32%;            /* #57534e */
+    --dim: 25 6% 40%;               /* #6b645f */
+    --line: 20 6% 90%;              /* #e7e5e4 */
+    --border: 27 7% 75%;            /* #c4bfbb */
+    --accent: 86 78% 27%;           /* #4d7c0f */
+    --accent-foreground: 60 9% 98%; /* #fafaf9 */
+    --error: 345 83% 41%;           /* #be123c */
+  }
+
+  [data-theme="tokyo-night"] {
+    --background: 235 19% 13%;      /* #1a1b26 */
+    --foreground: 229 73% 86%;      /* #c0caf5 */
+    --raise: 230 24% 19%;           /* #24283b */
+    --text: 229 35% 75%;            /* #a9b1d6 */
+    --subtle: 227 35% 71%;          /* #9aa5ce */
+    --dim: 230 25% 60%;             /* #7f88b3 */
+    --line: 228 23% 21%;            /* #292e42 */
+    --border: 229 24% 31%;          /* #3b4261 */
+    --accent: 89 51% 61%;           /* #9ece6a */
+    --accent-foreground: 235 19% 13%;/* #1a1b26 */
+    --error: 349 89% 72%;           /* #f7768e */
+  }
+
+  [data-theme="catppuccin"] {
+    --background: 240 21% 15%;      /* #1e1e2e */
+    --foreground: 226 64% 88%;      /* #cdd6f4 */
+    --raise: 237 16% 23%;           /* #313244 */
+    --text: 227 35% 80%;            /* #bac2de */
+    --subtle: 228 24% 72%;          /* #a6adc8 */
+    --dim: 228 17% 64%;             /* #9399b2 */
+    --line: 237 18% 20%;            /* #2a2b3d */
+    --border: 234 13% 31%;          /* #45475a */
+    --accent: 115 54% 76%;          /* #a6e3a1 */
+    --accent-foreground: 240 21% 15%;/* #1e1e2e */
+    --error: 343 81% 75%;           /* #f38ba8 */
+  }
+
+  [data-theme="gruvbox"] {
+    --background: 0 0% 16%;         /* #282828 */
+    --foreground: 43 59% 81%;       /* #ebdbb2 */
+    --raise: 20 5% 22%;             /* #3c3836 */
+    --text: 40 38% 73%;             /* #d5c4a1 */
+    --subtle: 39 24% 66%;           /* #bdae93 */
+    --dim: 35 17% 59%;              /* #a89984 */
+    --line: 20 3% 19%;              /* #32302f */
+    --border: 22 7% 29%;            /* #504945 */
+    --accent: 61 66% 44%;           /* #b8bb26 */
+    --accent-foreground: 0 0% 16%;  /* #282828 */
+    --error: 6 96% 59%;             /* #fb4934 */
+  }
+
+  [data-theme="nord"] {
+    --background: 220 16% 22%;      /* #2e3440 */
+    --foreground: 218 27% 94%;      /* #eceff4 */
+    --raise: 222 16% 28%;           /* #3b4252 */
+    --text: 219 28% 88%;            /* #d8dee9 */
+    --subtle: 218 18% 76%;          /* #b8c0ce */
+    --dim: 219 16% 66%;             /* #9ba5b7 */
+    --line: 222 16% 28%;            /* #3b4252 */
+    --border: 220 16% 36%;          /* #4c566a */
+    --accent: 92 28% 65%;           /* #a3be8c */
+    --accent-foreground: 220 16% 22%;/* #2e3440 */
+    --error: 354 53% 68%;           /* #d9828a */
+  }
+
+  [data-theme="dracula"] {
+    --background: 231 15% 18%;      /* #282a36 */
+    --foreground: 60 30% 96%;       /* #f8f8f2 */
+    --raise: 230 15% 24%;           /* #343746 */
+    --text: 60 9% 87%;              /* #e2e2dc */
+    --subtle: 232 14% 78%;          /* #bfc1cf */
+    --dim: 230 36% 71%;             /* #9aa3cf */
+    --line: 230 15% 24%;            /* #343746 */
+    --border: 232 14% 31%;          /* #44475a */
+    --accent: 135 94% 65%;          /* #50fa7b */
+    --accent-foreground: 231 15% 18%;/* #282a36 */
+    --error: 0 100% 67%;            /* #ff5555 */
+  }
+
 }
 
 @layer base {
@@ -95,7 +175,7 @@
     background: hsl(var(--accent));
     color: hsl(var(--accent-foreground));
   }
-  /* Form controls default to white in browsers: give them a dark surface */
+  /* Form controls default to white in browsers: give them the theme's surface */
   input, textarea, select {
     @apply bg-background text-foreground;
   }

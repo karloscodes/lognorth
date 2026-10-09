@@ -55,6 +55,12 @@ func SettingsAlertsPageAction(ctx *cartridge.Context) error {
 	return renderSettingsPage(ctx, "SettingsAlerts")
 }
 
+// SettingsAppearancePageAction handles GET /settings/appearance. The theme
+// lives in the browser, so the page needs no settings.
+func SettingsAppearancePageAction(ctx *cartridge.Context) error {
+	return RenderPage(ctx, "SettingsAppearance", Props{})
+}
+
 // SettingsDataPageAction handles GET /settings/data
 func SettingsDataPageAction(ctx *cartridge.Context) error {
 	return renderSettingsPage(ctx, "SettingsData")

@@ -1,6 +1,11 @@
 import { createInertiaApp } from '@inertiajs/react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import { applyTheme, getTheme } from './lib/theme'
+
+// Apply the saved theme before the first render. The CSP allows no inline
+// script in <head>, so this is the earliest place.
+applyTheme(getTheme())
 
 // Lazy load pages to split the bundle and improve initial load time.
 // Each page loads on-demand when navigated to.

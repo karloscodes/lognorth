@@ -7,6 +7,7 @@ const NAV = [
   { path: '/settings/alerts', label: 'Alerts' },
   { path: '/settings/data', label: 'Data' },
   { path: '/settings/developer', label: 'Developer' },
+  { path: '/settings/appearance', label: 'Appearance' },
 ]
 
 export function SettingsLayout({

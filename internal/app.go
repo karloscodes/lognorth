@@ -347,6 +347,7 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/settings/alerts", lbhttp.SettingsAlertsPageAction, protectedConfig)
 	server.Get("/settings/data", lbhttp.SettingsDataPageAction, protectedConfig)
 	server.Get("/settings/developer", lbhttp.SettingsDeveloperPageAction, protectedConfig)
+	server.Get("/settings/appearance", lbhttp.SettingsAppearancePageAction, protectedConfig)
 	server.Post("/settings", lbhttp.UpdateSettingsAction, protectedConfig)
 	server.Post("/settings/test", lbhttp.TestNotificationAction, protectedConfig)
 

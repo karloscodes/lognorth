@@ -4,6 +4,7 @@
 import { useEffect } from 'react'
 import { router } from '@inertiajs/react'
 import type { Application } from '@/lib/shared'
+import { THEMES, isTheme, setTheme } from '@/lib/theme'
 
 export interface CommandContext {
   appId?: number
@@ -103,6 +104,17 @@ export const COMMANDS: Record<string, Command> = {
       return start ? logsWith(ctx, { start_time: start }) : 'E: try :since 15m, 2h, 7d, or all'
     },
   },
+  theme: {
+    help: 'color theme: :theme gruvbox',
+    args: () => THEMES.map((t) => t.id),
+    run: (arg) => {
+      if (!arg) return `themes: ${THEMES.map((t) => t.id).join(' ')}`
+      const want = arg.toLowerCase()
+      if (!isTheme(want)) return `E: no theme ${arg}. Try ${THEMES.map((t) => t.id).join(', ')}`
+      setTheme(want)
+      return `theme ${want}`
+    },
+  },
   apps: { help: 'all apps', run: () => router.visit('/apps') },
   settings: { help: 'settings', run: () => router.visit('/settings') },
   help: { help: 'these keys', run: (_, ctx) => ctx.openHelp() },
@@ -117,6 +129,7 @@ export const COMMAND_HELP: [string, string][] = [
   [':search', COMMANDS.search.help],
   [':since', COMMANDS.since.help],
   [':mute', 'mute the issue on screen'],
+  [':theme', COMMANDS.theme.help],
   [':logs', 'switch tab, also :issues :endpoints'],
   [':q', 'home'],
   ['tab', 'complete'],
