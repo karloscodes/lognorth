@@ -8,6 +8,7 @@ export const THEMES = [
   { id: 'gruvbox', label: 'Gruvbox', note: 'warm retro' },
   { id: 'nord', label: 'Nord', note: 'arctic gray' },
   { id: 'dracula', label: 'Dracula', note: 'purple dark' },
+  { id: 'amber', label: 'Amber', note: 'a 1983 CRT terminal' },
 ] as const
 
 export type Theme = (typeof THEMES)[number]['id']

@@ -162,9 +162,11 @@ Write like you talk. No jargon. No corporate speak.
 It reads like a terminal session. North, the default, has the same palette and
 font as lognorth.com. Tokens live in `web/src/index.css`; use them through
 Tailwind, never as hex values. Other themes (Catppuccin, Gruvbox, Nord,
-Dracula) redefine the base tokens under `[data-theme]`; pick one
+Dracula, Amber) redefine the base tokens under `[data-theme]`; pick one
 with `:theme` or Settings > Appearance (`web/src/lib/theme.ts`). The accent
-stays green in every theme, because it means live and up.
+stays green, because it means live and up. Amber is the one exception: a
+one-color CRT whose accent is the bright phosphor. It also sets `--font` to
+VT323 (bundled, OFL) and adds scanlines.
 
 | Token (Tailwind) | Use |
 |---|---|

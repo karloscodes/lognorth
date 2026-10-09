@@ -9,9 +9,10 @@ export default {
 	theme: {
 		// One family everywhere: IBM Plex Mono, bundled via @font-face in index.css.
 		fontFamily: {
-			sans: ['IBM Plex Mono', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
-			mono: ['IBM Plex Mono', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
-			wordmark: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+			// --font is set by a theme that brings its own type (Amber); others use Plex.
+			sans: ['var(--font, "IBM Plex Mono")', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
+			mono: ['var(--font, "IBM Plex Mono")', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
+			wordmark: ['var(--font, "IBM Plex Mono")', 'ui-monospace', 'monospace'],
 		},
 		extend: {
 			colors: {
