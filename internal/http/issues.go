@@ -9,6 +9,7 @@ import (
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/events"
+	"lognorth/internal/uptime"
 )
 
 // parseTimestamp handles SQLite timestamp formats
@@ -96,6 +97,14 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 
 	reach, _ := events.GetIssueReach(db, hash, app.ID)
 
+	// The outages this issue surged in, when the app has an uptime URL.
+	outages := []uptime.IssueOutage{}
+	if app.PingURL != "" {
+		if recent, err := uptime.RecentOutages(db, app.ID, time.Now().Add(-uptime.Retention), 20); err == nil {
+			outages = uptime.SurgedIn(recent, hash)
+		}
+	}
+
 	events.MarkIssueSeen(db, hash)
 
 	// Load trace siblings for the top 20 entries
@@ -133,6 +142,7 @@ func AppIssueDetailPageAction(ctx *cartridge.Context) error {
 		"alsoHappensAt": alsoHappensAt,
 		"paths":         paths,
 		"reach":         reach,
+		"outages":       outages,
 		"appId":         app.ID,
 		"appName":       app.Name,
 		"applications":  apps,

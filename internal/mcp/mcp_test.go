@@ -618,6 +618,33 @@ func TestUptimeTimeline(t *testing.T) {
 		}
 	})
 
+	t.Run("lists outages with the issues that surged in them", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		start := time.Now().Add(-time.Hour).Truncate(time.Minute)
+		for i := range 4 {
+			uptime.Record(db, &uptime.Check{APIKeyID: appID, CheckedAt: start.Add(time.Duration(i) * time.Minute), Status: 503})
+		}
+		uptime.Record(db, &uptime.Check{APIKeyID: appID, CheckedAt: start.Add(4 * time.Minute), Up: true, Status: 200})
+		for i := range 3 {
+			ctx := events.EventContext{Error: "redis refused", ErrorFile: "store.rb", ErrorLine: 18}
+			event := &events.Event{APIKeyID: appID, Timestamp: start.Add(time.Duration(i) * time.Minute), IsError: true, Message: "redis refused"}
+			event.SetContext(&ctx)
+			events.PopulateErrorFields(event, &ctx)
+			events.Create(db, event)
+		}
+
+		result := call(t, db, "tools/call", `{"name":"uptime_timeline","arguments":{}}`)
+
+		var report struct {
+			Outages []uptime.OutageSurges `json:"outages"`
+		}
+		json.Unmarshal([]byte(toolText(t, result)), &report)
+		if len(report.Outages) != 1 || len(report.Outages[0].Issues) != 1 || report.Outages[0].Issues[0].Error != "redis refused" {
+			t.Errorf("outages = %+v, want one with the redis issue", report.Outages)
+		}
+	})
+
 	t.Run("says so when the app does not exist", func(t *testing.T) {
 		db := setupTestDB(t)
 

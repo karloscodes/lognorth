@@ -42,10 +42,9 @@ func NewUptimeSweeper() *UptimeSweeper {
 }
 
 const (
-	probeTimeout     = 5 * time.Second
-	failureThreshold = 3
-	bootstrapWindow  = 10 * time.Minute
-	pingUserAgent    = "LogNorth Uptime/1.0 (+https://lognorth.com)"
+	probeTimeout    = 5 * time.Second
+	bootstrapWindow = 10 * time.Minute
+	pingUserAgent   = "LogNorth Uptime/1.0 (+https://lognorth.com)"
 )
 
 // ProcessBatch probes the configured URL for all eligible apps.
@@ -96,14 +95,14 @@ func (s *UptimeSweeper) checkApp(db *gorm.DB, key *apikeys.APIKey, settingsRow *
 	switch {
 	case !up:
 		key.ConsecutiveFails++
-		if key.ConsecutiveFails >= failureThreshold && !key.IsDown {
+		if key.ConsecutiveFails >= uptime.FailuresToDown && !key.IsDown {
 			key.IsDown = true
 			key.DownSince = now
 		}
 		// Retried every sweep until it goes out: an outage that starts in
 		// quiet hours alerts when they end.
 		if key.IsDown && !key.DownNotified {
-			key.DownNotified = s.notifyDown(settingsRow, key)
+			key.DownNotified = s.notifyDown(settingsRow, key, surgesNow(db, key.ID, now))
 		}
 	case up && key.IsDown:
 		// Recovered.
@@ -164,23 +163,38 @@ func probeError(err error) string {
 	return msg
 }
 
+// surgesNow returns the issues that surged as the app went down, from the
+// outage that is running now.
+func surgesNow(db *gorm.DB, appID uint, now time.Time) []events.Surge {
+	outages, err := uptime.RecentOutages(db, appID, now.Add(-24*time.Hour), 1)
+	if err != nil || len(outages) == 0 || !outages[0].Ongoing {
+		return nil
+	}
+	return outages[0].Issues
+}
+
 // notifyDown reports whether the alert went out.
-func (s *UptimeSweeper) notifyDown(settingsRow *settings.Settings, key *apikeys.APIKey) bool {
+func (s *UptimeSweeper) notifyDown(settingsRow *settings.Settings, key *apikeys.APIKey, surges []events.Surge) bool {
 	if settingsRow == nil || !settingsRow.CanNotify() {
 		return false
 	}
 	subject := fmt.Sprintf("%s — down: %s", key.Name, key.PingURL)
-	body := fmt.Sprintf(`%s isn't responding.
-URL: %s
-3 consecutive failures.
+	return settingsRow.SendNotification(subject, downBody(key, settingsRow.BaseURL, surges)) == nil
+}
 
-%s/apps/%d/issues`,
-		key.Name,
-		key.PingURL,
-		settingsRow.BaseURL,
-		key.ID,
-	)
-	return settingsRow.SendNotification(subject, body) == nil
+// downBody says the app is down and, when some issues surged as it went
+// down, names up to three of them. They are the likely cause, so the agent
+// command points at the first. With no surge it says nothing about errors.
+func downBody(key *apikeys.APIKey, baseURL string, surges []events.Surge) string {
+	body := fmt.Sprintf("%s isn't responding.\nURL: %s\n%d consecutive failures.\n", key.Name, key.PingURL, uptime.FailuresToDown)
+	if len(surges) > 0 {
+		body += "\nErrors that surged as it went down:\n"
+		for _, sg := range surges[:min(3, len(surges))] {
+			body += fmt.Sprintf("  %dx %s\n  %s/issues/%s\n", sg.Count, events.FormatHeadline(sg.ErrorClass, sg.Error), baseURL, sg.Hash)
+		}
+		body += "\nAsk your agent: /lognorth:investigate " + surges[0].Hash + "\n"
+	}
+	return body + fmt.Sprintf("\n%s/apps/%d/endpoints", baseURL, key.ID)
 }
 
 func (s *UptimeSweeper) notifyRecovered(settingsRow *settings.Settings, key *apikeys.APIKey, downFor time.Duration) {

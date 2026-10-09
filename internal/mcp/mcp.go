@@ -143,7 +143,10 @@ var Tools = []map[string]any{
 	{
 		"name": "uptime_timeline",
 		"description": "Whether an app's URL answers LogNorth's uptime ping, checked every minute: the latest result, response time, uptime over 24 hours, " +
-			"and the last 24 hours in 15-minute bars that say why pings failed (an HTTP status or a timeout). Use it when an app may be down.",
+			"and the last 24 hours in 15-minute bars that say why pings failed (an HTTP status or a timeout). " +
+			"It also lists the outages of the last 7 days (3 or more failed pings in a row), newest first, each with the issues whose errors " +
+			"surged against their own normal rate from 5 minutes before the outage to its end. Those issues are the likely cause; an empty list means no error stood out. " +
+			"Use it when an app may be down.",
 		"inputSchema": map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"app_id": map[string]any{"type": "integer", "description": "The app, from list_apps. Optional when there is only one app."}},
@@ -406,7 +409,15 @@ func uptimeTimeline(db *gorm.DB, args map[string]any) (any, error) {
 		return nil, fmt.Errorf("no app with id %d", appID)
 	}
 
-	return uptime.ReportFor(db, *key, time.Now(), 24*time.Hour, 96), nil
+	now := time.Now()
+	outages, err := uptime.RecentOutages(db, appID, now.Add(-7*24*time.Hour), 10)
+	if err != nil {
+		return nil, fmt.Errorf("could not read the outages: %w", err)
+	}
+	return struct {
+		uptime.Report
+		Outages []uptime.OutageSurges `json:"outages"`
+	}{uptime.ReportFor(db, *key, now, 24*time.Hour, 96), outages}, nil
 }
 
 // onlyApp returns the app to read. The app_id may be left out when there is

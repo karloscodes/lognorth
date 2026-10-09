@@ -90,6 +90,21 @@ every 5 minutes on the last complete bucket of `endpoint_stats`:
 - Warning (3σ) goes to the daily digest. Critical (5σ) sends one email per
   path per hour. An alert clears after 2 clean checks.
 
+### Correlations
+
+Show a link between two things only when the data makes it strong. Weak
+correlations stay out of the UI, the emails, and the MCP tools.
+
+- **Same event:** the SDKs stamp `user` (all requests) and `release` (errors
+  only) on the event, and `user_agent` on failed requests.
+  `events.GetIssueReach` counts the users and names the releases of an issue.
+- **Outage and issue:** `uptime.Outages` is a run of 3 or more failed pings
+  (`uptime.FailuresToDown`, the same as the down alert). An issue surged in an
+  outage when it has 3 or more errors from 5 minutes before to the end, at 5
+  times its own rate over the day before (`events.SurgedDuring`). An issue that
+  errs all day never qualifies. `uptime.RecentOutages` joins the two for the
+  issue page, the down email, and `uptime_timeline`.
+
 ### Event Model
 
 See [docs/EVENT_MODEL.md](./docs/EVENT_MODEL.md) for full specification.

@@ -132,7 +132,7 @@ func (e *AlertEngine) sendAlert(typ alertType, appName string, event *Event, dur
 		return nil
 	}
 
-	headline := formatHeadline(event.ErrorClass, event.ErrorMessage)
+	headline := FormatHeadline(event.ErrorClass, event.ErrorMessage)
 	short := firstLine(headline, 120)
 
 	var subject string
@@ -147,16 +147,23 @@ func (e *AlertEngine) sendAlert(typ alertType, appName string, event *Event, dur
 		}
 	}
 
-	body := headline
+	return e.settings.SendNotification(subject, alertBody(event, e.settings.BaseURL))
+}
+
+// alertBody names the error, where it is, the release it came in when the
+// SDK sent one, and the links to read more.
+func alertBody(event *Event, baseURL string) string {
+	body := FormatHeadline(event.ErrorClass, event.ErrorMessage)
 	if loc := formatLocation(event.ErrorFile, event.ErrorLine); loc != "" {
 		body += "\nat " + loc
 	}
-	if e.settings.BaseURL != "" {
-		body += fmt.Sprintf("\n\n%s/issues/%s", e.settings.BaseURL, event.IssueHash)
+	if ctx, err := event.GetContext(); err == nil && ctx.Release != "" {
+		body += "\nin release " + ctx.Release
 	}
-	body += "\n\nAsk your agent: /lognorth:investigate " + event.IssueHash
-
-	return e.settings.SendNotification(subject, body)
+	if baseURL != "" {
+		body += fmt.Sprintf("\n\n%s/issues/%s", baseURL, event.IssueHash)
+	}
+	return body + "\n\nAsk your agent: /lognorth:investigate " + event.IssueHash
 }
 
 // firstLine returns the first line of s, cut to max characters. Subjects and
@@ -171,10 +178,10 @@ func firstLine(s string, max int) string {
 	return s
 }
 
-// formatHeadline combines class and message into a single human line.
+// FormatHeadline combines class and message into a single human line.
 // "TypeError: Not Found" beats "Not Found" alone — users see the category
 // without opening the link.
-func formatHeadline(errorClass, errorMsg string) string {
+func FormatHeadline(errorClass, errorMsg string) string {
 	errorClass = strings.TrimSpace(errorClass)
 	errorMsg = strings.TrimSpace(errorMsg)
 	switch {

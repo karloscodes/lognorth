@@ -8,6 +8,7 @@ import type { Application, IssueDetail as IssueDetailType, OccurrencePoint, LogE
 import { pageKey } from '@/lib/keys'
 import { usePageCommand } from '@/lib/commands'
 import { StackTrace } from '@/components/stack-trace'
+import { shortDuration } from '@/lib/uptime'
 
 interface PathCount {
   path: string
@@ -22,9 +23,19 @@ interface Reach {
   last_release?: string
 }
 
+// An uptime outage in which this issue's errors surged next to its own
+// normal rate, with its errors there.
+interface IssueOutage {
+  start: string
+  end: string
+  ongoing?: boolean
+  count: number
+}
+
 interface Props {
   issue: IssueDetailType
   reach?: Reach
+  outages?: IssueOutage[] | null
   occurrences: OccurrencePoint[] | null
   traces: Record<string, LogEntry[]> | null
   alsoHappensAt?: RelatedLocation[] | null
@@ -34,7 +45,7 @@ interface Props {
   applications?: Application[]
 }
 
-export default function IssueDetail({ issue, reach, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
+export default function IssueDetail({ issue, reach, outages, occurrences, traces, alsoHappensAt, paths, appId, appName, applications }: Props) {
   const issuesPath = `/apps/${appId}/issues`
   const toggleMute = () => router.post(`/issues/${issue.hash}/${issue.muted ? 'unmute' : 'mute'}`, {}, { preserveScroll: true })
   usePageCommand('mute', () => toggleMute())
@@ -135,6 +146,8 @@ export default function IssueDetail({ issue, reach, occurrences, traces, alsoHap
 
       <FrequencyHeatmap occurrences={occurrences} firstSeen={issue.first_seen} />
 
+      {outages && outages.length > 0 && <Outages outages={outages} issueHash={issue.hash} logPath={logPath} />}
+
       {wherePaths.length > 0 && (
         <div className="pane mt-7 px-4 pb-4 pt-6">
           <span className="pane-title">where it happened</span>
@@ -165,6 +178,35 @@ export default function IssueDetail({ issue, reach, occurrences, traces, alsoHap
         </div>
       )}
     </Layout>
+  )
+}
+
+// The outages this issue surged in. Each opens its errors from 5 minutes
+// before the outage to its end, the window the surge was measured in.
+function Outages({ outages, issueHash, logPath }: { outages: IssueOutage[]; issueHash: string; logPath: string }) {
+  return (
+    <div className="pane mt-7 px-4 pb-3 pt-6 text-[13px]">
+      <span className="pane-title">surged while the app was down</span>
+      {outages.map((o) => {
+        const start = new Date(o.start)
+        const params = new URLSearchParams({
+          error: issueHash,
+          start_time: new Date(start.getTime() - 5 * 60_000).toISOString(),
+          end_time: o.end,
+        })
+        return (
+          <a key={o.start} href={`${logPath}?${params}`} className="flex flex-wrap gap-x-2 py-1 hover:underline">
+            <span className="text-foreground">{format(start, 'MMM d HH:mm').toLowerCase()}</span>
+            <span className="text-dim">
+              · {o.ongoing ? 'still down' : `down ${shortDuration(o.start, new Date(o.end).getTime())}`} ·
+            </span>
+            <span className="text-error">
+              {o.count} error{o.count !== 1 ? 's' : ''} here
+            </span>
+          </a>
+        )
+      })}
+    </div>
   )
 }
 
