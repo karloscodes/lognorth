@@ -67,7 +67,7 @@ grep -qE "^URL: +.*$host" <<<"$status" || fail "the domain changed: $status"
 pass "the domain stays"
 
 echo "--- the install line on the moved server: an update"
-again="$(sudo LOGNORTH_IMAGE="$image" bash install.sh 2>&1)"
+again="$(sudo LOGNORTH_IMAGE="$image" bash install.sh 2>&1)" || { echo "$again"; fail "the install line failed on the moved server"; }
 grep -q "LogNorth is up to date" <<<"$again" || fail "the install line did not update the moved server: $again"
 [[ "$(login "$password")" == 302" http://127.0.0.1/" ]] || fail "the login fails after the update"
 pass "the install line updates the moved server"
