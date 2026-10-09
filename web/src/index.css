@@ -64,35 +64,6 @@
     color-scheme: dark;
   }
 
-  [data-theme="light"] {
-    color-scheme: light;
-    --background: 60 9% 98%;        /* #fafaf9 */
-    --foreground: 20 14% 4%;        /* #0c0a09 */
-    --raise: 30 11% 93%;            /* #efedeb */
-    --text: 12 6% 15%;              /* #292524 */
-    --subtle: 33 5% 32%;            /* #57534e */
-    --dim: 25 6% 40%;               /* #6b645f */
-    --line: 20 6% 90%;              /* #e7e5e4 */
-    --border: 27 7% 75%;            /* #c4bfbb */
-    --accent: 86 78% 27%;           /* #4d7c0f */
-    --accent-foreground: 60 9% 98%; /* #fafaf9 */
-    --error: 345 83% 41%;           /* #be123c */
-  }
-
-  [data-theme="tokyo-night"] {
-    --background: 235 19% 13%;      /* #1a1b26 */
-    --foreground: 229 73% 86%;      /* #c0caf5 */
-    --raise: 230 24% 19%;           /* #24283b */
-    --text: 229 35% 75%;            /* #a9b1d6 */
-    --subtle: 227 35% 71%;          /* #9aa5ce */
-    --dim: 230 25% 60%;             /* #7f88b3 */
-    --line: 228 23% 21%;            /* #292e42 */
-    --border: 229 24% 31%;          /* #3b4261 */
-    --accent: 89 51% 61%;           /* #9ece6a */
-    --accent-foreground: 235 19% 13%;/* #1a1b26 */
-    --error: 349 89% 72%;           /* #f7768e */
-  }
-
   [data-theme="catppuccin"] {
     --background: 240 21% 15%;      /* #1e1e2e */
     --foreground: 226 64% 88%;      /* #cdd6f4 */

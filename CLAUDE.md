@@ -161,8 +161,8 @@ Write like you talk. No jargon. No corporate speak.
 
 It reads like a terminal session. North, the default, has the same palette and
 font as lognorth.com. Tokens live in `web/src/index.css`; use them through
-Tailwind, never as hex values. Other themes (Light, Tokyo Night, Catppuccin,
-Gruvbox, Nord, Dracula) redefine the base tokens under `[data-theme]`; pick one
+Tailwind, never as hex values. Other themes (Catppuccin, Gruvbox, Nord,
+Dracula) redefine the base tokens under `[data-theme]`; pick one
 with `:theme` or Settings > Appearance (`web/src/lib/theme.ts`). The accent
 stays green in every theme, because it means live and up.
 

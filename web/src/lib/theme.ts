@@ -4,8 +4,6 @@
 
 export const THEMES = [
   { id: 'north', label: 'North', note: 'stone and lime, the default' },
-  { id: 'light', label: 'Light', note: 'for daylight' },
-  { id: 'tokyo-night', label: 'Tokyo Night', note: 'night blue' },
   { id: 'catppuccin', label: 'Catppuccin', note: 'Mocha' },
   { id: 'gruvbox', label: 'Gruvbox', note: 'warm retro' },
   { id: 'nord', label: 'Nord', note: 'arctic gray' },
