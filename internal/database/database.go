@@ -36,8 +36,9 @@ func NewDBManager(cfg *config.Config, logger *slog.Logger) *DBManager {
 		// them slower. An I/O error on a mapped page stops the process
 		// instead of failing the query.
 		Pragmas: []string{"PRAGMA mmap_size = 268435456"},
-		// Read pool: one write connection, many read-only connections.
-		// Improves throughput on read-heavy workloads.
+		// One write connection and a pool of read-only ones. Writes then
+		// cannot fail with "database is locked" against each other, and a
+		// search does not wait for the ingestion of events.
 		ReadPool: true,
 	}
 
