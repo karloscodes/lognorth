@@ -241,6 +241,7 @@ jobs:
 
       # A tag with a hyphen (v0.26.0-rc.1) is a release candidate: it never moves
       # `latest`, which every install pulls at night, and its release is a prerelease.
+      # It moves `rc` instead: the newest candidate, which your own server follows.
       - name: Get version from tag
         id: version
         run: |
@@ -259,6 +260,8 @@ jobs:
             ghcr.io/karloscodes/lognorth-releases:${{ steps.version.outputs.VERSION }}
             ${{ steps.version.outputs.RC == 'false' && 'karloscodes/lognorth:latest' || '' }}
             ${{ steps.version.outputs.RC == 'false' && 'ghcr.io/karloscodes/lognorth-releases:latest' || '' }}
+            ${{ steps.version.outputs.RC == 'true' && 'karloscodes/lognorth:rc' || '' }}
+            ${{ steps.version.outputs.RC == 'true' && 'ghcr.io/karloscodes/lognorth-releases:rc' || '' }}
           # The image says its own version, so a tool that runs `latest` can name what runs.
           labels: |
             org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
