@@ -68,6 +68,10 @@ func (dm *DBManager) MigrateDatabase() error {
 		return err
 	}
 
+	// Read connections that were open during the migration would plan
+	// their next query with the old schema once.
+	dm.SchemaChanged()
+
 	// PASSIVE never waits. A FULL checkpoint waits for every reader, and the
 	// live replica keeps a read open on purpose, so FULL always ran into
 	// busy_timeout (5s) and gave up.
