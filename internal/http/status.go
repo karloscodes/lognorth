@@ -12,7 +12,6 @@ import (
 	"gorm.io/gorm"
 
 	"lognorth/internal/apikeys"
-	"lognorth/internal/config"
 	"lognorth/internal/settings"
 	"lognorth/internal/status"
 )
@@ -66,13 +65,12 @@ func StatusPageAction(ctx *cartridge.Context) error {
 // StatusDomainMiddleware serves a page on its own domain. There `/` is the
 // page and its files load. Every other path goes back to `/`, so the
 // dashboard and the login never answer on a status domain.
+//
+// The page's domain decides, not BASE_URL: a platform that serves several
+// domains sets BASE_URL to one of them, and Chasen picks the newest.
 func StatusDomainMiddleware(isFile func(path string) bool) cartridge.HandlerFunc {
 	return func(ctx *cartridge.Context) error {
-		host := status.HostOnly(ctx.Hostname())
-		if host == configHost() {
-			return ctx.Next()
-		}
-		page, ok := status.PageByHost(ctx.DB(), host)
+		page, ok := status.PageByHost(ctx.DB(), ctx.Hostname())
 		if !ok || isFile(ctx.Path()) {
 			return ctx.Next()
 		}
@@ -83,20 +81,12 @@ func StatusDomainMiddleware(isFile func(path string) bool) cartridge.HandlerFunc
 	}
 }
 
-// configHost is the host LogNorth was deployed on (BASE_URL), or "".
-func configHost() string {
-	u, err := url.Parse(config.GetConfig().GetBaseURL())
-	if err != nil {
-		return ""
-	}
-	return status.HostOnly(u.Host)
-}
-
-// ownHosts are the hosts LogNorth answers on: the deploy's, and the one
-// saved in Settings for links in alerts.
-func ownHosts(db *gorm.DB) []string {
-	hosts := []string{configHost()}
-	if s, err := settings.Get(db); err == nil {
+// ownHosts are the hosts the dashboard answers on, which a page can't take:
+// the one the owner is on now, and the one saved in Settings for links in
+// alerts.
+func ownHosts(ctx *cartridge.Context) []string {
+	hosts := []string{status.HostOnly(ctx.Hostname())}
+	if s, err := settings.Get(ctx.DB()); err == nil {
 		if u, err := url.Parse(s.BaseURL); err == nil && u.Host != "" {
 			hosts = append(hosts, u.Host)
 		}
@@ -181,7 +171,7 @@ func SettingsStatusPageAction(ctx *cartridge.Context) error {
 // CreateStatusPageAction handles POST /settings/status
 func CreateStatusPageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
-	page, err := status.CreatePage(db, ctx.FormValue("name"), ctx.FormValue("domain"), ownHosts(db))
+	page, err := status.CreatePage(db, ctx.FormValue("name"), ctx.FormValue("domain"), ownHosts(ctx))
 	if err != nil {
 		setFlash(ctx, "error", pageError(err))
 		return ctx.Redirect("/settings/status", http.StatusFound)
@@ -199,7 +189,7 @@ func UpdateStatusPageAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
 	id, err := ctx.ParamsInt("id")
 	if err == nil && id > 0 {
-		err = status.UpdatePage(db, uint(id), ctx.FormValue("name"), ctx.FormValue("domain"), ownHosts(db))
+		err = status.UpdatePage(db, uint(id), ctx.FormValue("name"), ctx.FormValue("domain"), ownHosts(ctx))
 	} else {
 		err = status.ErrPageNotFound
 	}

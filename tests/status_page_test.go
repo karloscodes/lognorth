@@ -47,6 +47,31 @@ func TestStatusPages(t *testing.T) {
 		}
 	})
 
+	t.Run("its domain shows the page even when BASE_URL names that domain", func(t *testing.T) {
+		// Chasen sets BASE_URL to the domain added last, so it can be the page's.
+		t.Setenv("BASE_URL", "https://status.shop.example")
+		sa, _ := setup(t)
+
+		res := sa.do("GET", "http://status.shop.example/", nil, nil)
+
+		html := body(res)
+		if res.StatusCode != http.StatusOK || !strings.Contains(html, `"component":"Status"`) {
+			t.Errorf("expected the Shop status page, got %d to %q: %.200s", res.StatusCode, res.Header.Get("Location"), html)
+		}
+	})
+
+	t.Run("a page can't take the domain the dashboard is open on", func(t *testing.T) {
+		sa, cookie := setup(t)
+
+		res := sa.do("POST", "http://logs.shop.example/settings/status",
+			url.Values{"name": {"Blog"}, "domain": {"logs.shop.example"}},
+			map[string]string{"Cookie": cookie, "Sec-Fetch-Site": "same-origin"})
+
+		if _, ok := status.PageBySlug(sa.db, "blog"); ok || res.StatusCode != http.StatusFound {
+			t.Errorf("expected the page refused, got %d and a page made: %v", res.StatusCode, ok)
+		}
+	})
+
 	t.Run("its domain never shows the dashboard or the login", func(t *testing.T) {
 		sa, cookie := setup(t)
 

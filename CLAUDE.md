@@ -99,8 +99,10 @@ its own domain when it has one:
 
 - `StatusDomainMiddleware` runs before every route. On a page's domain, `/` is
   the page, static files load, and every other path redirects to `/`, so the
-  dashboard and the login never answer there. The deploy's own host (BASE_URL)
-  skips the lookup, and a page can't take it or the saved base URL's host.
+  dashboard and the login never answer there. The page's domain decides, never
+  BASE_URL: Chasen sets BASE_URL to the domain added last, which can be a
+  page's. A page can't take the host the owner saves it from, or the saved
+  base URL's host.
 - The proxy must send the domain to the container: `chasen domains add`. The
   session cookie is host-only, so notes are posted on the LogNorth domain.
 
