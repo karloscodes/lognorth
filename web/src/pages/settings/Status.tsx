@@ -33,30 +33,50 @@ export default function SettingsStatus({ pages = [], host, flash }: Props) {
 
       <div className="space-y-5">
         {pages.map((page) => (
-          <PageRow key={page.id} page={page} />
+          <PageRow key={page.id} page={page} host={host} />
         ))}
         <NewPage first={pages.length === 0} />
       </div>
 
       <div className="pane mt-10 px-4 pb-4 pt-6 text-[13px]">
         <span className="pane-title">own domain</span>
-        <p className="text-subtle">To show a page at a domain like status.example.com:</p>
-        <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-text">
-          <li>
-            Point a CNAME record for the domain to <span className="text-foreground">{host || 'the domain LogNorth runs on'}</span>.
-          </li>
-          <li>
-            Send the domain to LogNorth in your proxy. On Chasen, run <code className="text-foreground">chasen domains add status.example.com</code>. HTTPS comes with it.
-          </li>
-          <li>Put the domain on the page here.</li>
-        </ol>
+        <p className="text-subtle">
+          A page can also answer at a domain like status.example.com. Click [edit] on the page and enter the domain. The page then shows the DNS record to add.
+        </p>
         <p className="mt-3 text-dim">On its domain the page answers at /. The dashboard and the login don't.</p>
       </div>
     </SettingsLayout>
   )
 }
 
-function PageRow({ page }: { page: StatusPage }) {
+// DomainSteps tells what makes a page's own domain answer: a DNS record, then the proxy.
+function DomainSteps({ domain, host }: { domain: string; host?: string }) {
+  return (
+    <div className="mt-3 border-t border-dashed border-line pt-3">
+      <p className="text-xs text-subtle">To make {domain} answer, add this record at your DNS provider:</p>
+      <table className="mt-2 w-full text-left text-xs">
+        <thead className="text-dim">
+          <tr>
+            <th className="pr-4 font-normal">type</th>
+            <th className="pr-4 font-normal">name</th>
+            <th className="font-normal">target</th>
+          </tr>
+        </thead>
+        <tbody className="text-foreground">
+          <tr>
+            <td className="pr-4">CNAME</td>
+            <td className="break-all pr-4">{domain}</td>
+            <td className="break-all">{host || 'the domain LogNorth runs on'}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="mt-3 text-xs text-subtle">Then send the domain to LogNorth in your proxy. On Chasen, run this in the folder of your LogNorth deploy. HTTPS comes with it.</p>
+      <code className="mt-1 block break-all text-xs text-foreground">chasen domains add {domain}</code>
+    </div>
+  )
+}
+
+function PageRow({ page, host }: { page: StatusPage; host?: string }) {
   const [editing, setEditing] = useState(false)
   const confirmDelete = (e: React.FormEvent) => {
     if (!confirm(`Delete the ${page.name} status page? Its apps stay, on no page.`)) e.preventDefault()
@@ -82,6 +102,8 @@ function PageRow({ page }: { page: StatusPage }) {
         )}
       </p>
       <p className="mt-1 text-xs text-dim">{page.apps.length > 0 ? page.apps.join(' · ') : 'No apps yet. Pick them on the Apps page.'}</p>
+
+      {page.domain && <DomainSteps domain={page.domain} host={host} />}
 
       {editing && (
         <div className="mt-3 border-t border-dashed border-line pt-3">

@@ -82,4 +82,15 @@ func TestStatusPages(t *testing.T) {
 			t.Errorf("expected 404 for a page that does not exist, got %d", missing.StatusCode)
 		}
 	})
+
+	t.Run("the settings give the domain LogNorth answers on as the DNS target", func(t *testing.T) {
+		sa, cookie := setup(t)
+
+		res := sa.do("GET", "http://logs.shop.example:3000/settings/status", nil, map[string]string{"Cookie": cookie})
+
+		html := body(res)
+		if res.StatusCode != http.StatusOK || !strings.Contains(html, `"host":"logs.shop.example"`) || !strings.Contains(html, `"domain":"status.shop.example"`) {
+			t.Errorf("expected the page's domain and logs.shop.example as the CNAME target, got %d: %.300s", res.StatusCode, html)
+		}
+	})
 }

@@ -174,7 +174,8 @@ func SettingsStatusPageAction(ctx *cartridge.Context) error {
 		}
 		rows = append(rows, statusPageRow{Page: p, Apps: apps})
 	}
-	return RenderPage(ctx, "SettingsStatus", Props{"pages": rows, "host": configHost()})
+	// The settings answer only on LogNorth's own domain, so the request's host is the DNS target.
+	return RenderPage(ctx, "SettingsStatus", Props{"pages": rows, "host": status.HostOnly(ctx.Hostname())})
 }
 
 // CreateStatusPageAction handles POST /settings/status
@@ -185,7 +186,11 @@ func CreateStatusPageAction(ctx *cartridge.Context) error {
 		setFlash(ctx, "error", pageError(err))
 		return ctx.Redirect("/settings/status", http.StatusFound)
 	}
-	setFlash(ctx, "success", "Created "+page.Name+". Now pick its apps on the Apps page.")
+	if page.Domain != "" {
+		setFlash(ctx, "success", "Created "+page.Name+". Add its DNS record below, then pick its apps on the Apps page.")
+	} else {
+		setFlash(ctx, "success", "Created "+page.Name+". Now pick its apps on the Apps page.")
+	}
 	return ctx.Redirect("/settings/status", http.StatusFound)
 }
 
