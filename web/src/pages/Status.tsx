@@ -277,8 +277,10 @@ function AppRow({ app }: { app: StatusApp }) {
               onMouseEnter={hover(i)}
               onClick={hover(i)}
               aria-label={`${dayLabel(day.date)}: ${dayText(day)}`}
-              className={`flex-1 cursor-crosshair ${dayColor(day, hovered?.i === i)} ${i < app.days.length - PHONE_DAYS ? 'hidden sm:block' : ''}`}
-            />
+              className={`relative flex-1 cursor-crosshair ${dayColor(day, hovered?.i === i)} ${i < app.days.length - PHONE_DAYS ? 'hidden sm:block' : ''}`}
+            >
+              {day.down_minutes === 0 && day.fails > 0 && <b className="absolute inset-x-0 bottom-0 h-1/3 bg-error" />}
+            </i>
           ))}
         </div>
       </div>
@@ -320,14 +322,14 @@ function UptimeFigures({ app }: { app: StatusApp }) {
   )
 }
 
-// As the app's uptime strip: a clean day is dim, an outage red, a day with a
-// failed ping or two faint red, and a day without pings a hairline. The
-// hovered day turns to the foreground.
+// An up day is the accent, the color of up across LogNorth, and a day with an
+// outage is the error red. A day with a failed ping or two but no outage
+// stays up, with a red base (in the bar). A day without pings is a hairline.
+// The hovered day turns to the foreground.
 function dayColor(day: Day, hovered: boolean): string {
   if (day.checks === 0) return 'bg-line'
   if (day.down_minutes > 0) return 'bg-error'
-  if (day.fails > 0) return 'bg-error/40'
-  return hovered ? 'bg-foreground' : 'bg-dim'
+  return hovered ? 'bg-foreground' : 'bg-accent'
 }
 
 function dayText(day: Day): string {
