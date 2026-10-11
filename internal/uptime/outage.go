@@ -22,12 +22,22 @@ type Outage struct {
 // Outages returns the app's outages since the cutoff, oldest first. Shorter
 // runs of failures are blips, not outages, as they are for the alert.
 func Outages(db *gorm.DB, appID uint, since time.Time) []Outage {
+	return outagesIn(pingsSince(db, appID, since))
+}
+
+// pingsSince returns the time and result of the app's pings since the
+// cutoff, oldest first.
+func pingsSince(db *gorm.DB, appID uint, since time.Time) []Check {
 	var checks []Check
 	db.Select("checked_at", "up").
 		Where("api_key_id = ? AND checked_at >= ?", appID, since.UTC()).
 		Order("checked_at").
 		Find(&checks)
+	return checks
+}
 
+// outagesIn finds the outages in pings ordered oldest first.
+func outagesIn(checks []Check) []Outage {
 	var outages []Outage
 	fails := 0
 	var start, last time.Time

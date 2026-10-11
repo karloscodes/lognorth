@@ -90,6 +90,30 @@ every 5 minutes on the last complete bucket of `endpoint_stats`:
 - Warning (3σ) goes to the daily digest. Critical (5σ) sends one email per
   path per hour. An alert clears after 2 clean checks.
 
+### Status Pages
+
+One public page per product (`status_pages`, Settings > Status pages). An app
+is on one page at most (`status_page_id` on `api_keys`, the Apps page `[edit]`
+panel). A page never shows the ping URL. It answers at `/status/:slug`, and at
+its own domain when it has one:
+
+- `StatusDomainMiddleware` runs before every route. On a page's domain, `/` is
+  the page, static files load, and every other path redirects to `/`, so the
+  dashboard and the login never answer there. The deploy's own host (BASE_URL)
+  skips the lookup, and a page can't take it or the saved base URL's host.
+- The proxy must send the domain to the container: `chasen domains add`. The
+  session cookie is host-only, so notes are posted on the LogNorth domain.
+
+`internal/status` builds a page from `uptime.HistoryFor`:
+
+- Pings are kept 30 days. The cleanup job runs `uptime.RollUpAll` first, which
+  stores each finished UTC day once in `uptime_days` (pings, fails, minutes
+  down), kept 90 days. The bars read stored days past the pings.
+- Incidents are `uptime.Outages`, not a table, so they go back 30 days. A
+  note (`status_comments`) points at its outage by app and first failed ping.
+- Visitors get a page cached for 1 minute (`internal/http/status.go`). The
+  signed-in owner gets a fresh one and the note form.
+
 ### Correlations
 
 Show a link between two things only when the data makes it strong. Weak

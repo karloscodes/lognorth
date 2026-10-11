@@ -11,6 +11,7 @@ import (
 	"lognorth/internal/config"
 	"lognorth/internal/events"
 	"lognorth/internal/license"
+	"lognorth/internal/status"
 	"lognorth/internal/uptime"
 )
 
@@ -26,6 +27,7 @@ type AppForSetup struct {
 	PingURL      string        `json:"ping_url"`
 	PingDisabled bool          `json:"ping_disabled"`
 	IsDown       bool          `json:"is_down"`
+	StatusPageID uint          `json:"status_page_id"`
 	Uptime       *uptime.State `json:"uptime,omitempty"`
 }
 
@@ -60,6 +62,7 @@ func SetupPageAction(ctx *cartridge.Context) error {
 			PingURL:      k.PingURL,
 			PingDisabled: k.PingDisabled,
 			IsDown:       k.IsDown,
+			StatusPageID: k.StatusPageID,
 			Uptime:       &state,
 		}
 		if k.Active {
@@ -74,8 +77,9 @@ func SetupPageAction(ctx *cartridge.Context) error {
 	}
 
 	return RenderPage(ctx, "Setup", Props{
-		"apiKeys":   apps,
-		"canAddApp": license.IsConfigured() || !apikeys.FreeAppTaken(db),
+		"apiKeys":     apps,
+		"canAddApp":   license.IsConfigured() || !apikeys.FreeAppTaken(db),
+		"statusPages": status.Pages(db),
 	})
 }
 

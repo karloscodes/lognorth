@@ -11,6 +11,7 @@ import (
 	"lognorth/internal/config"
 	"lognorth/internal/events"
 	"lognorth/internal/settings"
+	"lognorth/internal/status"
 	"lognorth/internal/uptime"
 	"lognorth/internal/users"
 )
@@ -98,6 +99,9 @@ func Migrate(db *gorm.DB) error {
 		&settings.Settings{},
 		&users.User{},
 		&uptime.Check{},
+		&uptime.Day{},
+		&status.Page{},
+		&status.Comment{},
 	); err != nil {
 		return err
 	}

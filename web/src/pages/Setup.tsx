@@ -15,7 +15,14 @@ interface APIKey {
   ping_url?: string
   ping_disabled?: boolean
   is_down?: boolean
+  status_page_id?: number // 0: on no status page
   uptime?: UptimeState
+}
+
+interface StatusPage {
+  id: number
+  name: string
+  slug: string
 }
 
 // The server sends one flash message: { type, message }.
@@ -28,6 +35,7 @@ interface Props {
   apiKeys?: APIKey[]
   flash?: Flash
   canAddApp?: boolean
+  statusPages?: StatusPage[]
 }
 
 // "[copy]" that confirms for 2 seconds, and only once the clipboard took it.
@@ -45,7 +53,7 @@ function CopyButton({ text, className = '' }: { text: string; className?: string
   )
 }
 
-export default function Setup({ apiKeys = [], flash, canAddApp = true }: Props) {
+export default function Setup({ apiKeys = [], flash, canAddApp = true, statusPages = [] }: Props) {
   const newKey = flash?.type === 'newKey' ? flash.message : undefined
   const flashError = flash?.type === 'error' ? flash.message : undefined
   const activeApps = apiKeys.filter((k) => k.active)
@@ -80,7 +88,7 @@ export default function Setup({ apiKeys = [], flash, canAddApp = true }: Props) 
       <div className="pane pb-0 pt-3.5">
         <span className="pane-title">apps</span>
         {activeApps.map((app) => (
-          <AppRow key={app.id} app={app} />
+          <AppRow key={app.id} app={app} statusPages={statusPages} />
         ))}
         {canAddApp ? <AddApp /> : <AddAppNeedsLicense />}
       </div>
@@ -88,7 +96,7 @@ export default function Setup({ apiKeys = [], flash, canAddApp = true }: Props) 
   )
 }
 
-function AppRow({ app }: { app: APIKey }) {
+function AppRow({ app, statusPages }: { app: APIKey; statusPages: StatusPage[] }) {
   const [showKey, setShowKey] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [editingURL, setEditingURL] = useState(false)
@@ -202,6 +210,7 @@ function AppRow({ app }: { app: APIKey }) {
             </button>
           </form>
           <p className="w-full text-xs text-dim">LogNorth pings this URL every minute. 3 failures in a row means down.</p>
+          <StatusPagePicker app={app} pages={statusPages} />
         </div>
       )}
 
@@ -212,6 +221,55 @@ function AppRow({ app }: { app: APIKey }) {
         </div>
       )}
     </div>
+  )
+}
+
+// Which public status page shows the app: one page at most, or none.
+function StatusPagePicker({ app, pages }: { app: APIKey; pages: StatusPage[] }) {
+  const current = pages.find((p) => p.id === app.status_page_id)
+
+  if (pages.length === 0) {
+    return (
+      <p className="w-full text-xs text-dim">
+        No status page yet.{' '}
+        <Link href="/settings/status" className="text-subtle hover:text-foreground">
+          Create one in Settings →
+        </Link>
+      </p>
+    )
+  }
+
+  return (
+    <form action={`/apps/api-keys/${app.id}/status-page`} method="POST" className="flex w-full flex-wrap items-center gap-2 text-xs text-subtle">
+      <label htmlFor={`status-page-${app.id}`}>status page</label>
+      <select
+        id={`status-page-${app.id}`}
+        name="page_id"
+        defaultValue={app.status_page_id ?? 0}
+        onChange={(e) => e.currentTarget.form?.requestSubmit()}
+        className="border border-border bg-raise/40 px-2 py-1 text-xs text-foreground focus:border-foreground focus:outline-none"
+      >
+        <option value={0}>none</option>
+        {pages.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <span className="text-dim">
+        {current ? (
+          <>
+            Anyone can see its uptime at{' '}
+            <a href={`/status/${current.slug}`} className="text-subtle hover:text-foreground">
+              /status/{current.slug}
+            </a>
+            , without the URL.
+          </>
+        ) : (
+          'A status page shows its uptime to anyone, without the URL.'
+        )}
+      </span>
+    </form>
   )
 }
 

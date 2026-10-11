@@ -18,7 +18,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
-	if err := db.AutoMigrate(&apikeys.APIKey{}, &Check{}); err != nil {
+	if err := db.AutoMigrate(&apikeys.APIKey{}, &Check{}, &Day{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db
