@@ -9,15 +9,12 @@ import (
 	"lognorth/internal/apikeys"
 )
 
-// DayRetention is how long the daily counts are kept: the 90 days the status
-// page shows. The pings behind them go after Retention.
-const DayRetention = 90 * 24 * time.Hour
-
 // pingDays is how many UTC days, today included, the pings cover in full.
 const pingDays = int(Retention / (24 * time.Hour))
 
 // Day is one UTC day of an app's pings. RollUp stores each finished day, so
-// its counts outlive its pings.
+// its counts outlive its pings. The rows are kept for good: one a day per
+// app, and they hold the app's uptime since its first ping.
 type Day struct {
 	APIKeyID    uint   `gorm:"primaryKey;autoIncrement:false" json:"-"`
 	Date        string `gorm:"primaryKey;size:10" json:"date"` // "2026-10-11"
@@ -32,19 +29,55 @@ func (Day) TableName() string { return "uptime_days" }
 type History struct {
 	Days    []Day    // oldest first; the last one is today
 	Outages []Outage // oldest first, from the pings still kept
-	Uptime  *float64 // percent of the pings that were up; nil without pings
+	Uptime  *float64 // percent of the pings in Days that were up; nil without pings
+
+	// Since the first day with pings: the stored days and the pings.
+	Since   string   // "2026-03-04"; "" without pings
+	AllTime *float64 // percent of all those pings that were up; nil without pings
 }
 
-// HistoryFor reads the app's last `days` UTC days, today included. The days
-// the pings cover come from the pings, in one query. Older days come from
-// the stored counts, up to DayRetention.
+// HistoryFor reads the app's last `days` UTC days, today included, and its
+// uptime since its first ping. The days the pings cover come from the pings,
+// in one query. Older days come from the stored counts.
 func HistoryFor(db *gorm.DB, appID uint, now time.Time, days int) History {
 	h := fromPings(db, appID, now, min(days, pingDays))
 	if days > pingDays {
 		h.Days = append(storedDays(db, appID, firstDay(now, days), days-pingDays), h.Days...)
 	}
 	h.Uptime = uptimeOf(h.Days)
+
+	// All time needs every day the pings cover: the last pingDays of Days,
+	// or, for a shorter history, a read of them.
+	var recent []Day
+	if days >= pingDays {
+		recent = h.Days[len(h.Days)-pingDays:]
+	} else {
+		recent = fromPings(db, appID, now, pingDays).Days
+	}
+	h.Since, h.AllTime = allTime(db, appID, firstDay(now, pingDays), recent)
 	return h
+}
+
+// allTime adds the stored days before the pings to the days of the pings.
+func allTime(db *gorm.DB, appID uint, pingsFrom time.Time, recent []Day) (string, *float64) {
+	var old struct {
+		Since  string
+		Checks int
+		Fails  int
+	}
+	db.Model(&Day{}).
+		Select("MIN(date) AS since, COALESCE(SUM(checks), 0) AS checks, COALESCE(SUM(fails), 0) AS fails").
+		Where("api_key_id = ? AND date < ? AND checks > 0", appID, pingsFrom.Format(time.DateOnly)).
+		Scan(&old)
+
+	since := old.Since
+	all := append([]Day{{Checks: old.Checks, Fails: old.Fails}}, recent...)
+	for _, d := range recent {
+		if since == "" && d.Checks > 0 {
+			since = d.Date
+		}
+	}
+	return since, uptimeOf(all)
 }
 
 // RollUp stores each finished day the pings cover that is not stored yet.
@@ -72,12 +105,6 @@ func RollUpAll(db *gorm.DB, now time.Time) error {
 		}
 	}
 	return nil
-}
-
-// DeleteDaysOlderThan removes the daily counts of days before the cutoff.
-func DeleteDaysOlderThan(db *gorm.DB, cutoff time.Time) (int64, error) {
-	result := db.Where("date < ?", cutoff.UTC().Format(time.DateOnly)).Delete(&Day{})
-	return result.RowsAffected, result.Error
 }
 
 // firstDay is the start of the oldest of the last `days` UTC days.

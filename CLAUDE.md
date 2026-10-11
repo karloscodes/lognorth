@@ -108,7 +108,8 @@ its own domain when it has one:
 
 - Pings are kept 30 days. The cleanup job runs `uptime.RollUpAll` first, which
   stores each finished UTC day once in `uptime_days` (pings, fails, minutes
-  down), kept 90 days. The bars read stored days past the pings.
+  down), kept for good. The bars read stored days past the pings, and
+  `History.AllTime` adds them up since the first ping.
 - Incidents are `uptime.Outages`, not a table, so they go back 30 days. A
   note (`status_comments`) points at its outage by app and first failed ping.
 - Visitors get a page cached for 1 minute (`internal/http/status.go`). The

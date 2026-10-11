@@ -17,6 +17,8 @@ interface StatusApp extends UptimeState {
   name: string
   uptime?: number // percent of the window's pings that were up
   days: Day[]
+  since?: string // the first day with pings, "2026-03-04"
+  all_time?: number // percent of all pings since then that were up
 }
 
 interface Comment {
@@ -263,11 +265,7 @@ function AppRow({ app }: { app: StatusApp }) {
           )}
         </span>
         <span className="flex-1" />
-        {app.uptime !== undefined && (
-          <span className="text-xs text-dim">
-            <span className="tabular-nums text-foreground">{percent(app.uptime)}</span> up
-          </span>
-        )}
+        <UptimeFigures app={app} />
       </div>
 
       <div className="relative" onMouseLeave={() => setHovered(null)}>
@@ -292,6 +290,33 @@ function AppRow({ app }: { app: StatusApp }) {
         <span>today</span>
       </div>
     </div>
+  )
+}
+
+// "99.991%": all-time uptime takes 3 decimals, as a year of pings measures
+// it to a ten-thousandth of a percent.
+const percent3 = (pct: number) => `${pct >= 99.9995 ? '100' : pct.toFixed(3)}%`
+
+// "mar 4", with the year when it is not this one.
+function sinceLabel(date: string): string {
+  const year = date.slice(0, 4)
+  return year === String(new Date().getUTCFullYear()) ? dayLabel(date) : `${dayLabel(date)} ${year}`
+}
+
+// The uptime of the bars, and since the first ping. When the first ping is
+// inside the bars, the two are the same number: show it once, with "since".
+function UptimeFigures({ app }: { app: StatusApp }) {
+  if (app.all_time === undefined || !app.since) return null
+  const longer = app.days.length > 0 && app.since < app.days[0].date
+  return (
+    <span className="text-xs text-dim">
+      {longer && app.uptime !== undefined && (
+        <>
+          <span className="tabular-nums text-foreground">{percent(app.uptime)}</span> {app.days.length}d ·{' '}
+        </>
+      )}
+      <span className="tabular-nums text-foreground">{percent3(app.all_time)}</span> since {sinceLabel(app.since)}
+    </span>
   )
 }
 

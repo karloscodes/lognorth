@@ -66,15 +66,11 @@ func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		ctx.Logger.Info("Cleaned up old endpoint stats", "deleted", deletedStats)
 	}
 
-	// Each finished day of pings is counted before its pings go, so the
-	// status page keeps 90 days.
+	// Each finished day of pings is counted before its pings go. The counts
+	// stay for good: they hold each app's uptime since its first ping.
 	now := time.Now()
 	if err := uptime.RollUpAll(ctx.DB, now); err != nil {
 		ctx.Logger.Error("Failed to roll up uptime days", "error", err)
-		return err
-	}
-	if _, err := uptime.DeleteDaysOlderThan(ctx.DB, now.Add(-uptime.DayRetention)); err != nil {
-		ctx.Logger.Error("Failed to cleanup old uptime days", "error", err)
 		return err
 	}
 

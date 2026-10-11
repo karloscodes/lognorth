@@ -1,6 +1,7 @@
 package uptime
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -74,6 +75,25 @@ func TestHistoryFor(t *testing.T) {
 		}
 		if h.Uptime == nil || *h.Uptime != 50 {
 			t.Errorf("expected 50%% uptime from the stored counts, got %v", h.Uptime)
+		}
+	})
+
+	t.Run("all time adds the stored days before the pings to the pings, once each", func(t *testing.T) {
+		db := newTestDB(t)
+		db.Create(&Day{APIKeyID: 1, Date: "2025-06-01", Checks: 996})
+		pingsFrom(db, 1, time.Date(2026, 1, 14, 10, 0, 0, 0, time.UTC), "++-+")
+		if err := RollUp(db, 1, now); err != nil { // Jan 14 is now a stored day too
+			t.Fatalf("roll up: %v", err)
+		}
+
+		h := HistoryFor(db, 1, now, 90)
+		silent := HistoryFor(db, 2, now, 90)
+
+		if h.Since != "2025-06-01" || h.AllTime == nil || math.Abs(*h.AllTime-99.9) > 1e-9 {
+			t.Errorf("expected 99.9%% since 2025-06-01 (999 of 1,000 pings up), got %v since %q", h.AllTime, h.Since)
+		}
+		if silent.Since != "" || silent.AllTime != nil {
+			t.Errorf("expected no all-time uptime for an app without pings, got %v since %q", silent.AllTime, silent.Since)
 		}
 	})
 

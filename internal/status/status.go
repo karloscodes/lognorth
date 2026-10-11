@@ -18,8 +18,8 @@ import (
 	"lognorth/internal/uptime"
 )
 
-// Days is how far back the uptime goes: uptime.DayRetention keeps 90 days of
-// daily counts. Outages need the pings, so they go back 30 days.
+// Days is how many daily bars the page draws. The all-time uptime goes back
+// to the first ping. Outages need the pings, so they go back 30 days.
 const Days = 90
 
 const maxCommentLength = 1000
@@ -61,6 +61,8 @@ type App struct {
 	DownSince *time.Time   `json:"down_since,omitempty"`
 	Uptime    *float64     `json:"uptime,omitempty"` // percent of the window's pings that were up
 	Days      []uptime.Day `json:"days"`
+	Since     string       `json:"since,omitempty"`    // the first day with pings, "2026-03-04"
+	AllTime   *float64     `json:"all_time,omitempty"` // percent of all pings since then that were up
 }
 
 // Incident is one outage of an app, with the owner's notes on it.
@@ -92,6 +94,8 @@ func Build(db *gorm.DB, page Page, now time.Time) Report {
 			DownSince: state.DownSince,
 			Uptime:    history.Uptime,
 			Days:      history.Days,
+			Since:     history.Since,
+			AllTime:   history.AllTime,
 		})
 		for _, o := range history.Outages {
 			notes := comments[outageKey{k.ID, o.Start.UnixNano()}]
