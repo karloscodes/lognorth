@@ -40,9 +40,13 @@ export default function SettingsStatus({ pages = [], host, flash }: Props) {
 
       <div className="pane mt-10 px-4 pb-4 pt-6 text-[13px]">
         <span className="pane-title">own domain</span>
-        <p className="text-subtle">
-          A page can also answer at a domain like status.example.com. Click [edit] on the page and enter the domain. The page then shows the DNS record to add.
-        </p>
+        <p className="text-subtle">A page can also answer at a domain of its own, like status.example.com. This LogNorth serves it, next to {host || 'its own domain'}. Three steps make it work:</p>
+        <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-text">
+          <li>DNS sends the visitor to this server: a CNAME record from the domain to {host || 'the domain LogNorth runs on'}.</li>
+          <li>Your proxy sends the domain to LogNorth, and gets its HTTPS certificate. On Chasen: chasen domains add.</li>
+          <li>LogNorth reads the domain of each visit and shows the page that has it, at /.</li>
+        </ol>
+        <p className="mt-3 text-subtle">Click [edit] on a page and enter the domain. That is step 3. The page then shows the exact record and command for steps 1 and 2.</p>
         <p className="mt-3 text-dim">On its domain the page answers at /. The dashboard and the login don't.</p>
       </div>
     </SettingsLayout>
@@ -53,7 +57,8 @@ export default function SettingsStatus({ pages = [], host, flash }: Props) {
 function DomainSteps({ domain, host }: { domain: string; host?: string }) {
   return (
     <div className="mt-3 border-t border-dashed border-line pt-3">
-      <p className="text-xs text-subtle">To make {domain} answer, add this record at your DNS provider:</p>
+      <p className="text-xs text-subtle">To show this page at {domain}:</p>
+      <p className="mt-2 text-xs text-subtle">1. At your DNS provider, add this record. It sends visitors of {domain} to this server.</p>
       <table className="mt-2 w-full text-left text-xs">
         <thead className="text-dim">
           <tr>
@@ -70,8 +75,11 @@ function DomainSteps({ domain, host }: { domain: string; host?: string }) {
           </tr>
         </tbody>
       </table>
-      <p className="mt-3 text-xs text-subtle">Then send the domain to LogNorth in your proxy. On Chasen, run this in the folder of your LogNorth deploy. HTTPS comes with it.</p>
+      <p className="mt-3 text-xs text-subtle">
+        2. Then tell your proxy to send {domain} to LogNorth. On Chasen, run this in the folder of your LogNorth deploy. HTTPS comes with it.
+      </p>
       <code className="mt-1 block break-all text-xs text-foreground">chasen domains add {domain}</code>
+      <p className="mt-3 text-xs text-dim">3. Done: LogNorth sees {domain} on the visit and shows this page.</p>
     </div>
   )
 }
