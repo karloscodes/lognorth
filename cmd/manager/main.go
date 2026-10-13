@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"net/mail"
 	"os"
 	"os/exec"
 	"strings"
@@ -80,6 +81,11 @@ func resetPassword(args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("usage: lognorth reset-password <email>")
 	}
+	// The address goes to docker as one argument, with no shell. Still, take only a plain email address.
+	address, err := mail.ParseAddress(args[0])
+	if err != nil || address.Address != args[0] {
+		return fmt.Errorf("%q is not an email address", args[0])
+	}
 
 	// During a zero-downtime deploy both containers run; the -next one is newer.
 	container := ""
@@ -98,7 +104,7 @@ func resetPassword(args []string) error {
 	if info, err := os.Stdin.Stat(); err == nil && info.Mode()&os.ModeCharDevice != 0 {
 		flags = "-it" // a terminal: let lnctl hide the password as it is typed
 	}
-	cmd := exec.Command("docker", "exec", flags, container, "/app/lnctl", "reset-password", args[0])
+	cmd := exec.Command("docker", "exec", flags, container, "/app/lnctl", "reset-password", address.Address) // #nosec G702 -- no shell, and the address is checked above
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
 }
