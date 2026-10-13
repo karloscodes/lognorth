@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       - uses: actions/setup-node@v7
         with:
@@ -45,7 +45,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       - name: Build manager
         run: go build -o bin/lognorth ./cmd/manager
@@ -93,7 +93,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       - uses: actions/setup-node@v7
         with:
@@ -177,7 +177,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version-file: lognorth/go.mod
 
       - uses: actions/setup-node@v7
         with:
@@ -203,7 +203,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
       # The app embeds the built web files. gosec only needs them to exist.
       - run: mkdir -p web/dist/assets web/dist/.vite && touch web/dist/assets/stub.txt && echo '{}' > web/dist/.vite/manifest.json
       - run: go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0 -exclude-dir=e2e -exclude-dir=cmd/seed-demo -severity high -confidence high ./...
