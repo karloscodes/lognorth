@@ -7,6 +7,7 @@ import (
 
 	"lognorth/internal/events"
 	"lognorth/internal/settings"
+	"lognorth/internal/status"
 	"lognorth/internal/uptime"
 )
 
@@ -65,14 +66,32 @@ func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		ctx.Logger.Info("Cleaned up old endpoint stats", "deleted", deletedStats)
 	}
 
+	// Each finished day of pings is counted before its pings go. The counts
+	// stay for good: they hold each app's uptime since its first ping.
+	now := time.Now()
+	if err := uptime.RollUpAll(ctx.DB, now); err != nil {
+		ctx.Logger.Error("Failed to roll up uptime days", "error", err)
+		return err
+	}
+
 	// Uptime checks: one a minute per app, kept uptime.Retention.
-	deletedChecks, err := uptime.DeleteOlderThan(ctx.DB, time.Now().Add(-uptime.Retention))
+	deletedChecks, err := uptime.DeleteOlderThan(ctx.DB, now.Add(-uptime.Retention))
 	if err != nil {
 		ctx.Logger.Error("Failed to cleanup old uptime checks", "error", err)
 		return err
 	}
 	if deletedChecks > 0 {
 		ctx.Logger.Info("Cleaned up old uptime checks", "deleted", deletedChecks)
+	}
+
+	// Status page notes go with the pings of their outage.
+	deletedNotes, err := status.DeleteOlderThan(ctx.DB, now.Add(-uptime.Retention))
+	if err != nil {
+		ctx.Logger.Error("Failed to cleanup old status page notes", "error", err)
+		return err
+	}
+	if deletedNotes > 0 {
+		ctx.Logger.Info("Cleaned up old status page notes", "deleted", deletedNotes)
 	}
 
 	return nil

@@ -193,20 +193,27 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/_health", health, &cartridge.RouteConfig{EnableSecFetchSite: cartridge.Bool(false)})
 	server.Get("/up", health, &cartridge.RouteConfig{EnableSecFetchSite: cartridge.Bool(false)})
 
+	// isFile says whether a path is the health check or a static file: what a
+	// page load fetches besides the page.
+	publicFiles, _ := fs.Sub(lognorth.PublicFS, "web/public")
+	isFile := func(path string) bool {
+		if path == "/_health" || path == "/up" || strings.HasPrefix(path, "/assets/") {
+			return true
+		}
+		info, err := fs.Stat(publicFiles, strings.TrimPrefix(path, "/"))
+		return err == nil && !info.IsDir()
+	}
+
+	// A status page on its own domain (status.example.com) answers before
+	// any other route, so nothing else answers on that domain.
+	server.Use(lbhttp.StatusDomainMiddleware(isFile))
+
 	// Demo mode: global rate limit + block write operations. server.Use runs
 	// on every request, so two kinds opt out of the limit. The health check:
 	// the proxy calls it more often than the limit allows. Static files: one
 	// page load fetches several, and a refused script leaves a blank page.
 	if cfg.IsDemo() {
-		publicFiles, _ := fs.Sub(lognorth.PublicFS, "web/public")
-		notAPage := func(c *cartridge.Context) bool {
-			path := c.Path()
-			if path == "/_health" || path == "/up" || strings.HasPrefix(path, "/assets/") {
-				return true
-			}
-			info, err := fs.Stat(publicFiles, strings.TrimPrefix(path, "/"))
-			return err == nil && !info.IsDir()
-		}
+		notAPage := func(c *cartridge.Context) bool { return isFile(c.Path()) }
 		server.Use(cartridgemiddleware.RateLimiter(
 			cartridgemiddleware.WithMax(60),
 			cartridgemiddleware.WithDuration(time.Minute),
@@ -295,6 +302,12 @@ func MountRoutes(server *cartridge.Server) {
 		server.Post("/setup", lbhttp.OnboardingAction, onboardingPostConfig)
 	}
 
+	// Status pages: public, so visitors read them without an account. Only
+	// the signed-in owner writes notes on their outages.
+	server.Get("/status/:slug", lbhttp.StatusPageAction, &cartridge.RouteConfig{EnableSecFetchSite: cartridge.Bool(false)})
+	server.Post("/status/comments", lbhttp.AddStatusCommentAction, protectedConfig)
+	server.Post("/status/comments/:id/delete", lbhttp.DeleteStatusCommentAction, protectedConfig)
+
 	// Event JSON for the Logs and Endpoints pages. Session only: agents read
 	// through MCP, and there is no public read API.
 	server.Get("/api/v1/events", lbhttp.EventsAPIAction, protectedConfig)
@@ -308,6 +321,7 @@ func MountRoutes(server *cartridge.Server) {
 	server.Post("/apps/api-keys/:id/rename", lbhttp.RenameAPIKeyAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/ping-url", lbhttp.SetPingURLAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/toggle-ping", lbhttp.TogglePingAction, protectedConfig)
+	server.Post("/apps/api-keys/:id/status-page", lbhttp.SetAppStatusPageAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/revoke", lbhttp.RevokeAPIKeyAction, protectedConfig)
 	server.Post("/apps/api-keys/:id/delete", lbhttp.DeleteAPIKeyAction, protectedConfig)
 
@@ -348,6 +362,10 @@ func MountRoutes(server *cartridge.Server) {
 	server.Get("/settings/data", lbhttp.SettingsDataPageAction, protectedConfig)
 	server.Get("/settings/developer", lbhttp.SettingsDeveloperPageAction, protectedConfig)
 	server.Get("/settings/appearance", lbhttp.SettingsAppearancePageAction, protectedConfig)
+	server.Get("/settings/status", lbhttp.SettingsStatusPageAction, protectedConfig)
+	server.Post("/settings/status", lbhttp.CreateStatusPageAction, protectedConfig)
+	server.Post("/settings/status/:id", lbhttp.UpdateStatusPageAction, protectedConfig)
+	server.Post("/settings/status/:id/delete", lbhttp.DeleteStatusPageAction, protectedConfig)
 	server.Post("/settings", lbhttp.UpdateSettingsAction, protectedConfig)
 	server.Post("/settings/test", lbhttp.TestNotificationAction, protectedConfig)
 

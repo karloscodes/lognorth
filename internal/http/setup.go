@@ -11,6 +11,8 @@ import (
 	"lognorth/internal/config"
 	"lognorth/internal/events"
 	"lognorth/internal/license"
+	"lognorth/internal/settings"
+	"lognorth/internal/status"
 	"lognorth/internal/uptime"
 )
 
@@ -26,6 +28,7 @@ type AppForSetup struct {
 	PingURL      string        `json:"ping_url"`
 	PingDisabled bool          `json:"ping_disabled"`
 	IsDown       bool          `json:"is_down"`
+	StatusPageID uint          `json:"status_page_id"`
 	Uptime       *uptime.State `json:"uptime,omitempty"`
 }
 
@@ -60,6 +63,7 @@ func SetupPageAction(ctx *cartridge.Context) error {
 			PingURL:      k.PingURL,
 			PingDisabled: k.PingDisabled,
 			IsDown:       k.IsDown,
+			StatusPageID: k.StatusPageID,
 			Uptime:       &state,
 		}
 		if k.Active {
@@ -73,9 +77,18 @@ func SetupPageAction(ctx *cartridge.Context) error {
 		apps = append(apps, app)
 	}
 
+	// A key that Polar no longer accepts reads differently from no key: the
+	// owner checks it, instead of buying one again.
+	licenseStatus := ""
+	if s, err := settings.Get(db); err == nil && s.LicenseKey != "" {
+		licenseStatus = s.LicenseStatus
+	}
+
 	return RenderPage(ctx, "Setup", Props{
-		"apiKeys":   apps,
-		"canAddApp": license.IsConfigured() || !apikeys.FreeAppTaken(db),
+		"apiKeys":       apps,
+		"canAddApp":     license.IsConfigured() || !apikeys.FreeAppTaken(db),
+		"licenseStatus": licenseStatus,
+		"statusPages":   status.Pages(db),
 	})
 }
 

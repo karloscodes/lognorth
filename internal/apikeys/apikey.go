@@ -62,6 +62,10 @@ type APIKey struct {
 	DownSince        time.Time `json:"down_since,omitempty"`
 	LastPingedAt     time.Time `json:"last_pinged_at,omitempty"`
 
+	// The public status page the app shows on (internal/status), or 0 for
+	// none. None until the owner picks one: the page names the app to anyone.
+	StatusPageID uint `gorm:"default:0;index" json:"status_page_id"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

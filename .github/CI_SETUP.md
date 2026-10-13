@@ -111,7 +111,7 @@ make test-all
 
 ## CI Workflow Files
 
-- `.github/workflows/test.yml` - Test workflow
+- `.github/workflows/ci.yml` - Test workflow
 
 ## Debugging CI Failures
 
@@ -135,7 +135,7 @@ make test-all
 
 ### Change test branches
 
-Edit `.github/workflows/test.yml`:
+Edit `.github/workflows/ci.yml`:
 
 ```yaml
 on:
@@ -145,7 +145,7 @@ on:
 
 ### Disable SDK tests
 
-Remove or comment out the `full-tests` job in `.github/workflows/test.yml`.
+Remove or comment out the `full-tests` job in `.github/workflows/ci.yml`.
 
 ### Run only SDK tests
 
@@ -156,7 +156,7 @@ Change `make test-all` to `make test-sdk` in workflow.
 Add to README.md:
 
 ```markdown
-![Tests](https://github.com/karloscodes/lognorth/actions/workflows/test.yml/badge.svg)
+![Tests](https://github.com/karloscodes/lognorth/actions/workflows/ci.yml/badge.svg)
 ```
 
 ## Next Steps
