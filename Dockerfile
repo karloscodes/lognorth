@@ -32,7 +32,7 @@ RUN mkdir -p dist && \
   CGO_ENABLED=1 go build -o dist/seed-demo ./cmd/seed-demo/
 
 # Final stage - minimal runtime image
-FROM alpine:3.19
+FROM alpine:3.24
 
 # Link GHCR package to public releases repo
 LABEL org.opencontainers.image.source="https://github.com/karloscodes/lognorth-releases"
