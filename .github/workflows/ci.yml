@@ -217,7 +217,7 @@ jobs:
         with:
           # The toolchain line of go.mod names the patch release. A bare "1.26" takes the runner's older copy.
           go-version-file: go.mod
-      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   gitleaks:
     name: gitleaks
