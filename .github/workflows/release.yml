@@ -131,10 +131,19 @@ jobs:
     name: Test Install
     runs-on: [self-hosted, Linux, X64, n100]
     steps:
+      # The n100 runner may run a live LogNorth. Only remove containers this test
+      # made (it leaves a marker); stop if someone else's are there.
       - name: Cleanup previous containers
         run: |
-          docker stop lognorth matcha-proxy 2>/dev/null || true
-          docker rm lognorth matcha-proxy 2>/dev/null || true
+          if docker ps -a --format '{{.Names}}' | grep -qxE 'lognorth|matcha-proxy'; then
+            if [ -f "$HOME/.lognorth-install-test" ]; then
+              docker rm -f lognorth matcha-proxy 2>/dev/null || true
+            else
+              echo "::error::lognorth containers this test did not make are on the runner. Not touching them."
+              exit 1
+            fi
+          fi
+          touch "$HOME/.lognorth-install-test"
 
       - name: Checkout code
         uses: actions/checkout@v7
@@ -193,8 +202,10 @@ jobs:
       - name: Cleanup containers
         if: always()
         run: |
-          docker stop lognorth matcha-proxy 2>/dev/null || true
-          docker rm lognorth matcha-proxy 2>/dev/null || true
+          if [ -f "$HOME/.lognorth-install-test" ]; then
+            docker rm -f lognorth matcha-proxy 2>/dev/null || true
+            rm -f "$HOME/.lognorth-install-test"
+          fi
 
   # The install paths with Chasen, on GitHub's runners: see chasen.yml.
   chasen:
