@@ -3,7 +3,7 @@
 
 TMP_DIR := ./tmp
 
-.PHONY: build dev watch-go watch-web dev-server test clean install deps seed seed-events build-manager build-manager-linux build-docker release test-installer test-installer-clean
+.PHONY: build dev watch-go watch-web dev-server test clean install deps seed seed-events build-manager build-manager-linux build-docker test-installer test-installer-clean
 
 # Install all dependencies
 install: deps
@@ -37,43 +37,6 @@ build-manager-linux:
 # Build Docker image locally
 build-docker:
 	docker build -t karloscodes/lognorth:$(VERSION) -t karloscodes/lognorth:latest .
-
-# Full local release: tag, Docker image, CLI binaries, checksums, publish
-# Usage: make release V=0.5.0
-release:
-	@if [ -z "$(V)" ]; then echo "Usage: make release V=x.y.z"; exit 1; fi
-	@echo "=== Tagging v$(V) ==="
-	git tag v$(V)
-	git push origin v$(V)
-	@echo "=== Building Docker image ==="
-	docker buildx build --platform linux/amd64 \
-		-t karloscodes/lognorth:$(V) \
-		-t karloscodes/lognorth:latest \
-		--push .
-	@echo "=== Building CLI binaries ==="
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X main.currentVersion=$(V)" -o tmp/lognorth-linux-amd64 ./cmd/manager
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-X main.currentVersion=$(V)" -o tmp/lognorth-linux-arm64 ./cmd/manager
-	cd tmp && shasum -a 256 lognorth-linux-amd64 lognorth-linux-arm64 > checksums.txt
-	@echo "=== Publishing releases ==="
-	gh release create v$(V) \
-		--repo karloscodes/lognorth \
-		--title "LogNorth v$(V)" \
-		--notes "Release v$(V)" \
-		tmp/lognorth-linux-amd64 \
-		tmp/lognorth-linux-arm64 \
-		tmp/checksums.txt
-	gh release create v$(V) \
-		--repo karloscodes/lognorth-releases \
-		--title "LogNorth v$(V)" \
-		--notes "Release v$(V)" \
-		tmp/lognorth-linux-amd64 \
-		tmp/lognorth-linux-arm64 \
-		tmp/checksums.txt
-	@echo "=== Cleaning up ==="
-	-docker rmi karloscodes/lognorth:$(V) karloscodes/lognorth:latest 2>/dev/null
-	-docker buildx prune -f --filter "until=1h" 2>/dev/null
-	rm -f tmp/lognorth-linux-* tmp/checksums.txt
-	@echo "Released v$(V)"
 
 # Development mode with hot reload
 dev:

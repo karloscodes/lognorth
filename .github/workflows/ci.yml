@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+permissions:
+  contents: read
+
 jobs:
   # Fast: Go tests only (no SDK compatibility)
   # Always runs, even on forks
@@ -36,10 +39,19 @@ jobs:
     runs-on: [self-hosted, Linux, X64, n100]
     if: github.repository == 'karloscodes/lognorth'
     steps:
+      # The n100 runner may run a live LogNorth. Only remove containers this test
+      # made (it leaves a marker); stop if someone else's are there.
       - name: Cleanup previous containers
         run: |
-          docker stop lognorth matcha-proxy 2>/dev/null || true
-          docker rm lognorth matcha-proxy 2>/dev/null || true
+          if docker ps -a --format '{{.Names}}' | grep -qxE 'lognorth|matcha-proxy'; then
+            if [ -f "$HOME/.lognorth-install-test" ]; then
+              docker rm -f lognorth matcha-proxy 2>/dev/null || true
+            else
+              echo "::error::lognorth containers this test did not make are on the runner. Not touching them."
+              exit 1
+            fi
+          fi
+          touch "$HOME/.lognorth-install-test"
 
       - uses: actions/checkout@v7
 
@@ -80,8 +92,10 @@ jobs:
       - name: Cleanup containers
         if: always()
         run: |
-          docker stop lognorth matcha-proxy 2>/dev/null || true
-          docker rm lognorth matcha-proxy 2>/dev/null || true
+          if [ -f "$HOME/.lognorth-install-test" ]; then
+            docker rm -f lognorth matcha-proxy 2>/dev/null || true
+            rm -f "$HOME/.lognorth-install-test"
+          fi
 
   # E2E tests with Playwright
   e2e-tests:
@@ -137,7 +151,8 @@ jobs:
   full-tests:
     name: Full Test Suite (with SDKs)
     runs-on: [self-hosted, Linux, X64, n100]
-    if: github.repository == 'karloscodes/lognorth'
+    # Dependabot PRs can't read GH_PAT, so the private SDKs can't be checked out.
+    if: github.repository == 'karloscodes/lognorth' && github.actor != 'dependabot[bot]'
     defaults:
       run:
         working-directory: lognorth
