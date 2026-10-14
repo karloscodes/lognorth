@@ -130,10 +130,6 @@ jobs:
   test-install:
     name: Test Install
     runs-on: [self-hosted, Linux, X64, n100]
-    # One install test at a time on the n100: they share container names.
-    concurrency:
-      group: n100-install-test
-      cancel-in-progress: false
     steps:
       # The n100 runner may run a live LogNorth. Only remove containers this test
       # made (it leaves a marker); stop if someone else's are there.

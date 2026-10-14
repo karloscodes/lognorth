@@ -37,10 +37,6 @@ jobs:
   install-test:
     name: Install Test
     runs-on: [self-hosted, Linux, X64, n100]
-    # One install test at a time on the n100: they share container names.
-    concurrency:
-      group: n100-install-test
-      cancel-in-progress: false
     if: github.repository == 'karloscodes/lognorth'
     steps:
       # The n100 runner may run a live LogNorth. Only remove containers this test
