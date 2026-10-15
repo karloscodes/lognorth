@@ -127,24 +127,13 @@ jobs:
           path: e2e/test-results/
           retention-days: 7
 
+  # The install runs as root: it adds a cron job that starts the app again each
+  # night, and binds ports 80 and 443. So it gets a fresh GitHub runner, never
+  # the self-hosted one, where it stays behind and the next run finds it.
   test-install:
     name: Test Install
-    runs-on: [self-hosted, Linux, X64, n100]
+    runs-on: ubuntu-latest
     steps:
-      # The n100 runner may run a live LogNorth. Only remove containers this test
-      # made (it leaves a marker); stop if someone else's are there.
-      - name: Cleanup previous containers
-        run: |
-          if docker ps -a --format '{{.Names}}' | grep -qxE 'lognorth|matcha-proxy'; then
-            if [ -f "$HOME/.lognorth-install-test" ]; then
-              docker rm -f lognorth matcha-proxy 2>/dev/null || true
-            else
-              echo "::error::lognorth containers this test did not make are on the runner. Not touching them."
-              exit 1
-            fi
-          fi
-          touch "$HOME/.lognorth-install-test"
-
       - name: Checkout code
         uses: actions/checkout@v7
 
@@ -198,14 +187,6 @@ jobs:
           docker logs lognorth 2>&1 | tail -100 || true
           echo "=== Proxy logs ==="
           docker logs matcha-proxy 2>&1 | tail -50 || true
-
-      - name: Cleanup containers
-        if: always()
-        run: |
-          if [ -f "$HOME/.lognorth-install-test" ]; then
-            docker rm -f lognorth matcha-proxy 2>/dev/null || true
-            rm -f "$HOME/.lognorth-install-test"
-          fi
 
   # The install paths with Chasen, on GitHub's runners: see chasen.yml.
   chasen:

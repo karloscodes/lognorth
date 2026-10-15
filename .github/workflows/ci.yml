@@ -33,26 +33,13 @@ jobs:
       - name: Run Go tests
         run: make test
 
-  # Test that the installer actually works on a fresh Linux system
+  # Test that the installer actually works on a fresh Linux system. It runs as
+  # root and adds a nightly cron job, so never on the self-hosted runner.
   install-test:
     name: Install Test
-    runs-on: [self-hosted, Linux, X64, n100]
+    runs-on: ubuntu-latest
     if: github.repository == 'karloscodes/lognorth'
     steps:
-      # The n100 runner may run a live LogNorth. Only remove containers this test
-      # made (it leaves a marker); stop if someone else's are there.
-      - name: Cleanup previous containers
-        run: |
-          if docker ps -a --format '{{.Names}}' | grep -qxE 'lognorth|matcha-proxy'; then
-            if [ -f "$HOME/.lognorth-install-test" ]; then
-              docker rm -f lognorth matcha-proxy 2>/dev/null || true
-            else
-              echo "::error::lognorth containers this test did not make are on the runner. Not touching them."
-              exit 1
-            fi
-          fi
-          touch "$HOME/.lognorth-install-test"
-
       - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
@@ -88,14 +75,6 @@ jobs:
           docker ps -a
           docker logs lognorth 2>&1 | tail -100 || true
           docker logs matcha-proxy 2>&1 | tail -50 || true
-
-      - name: Cleanup containers
-        if: always()
-        run: |
-          if [ -f "$HOME/.lognorth-install-test" ]; then
-            docker rm -f lognorth matcha-proxy 2>/dev/null || true
-            rm -f "$HOME/.lognorth-install-test"
-          fi
 
   # E2E tests with Playwright
   e2e-tests:

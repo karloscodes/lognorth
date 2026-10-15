@@ -74,7 +74,9 @@ servers of the older installer: keep its release binaries. On Chasen the image
 needs no settings: it reads `PRIVATE_KEY` and `BASE_URL`, which Chasen sets.
 `e2e/chasen.sh`, `e2e/installer.sh`, and `e2e/move-to-chasen.sh` test the three
 paths; `.github/workflows/chasen.yml` runs them on GitHub's runners, never on
-the self-hosted one, because they install chasen-server on the machine.
+the self-hosted one, because they install chasen-server on the machine. The
+install test of `cmd/manager` (ci.yml and release.yml) runs there too: it adds
+a root cron job that starts the app again each night.
 
 ### Alerting
 
