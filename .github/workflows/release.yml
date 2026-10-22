@@ -272,6 +272,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pin the tag. GoReleaser's default sort (-version:refname) lists
+          # v0.29.0-rc.7 ahead of v0.29.0 when both point at HEAD, so a
+          # promoted candidate would build the binaries and the release of
+          # the rc again. The same fix as Fusionaly #118 and Formlander.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       # A tag with a hyphen (v0.26.0-rc.1) is a release candidate: it never moves
       # `latest`, which every install pulls at night, and its release is a prerelease.
