@@ -1,5 +1,6 @@
-# Build stage
-FROM golang:1.26.10-alpine AS builder
+# Build stage. alpine3.24 matches the runtime below, so the musl that CGO
+# links is the musl the binary runs against.
+FROM golang:1.26.10-alpine3.24 AS builder
 
 # Install build dependencies (build-base includes gcc, g++, make)
 RUN apk add --no-cache build-base musl-dev git nodejs npm
