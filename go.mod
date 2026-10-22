@@ -4,7 +4,6 @@ go 1.26.10
 
 require (
 	github.com/karloscodes/cartridge v1.9.1
-	github.com/karloscodes/matcha v0.12.18
 	go.opentelemetry.io/proto/otlp v1.11.1
 	google.golang.org/protobuf v1.36.12
 	gorm.io/gorm v1.31.2
@@ -24,6 +23,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/sqlite v1.6.0 // indirect
 )

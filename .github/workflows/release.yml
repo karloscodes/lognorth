@@ -128,67 +128,6 @@ jobs:
           path: e2e/test-results/
           retention-days: 7
 
-  # The install runs as root: it adds a cron job that starts the app again each
-  # night, and binds ports 80 and 443. So it gets a fresh GitHub runner, never
-  # the self-hosted one, where it stays behind and the next run finds it.
-  test-install:
-    name: Test Install
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Build manager binary
-        run: |
-          go build -o bin/lognorth ./cmd/manager
-          chmod +x bin/lognorth
-
-      - name: Build app image locally
-        run: docker build --tag karloscodes/lognorth:latest .
-
-      - name: Run install
-        run: |
-          echo -e "localhost\ny\n" | sudo -E ./bin/lognorth install
-        env:
-          ENV: test
-          LOGNORTH_PRIVATE_KEY: test-ci-key-not-real-do-not-use
-
-      - name: Verify containers running
-        run: |
-          sleep 5
-          docker ps
-          docker ps --format '{{.Names}}' | grep -q "lognorth" || (echo "Container not running" && exit 1)
-
-      - name: Check health endpoint
-        run: |
-          for i in {1..12}; do
-            if curl -sf http://localhost/_health; then
-              echo "Health check passed"
-              exit 0
-            fi
-            echo "Waiting for service (attempt $i/12)..."
-            sleep 5
-          done
-          echo "Health check failed"
-          docker logs lognorth || true
-          exit 1
-
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Docker containers ==="
-          docker ps -a
-          echo "=== App logs ==="
-          docker logs lognorth 2>&1 | tail -100 || true
-          echo "=== Proxy logs ==="
-          docker logs matcha-proxy 2>&1 | tail -50 || true
-
   # The install paths with Chasen, on GitHub's runners: see chasen.yml.
   chasen:
     uses: ./.github/workflows/chasen.yml
@@ -196,7 +135,7 @@ jobs:
   release:
     name: Build and Release
     runs-on: [self-hosted, Linux, X64, n100]
-    needs: [test, e2e-tests, test-install, chasen]
+    needs: [test, e2e-tests, chasen]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -311,25 +250,12 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
 
-          # The binaries keep servers of the older installer updating. install.sh
-          # is the install line: lognorth.com/install points to the newest one.
-          # Prepare binaries with correct names for installer
-          cp ./dist/lognorth_linux_amd64_v1/lognorth ./dist/lognorth-linux-amd64
-          cp ./dist/lognorth_linux_arm64_v8.0/lognorth ./dist/lognorth-linux-arm64
-
-          # Update checksums with new filenames
-          cd ./dist
-          sha256sum lognorth-linux-amd64 lognorth-linux-arm64 > checksums.txt
-          cd ..
-
-          # Upload to public releases repo
+          # install.sh is the install line: lognorth.com/install points to the
+          # newest one. No binary: see .goreleaser.yml.
           PRERELEASE=""
           if [ "${{ steps.version.outputs.RC }}" = "true" ]; then PRERELEASE="--prerelease"; fi
           gh release create "v${VERSION}" $PRERELEASE \
             --repo karloscodes/lognorth-releases \
             --title "LogNorth v${VERSION}" \
             --notes "Release v${VERSION}" \
-            ./dist/lognorth-linux-amd64 \
-            ./dist/lognorth-linux-arm64 \
-            ./dist/checksums.txt \
             ./install.sh

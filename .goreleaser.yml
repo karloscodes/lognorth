@@ -6,28 +6,20 @@ before:
   hooks:
     - go mod tidy
 
+# No binaries: LogNorth ships as an image, which release.yml builds. The
+# `lognorth-linux-*` binaries of v0.28.1 and before were the older installer.
+# Its servers update themselves from the newest lognorth-releases release;
+# with no binary there, they keep the one they have and still pull the new
+# image. Never attach a `lognorth-linux-*` binary again: one without
+# `update` would end the nightly update of those servers.
 builds:
-  - id: lognorth
-    main: ./cmd/manager
-    binary: lognorth
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w -X main.currentVersion={{.Version}}
+  - skip: true
 
 archives:
-  - id: binaries
-    formats:
-      - binary
-    name_template: "{{ .Binary }}-{{ .Os }}-{{ .Arch }}"
+  - formats: [none]
 
 checksum:
-  name_template: "checksums.txt"
+  disable: true
 
 changelog:
   sort: asc
@@ -67,12 +59,6 @@ release:
     curl -fsSL lognorth.com/install | sudo bash
     ```
 
-    Or download directly:
-    ```bash
-    curl -L https://github.com/karloscodes/lognorth/releases/download/{{ .Tag }}/lognorth-linux-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') -o lognorth
-    chmod +x lognorth
-    ./lognorth
-    ```
   footer: |
     ---
 

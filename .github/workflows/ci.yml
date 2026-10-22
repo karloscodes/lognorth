@@ -33,49 +33,6 @@ jobs:
       - name: Run Go tests
         run: make test
 
-  # Test that the installer actually works on a fresh Linux system. It runs as
-  # root and adds a nightly cron job, so never on the self-hosted runner.
-  install-test:
-    name: Install Test
-    runs-on: ubuntu-latest
-    if: github.repository == 'karloscodes/lognorth'
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-
-      - name: Build manager
-        run: go build -o bin/lognorth ./cmd/manager
-
-      - name: Build app image locally
-        run: docker build --tag karloscodes/lognorth:latest .
-
-      - name: Run install
-        run: echo -e "localhost\ny\n" | sudo -E ./bin/lognorth install
-        env:
-          ENV: test
-          LOGNORTH_PRIVATE_KEY: test-ci-key-not-real-do-not-use
-
-      - name: Verify install
-        run: |
-          sleep 5
-          docker ps
-          docker ps --format '{{.Names}}' | grep -q "lognorth"
-          for i in {1..12}; do
-            curl -sf http://localhost/_health && exit 0
-            sleep 5
-          done
-          exit 1
-
-      - name: Logs on failure
-        if: failure()
-        run: |
-          docker ps -a
-          docker logs lognorth 2>&1 | tail -100 || true
-          docker logs matcha-proxy 2>&1 | tail -50 || true
-
   # E2E tests with Playwright
   e2e-tests:
     name: E2E Tests
@@ -233,7 +190,7 @@ jobs:
   test:
     name: test
     if: always()
-    needs: [go-tests, install-test, e2e-tests, full-tests, gosec, govulncheck, gitleaks]
+    needs: [go-tests, e2e-tests, full-tests, gosec, govulncheck, gitleaks]
     runs-on: ubuntu-latest
     steps:
       - run: |

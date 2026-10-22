@@ -56,8 +56,7 @@ the handler is `internal/http/mcp.go`.
 the same tools: `north tail` follows the log with `search_logs` `after_id`, and
 `north top` reads `list_endpoints`, `list_alerts`, and `uptime_timeline`. Keep
 those tools' output fields stable, or release north with the change. It shares
-the agent rate limit, 60 calls a minute per IP. `cmd/manager` is the server
-command, `lognorth`, and stays server-only.
+the agent rate limit, 60 calls a minute per IP.
 
 Every alert email ends with `/lognorth:investigate <path or issue hash>`, a
 command in the plugin repo (`lognorth-releases`). Keep the tool names in sync
@@ -69,14 +68,20 @@ New installs run on Chasen (chasenhq.com). `install.sh` is the script behind
 `curl -fsSL lognorth.com/install | bash`: it installs chasen-server and deploys
 `karloscodes/lognorth:latest` with nightly updates. Each release attaches it to
 the `lognorth-releases` release, and lognorth.com/install redirects to the
-newest one. `cmd/manager` (the `lognorth` command, built on matcha) stays for
-servers of the older installer: keep its release binaries. On Chasen the image
-needs no settings: it reads `PRIVATE_KEY` and `BASE_URL`, which Chasen sets.
-`e2e/chasen.sh`, `e2e/installer.sh`, and `e2e/move-to-chasen.sh` test the three
-paths; `.github/workflows/chasen.yml` runs them on GitHub's runners, never on
-the self-hosted one, because they install chasen-server on the machine. The
-install test of `cmd/manager` (ci.yml and release.yml) runs there too: it adds
-a root cron job that starts the app again each night.
+newest one. On Chasen the image needs no settings: it reads `PRIVATE_KEY` and
+`BASE_URL`, which Chasen sets. `e2e/chasen.sh`, `e2e/installer.sh`, and
+`e2e/move-to-chasen.sh` test the three paths; `.github/workflows/chasen.yml`
+runs them on GitHub's runners, never on the self-hosted one, because they
+install chasen-server on the machine.
+
+The older installer (`cmd/manager`, the `lognorth` command, built on matcha)
+is gone since 22 October 2026 (user: remove matcha), and releases attach no
+binaries. Its servers keep the `lognorth` command they have (v0.28.1 is the
+last), and its nightly update still pulls each new image. Never attach a
+`lognorth-linux-*` binary to a release again: servers of the older installer
+update themselves from the newest lognorth-releases release, and a binary
+without `update` would end their nightly update. `e2e/move-to-chasen.sh` sets
+up the old server from v0.28.1.
 
 ### Alerting
 
