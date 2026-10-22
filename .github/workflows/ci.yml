@@ -209,7 +209,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          # The toolchain line of go.mod names the patch release. A bare "1.26" takes the runner's older copy.
+          # The go line names the patch. setup-go installs it, then sets
+          # GOTOOLCHAIN=local. A bare "1.26" keeps the runner's cached patch.
           go-version-file: go.mod
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 

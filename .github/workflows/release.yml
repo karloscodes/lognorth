@@ -56,7 +56,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          # Checkout lands in lognorth/. The path is from the workspace root.
+          go-version-file: lognorth/go.mod
           cache: true
 
       - name: Set up Node.js
@@ -204,8 +205,22 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
+          # The patch on the go line, not a bare "1.26". setup-go then sets
+          # GOTOOLCHAIN=local, so the runner's cached patch is what compiles.
           go-version-file: go.mod
           cache: true
+
+      - name: Refuse an older Go than go.mod
+        run: |
+          # The binaries uploaded to lognorth-releases are built by this Go.
+          # setup-go sets GOTOOLCHAIN=local, so an older compiler does not
+          # switch to the toolchain line. v0.28.0 asked for "1.26", the
+          # self-hosted runner's cache answered 1.26.5, and go.mod said
+          # go 1.26.0, so the build succeeded and that binary shipped.
+          want=$(awk '/^toolchain go/{print substr($2, 3); found=1; exit} /^go /{v=$2} END{if (!found) print v}' go.mod)
+          have=$(go env GOVERSION)
+          echo "go.mod wants go${want}; this runner has ${have}"
+          [ -n "$want" ] && [ "$have" = "go${want}" ]
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
