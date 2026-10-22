@@ -207,20 +207,47 @@ jobs:
         with:
           # The patch on the go line, not a bare "1.26". setup-go then sets
           # GOTOOLCHAIN=local, so the runner's cached patch is what compiles.
+          # This job checks the repo out at the workspace root, so the file
+          # is go.mod. The test job checks it out into lognorth/.
           go-version-file: go.mod
           cache: true
 
       - name: Refuse an older Go than go.mod
         run: |
-          # The binaries uploaded to lognorth-releases are built by this Go.
-          # setup-go sets GOTOOLCHAIN=local, so an older compiler does not
-          # switch to the toolchain line. v0.28.0 asked for "1.26", the
-          # self-hosted runner's cache answered 1.26.5, and go.mod said
-          # go 1.26.0, so the build succeeded and that binary shipped.
-          want=$(awk '/^toolchain go/{print substr($2, 3); found=1; exit} /^go /{v=$2} END{if (!found) print v}' go.mod)
+          set -euo pipefail
+          # Same file the setup-go step just read: go.mod at the workspace
+          # root. The test job checks the repo out into lognorth/, so its
+          # copy is lognorth/go.mod. This job does not.
+          #
+          # setup-go installs a toolchain line when one is present, and the
+          # go line otherwise, then sets GOTOOLCHAIN=local. A future line
+          # such as "toolchain go1.26.11" next to "go 1.26.10" is the
+          # compiler that ships, not the go line. v0.28.0 asked for "1.26",
+          # the runner's cache answered 1.26.5, go.mod said go 1.26.0, and
+          # that binary was published.
+          #
+          # The match is the whole version. go1.26.10 does not accept
+          # go1.26.100 or go1.26.10rc1.
+          mod=go.mod
+          want=$(awk '
+            /^toolchain go/ { print substr($2, 3); found = 1; exit }
+            /^go / { v = $2 }
+            END { if (!found) print v }
+          ' "$mod")
+          if [ -z "$want" ]; then
+            echo "refusing to publish: no Go version in $mod"
+            exit 1
+          fi
+          case "$want" in
+            go*) expected="$want" ;;
+            *) expected="go${want}" ;;
+          esac
           have=$(go env GOVERSION)
-          echo "go.mod wants go${want}; this runner has ${have}"
-          [ -n "$want" ] && [ "$have" = "go${want}" ]
+          echo "go.mod wants ${expected}; this runner has ${have}"
+          if [ -z "$have" ] || [ "$have" != "$expected" ]; then
+            echo "refusing to publish: compiler is '${have}', want ${expected}"
+            exit 1
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
