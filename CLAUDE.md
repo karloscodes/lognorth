@@ -97,6 +97,14 @@ every 5 minutes on the last complete bucket of `endpoint_stats`:
 - Warning (3σ) goes to the daily digest. Critical (5σ) sends one email per
   path per hour. An alert clears after 2 clean checks.
 
+Secrets (`internal/events/secrets.go`): `moveEvents` calls
+`events.RedactSecrets` before it stores an event, so no stored event, email,
+or MCP answer holds one. A value under a secret name (password,
+authorization, cookie, api_key, *token) is redacted silently. A value in a
+known format (Stripe live key, AWS, GitHub, Slack, Anthropic, OpenAI, private
+key) is redacted and alerts once per app and kind (`secrets_seen`). A leak
+that can't alert yet (no channel, quiet hours) tries again on the next one.
+
 ### Status Pages
 
 One public page per product (`status_pages`, Settings > Status pages). An app

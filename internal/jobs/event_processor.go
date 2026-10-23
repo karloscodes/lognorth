@@ -48,7 +48,7 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		}
 		afterID = batch[len(batch)-1].ID
 
-		moved, err := moveEvents(ctx, batch)
+		moved, leaks, err := moveEvents(ctx, batch)
 		if err != nil {
 			// Busy: the rows stay, and the next run moves them.
 			return err
@@ -60,6 +60,11 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 				if err := alerts.CheckNewErrorOrRegression(event, appName(db, appNames, event.APIKeyID)); err != nil {
 					ctx.Logger.Error("Failed to send error alert", "issue", event.IssueHash, "error", err)
 				}
+			}
+		}
+		for _, leak := range leaks {
+			if err := alerts.CheckLeak(leak, appName(db, appNames, leak.Event.APIKeyID)); err != nil {
+				ctx.Logger.Error("Failed to send secret alert", "kind", leak.Kind, "error", err)
 			}
 		}
 
@@ -75,13 +80,16 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 }
 
 // moveEvents moves a batch in one write transaction and returns the events
-// it stored. Endpoint stats count only the events that moved, and each stat
-// bucket is written once per batch.
-func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*events.Event, error) {
+// it stored, and the secrets it redacted from them. Endpoint stats count only
+// the events that moved, and each stat bucket is written once per batch.
+func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*events.Event, []events.Leak, error) {
 	var moved []*events.Event
+	var leaks []events.Leak
 	err := ctx.WriteTx(func(tx *gorm.DB) error {
 		stats := events.NewStatBatch()
 		for _, ie := range batch {
+			// Before anything reads the event, so no copy keeps a secret.
+			kinds := events.RedactSecrets(&ie)
 			event, path, err := moveEvent(tx, ie)
 			if errors.Is(err, errAlreadyMoved) {
 				continue
@@ -94,13 +102,16 @@ func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*eve
 				return err
 			}
 			moved = append(moved, event)
+			for _, kind := range kinds {
+				leaks = append(leaks, events.Leak{Event: event, Kind: kind})
+			}
 		}
 		return stats.Flush(tx)
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return moved, nil
+	return moved, leaks, nil
 }
 
 // errAlreadyMoved means another processor moved the staging row first. During

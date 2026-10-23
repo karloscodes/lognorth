@@ -2,9 +2,15 @@ package jobs
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +22,7 @@ import (
 	"lognorth/internal/database"
 	"lognorth/internal/events"
 	"lognorth/internal/license"
+	"lognorth/internal/settings"
 )
 
 func setupProcessorDB(t *testing.T) *gorm.DB {
@@ -148,11 +155,11 @@ func TestEventProcessor_TwoProcessorsMoveABatchOnce(t *testing.T) {
 		t.Fatalf("read batch: %v", err)
 	}
 
-	first, err := moveEvents(newJobCtx(db), batch)
+	first, _, err := moveEvents(newJobCtx(db), batch)
 	if err != nil {
 		t.Fatalf("first processor: %v", err)
 	}
-	second, err := moveEvents(newJobCtx(db), batch)
+	second, _, err := moveEvents(newJobCtx(db), batch)
 	if err != nil {
 		t.Fatalf("second processor: %v", err)
 	}
@@ -194,5 +201,106 @@ func TestEventProcessor_NotesReleases(t *testing.T) {
 	releases := events.ReleasesBetween(db, key.ID, started.Add(-time.Hour), time.Now())
 	if len(releases) != 1 || releases[0].Version != "a1b2c3d" || !releases[0].FirstSeen.Equal(started) {
 		t.Fatalf("expected a1b2c3d deployed at its start, got %+v", releases)
+	}
+}
+
+func TestEventProcessor_Secrets(t *testing.T) {
+	stripeKey := "sk_" + "live_" + strings.Repeat("x", 24) // joined, so gitleaks has nothing to report
+	leaking := func(appID uint) *events.IngestedEvent {
+		return &events.IngestedEvent{
+			APIKeyID: appID,
+			Message:  "POST /checkout → 200",
+			Context:  `{"method":"POST","path":"/checkout","status":200,"stripe":"` + stripeKey + `"}`,
+		}
+	}
+	setup := func(t *testing.T) (*gorm.DB, uint) {
+		db := setupProcessorDB(t)
+		key, _, err := apikeys.Create(db, "Shop")
+		if err != nil {
+			t.Fatalf("create api key: %v", err)
+		}
+		return db, key.ID
+	}
+	process := func(t *testing.T, db *gorm.DB, seed ...*events.IngestedEvent) {
+		t.Helper()
+		if err := events.CreateIngested(db, seed); err != nil {
+			t.Fatalf("create ingested: %v", err)
+		}
+		if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
+			t.Fatalf("ProcessBatch: %v", err)
+		}
+	}
+
+	t.Run("stores the event without the secret", func(t *testing.T) {
+		db, appID := setup(t)
+
+		process(t, db, leaking(appID))
+
+		var stored events.Event
+		db.First(&stored)
+		if strings.Contains(stored.Context, stripeKey) || !strings.Contains(stored.Context, "[redacted: Stripe secret key]") {
+			t.Errorf("stored context = %s, want the key redacted", stored.Context)
+		}
+	})
+
+	t.Run("alerts once per app and kind", func(t *testing.T) {
+		db, appID := setup(t)
+		alerts := webhookAlerts(t, db)
+
+		process(t, db, leaking(appID), leaking(appID))
+		process(t, db, leaking(appID))
+
+		got := alerts()
+		if len(got) != 1 {
+			t.Fatalf("alerts = %d, want 1: %v", len(got), got)
+		}
+		for _, want := range []string{"Shop — logged a secret: Stripe secret key", "at POST /checkout", "Rotate the key"} {
+			if !strings.Contains(got[0], want) {
+				t.Errorf("alert lacks %q:\n%s", want, got[0])
+			}
+		}
+	})
+
+	t.Run("alerts on the next leak once a channel exists", func(t *testing.T) {
+		db, appID := setup(t)
+		process(t, db, leaking(appID))
+		alerts := webhookAlerts(t, db)
+
+		process(t, db, leaking(appID))
+
+		if got := alerts(); len(got) != 1 {
+			t.Errorf("alerts = %d, want 1: %v", len(got), got)
+		}
+	})
+}
+
+// webhookAlerts points the alerts at a test webhook and returns the texts it
+// has received.
+func webhookAlerts(t *testing.T, db *gorm.DB) func() []string {
+	t.Helper()
+	var mu sync.Mutex
+	var texts []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var alert struct{ Text string }
+		json.NewDecoder(r.Body).Decode(&alert)
+		mu.Lock()
+		texts = append(texts, alert.Text)
+		mu.Unlock()
+	}))
+	t.Cleanup(srv.Close)
+
+	s, err := settings.Get(db)
+	if err != nil {
+		t.Fatalf("settings: %v", err)
+	}
+	s.NotifyChannel = "webhook"
+	s.WebhookURL = srv.URL
+	if err := settings.Update(db, s); err != nil {
+		t.Fatalf("save settings: %v", err)
+	}
+	return func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(texts)
 	}
 }

@@ -35,6 +35,13 @@ No "levels" (info/warn/error). Binary: error or not.
 
 **Rationale:** 400s are user errors, not bugs. Only 500s and exceptions need attention.
 
+## Secrets
+
+LogNorth redacts secrets before it stores an event:
+
+- A value under a secret name (`password`, `secret`, `authorization`, `cookie`, `api_key`, a name that ends in `token`) becomes `[redacted]`. Numbers and booleans stay.
+- A value in a known secret format becomes `[redacted: <kind>]`, for example `[redacted: Stripe secret key]`. The formats: Stripe live keys, AWS access keys, GitHub, Slack, Anthropic, and OpenAI tokens, and private keys.
+
 ## Examples
 
 ### HTTP Request (success)
@@ -122,5 +129,6 @@ Three alert types:
 | **New error** | First occurrence ever | Something broke |
 | **Regression** | Error quiet 24h+, then returns | Fix failed |
 | **Spike** | Endpoint error rate jumps >N% | Crisis happening |
+| **Secret** | First secret of a kind in an app's events | Rotate the key |
 
 Configure in Settings → Notifications.
