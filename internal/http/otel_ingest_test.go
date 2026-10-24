@@ -1,6 +1,8 @@
 package http
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,6 +87,25 @@ func TestConvertProtoLogRecord(t *testing.T) {
 		}
 		if !event.IsError {
 			t.Error("expected IsError true for exception.message")
+		}
+	})
+
+	t.Run("keeps the exception's stack trace where the issue page reads it", func(t *testing.T) {
+		lr := &logspb.LogRecord{
+			SeverityNumber: logspb.SeverityNumber_SEVERITY_NUMBER_ERROR,
+			Body:           strVal("Request failed"),
+			Attributes: []*commonpb.KeyValue{
+				attr("exception.type", "ValueError"),
+				attr("exception.stacktrace", "Traceback (most recent call last):\n  File \"app.py\", line 3"),
+			},
+		}
+
+		event := convertProtoLogRecord(lr, nil, 1)
+
+		var ctx map[string]any
+		json.Unmarshal([]byte(event.Context), &ctx)
+		if trace, _ := ctx["stack_trace"].(string); !strings.HasPrefix(trace, "Traceback") {
+			t.Errorf("stack_trace = %q, want the exception's stack trace", trace)
 		}
 	})
 

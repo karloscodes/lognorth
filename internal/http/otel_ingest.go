@@ -157,6 +157,7 @@ func convertProtoLogRecord(lr *logspb.LogRecord, resourceAttrs map[string]any, a
 	mapErrorAttribute(context, "error.message", "error")
 	mapErrorAttribute(context, "exception.type", "error_class")
 	mapErrorAttribute(context, "error.type", "error_class")
+	mapErrorAttribute(context, "exception.stacktrace", "stack_trace")
 
 	// Error detection: an ERROR severity or above, or the shared context rule
 	isError := lr.GetSeverityNumber() >= logspb.SeverityNumber_SEVERITY_NUMBER_ERROR || events.IsErrorContext(context)
