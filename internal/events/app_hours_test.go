@@ -55,7 +55,7 @@ func TestAppHours(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RecountAppHours: %v", err)
 		}
-		stats := GetStats(db, 1)
+		stats, _ := GetStats(db, 1)
 		if stats.Total != 3 || stats.Errors != 1 {
 			t.Errorf("total %d, errors %d; want 3 and 1: the old hour keeps its count", stats.Total, stats.Errors)
 		}
@@ -73,7 +73,7 @@ func TestAppHours(t *testing.T) {
 
 		var left int64
 		db.Model(&Event{}).Count(&left)
-		stats := GetStats(db, 1)
+		stats, _ := GetStats(db, 1)
 		if left != 2 || stats.Total != left || stats.Errors != 1 {
 			t.Errorf("%d events left, counted %d (%d errors); want 2 events, both counted", left, stats.Total, stats.Errors)
 		}

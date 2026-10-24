@@ -257,7 +257,7 @@ func TestGetStats(t *testing.T) {
 	Create(db, &Event{APIKeyID: 1, Message: "error2", IsError: true})
 	countHours(t, db)
 
-	stats := GetStats(db, 1)
+	stats, _ := GetStats(db, 1)
 
 	if stats.Total != 3 {
 		t.Errorf("expected total 3, got %d", stats.Total)

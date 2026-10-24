@@ -49,8 +49,11 @@ func (i *Issue) pathList() []string {
 // addPath keeps a path the issue failed on, while it has room.
 func (i *Issue) addPath(path string) {
 	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
 	paths := i.pathList()
-	if path == "" || len(paths) >= maxIssuePaths || slices.Contains(paths, path) {
+	if len(paths) >= maxIssuePaths || slices.Contains(paths, path) {
 		return
 	}
 	encoded, _ := json.Marshal(append(paths, path))

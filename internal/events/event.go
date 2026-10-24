@@ -425,7 +425,7 @@ func GetEndpointStatsSince(db *gorm.DB, apiKeyID uint, from time.Time, limit int
 
 // GetStats returns event counts. The counts come from app_hours; the last
 // event's time comes from the index on (api_key_id, timestamp).
-func GetStats(db *gorm.DB, apiKeyID uint) Stats {
+func GetStats(db *gorm.DB, apiKeyID uint) (Stats, error) {
 	var stats Stats
 
 	today := time.Now().UTC().Truncate(24 * time.Hour)
@@ -435,7 +435,9 @@ func GetStats(db *gorm.DB, apiKeyID uint) Stats {
 	if apiKeyID > 0 {
 		counts = counts.Where("api_key_id = ?", apiKeyID)
 	}
-	counts.Scan(&stats)
+	if err := counts.Scan(&stats).Error; err != nil {
+		return stats, err
+	}
 
 	var lastEvent Event
 	lastQ := db.Model(&Event{}).Order("timestamp DESC").Limit(1)
@@ -446,7 +448,7 @@ func GetStats(db *gorm.DB, apiKeyID uint) Stats {
 		stats.LastSeen = &lastEvent.Timestamp
 	}
 
-	return stats
+	return stats, nil
 }
 
 // HistogramBucket represents a time bucket for the volume histogram

@@ -65,7 +65,10 @@ func SetupPageAction(ctx *cartridge.Context) error {
 			Uptime:       &state,
 		}
 		if k.Active {
-			stats := events.GetStats(db, k.ID)
+			stats, err := events.GetStats(db, k.ID)
+			if err != nil {
+				ctx.Logger.Error("Failed to read app stats", "app", k.ID, "error", err)
+			}
 			app.TodayTotal = stats.TodayTotal
 			if stats.LastSeen != nil {
 				ts := stats.LastSeen.Unix()

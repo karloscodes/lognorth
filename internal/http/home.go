@@ -38,7 +38,10 @@ func HomePageAction(ctx *cartridge.Context) error {
 	apps := make([]AppWithStats, 0, len(keys))
 	for _, k := range keys {
 		if k.Active {
-			stats := events.GetStats(db, k.ID)
+			stats, err := events.GetStats(db, k.ID)
+			if err != nil {
+				ctx.Logger.Error("Failed to read app stats", "app", k.ID, "error", err)
+			}
 			state := states[k.ID]
 			apps = append(apps, AppWithStats{
 				ID:     k.ID,

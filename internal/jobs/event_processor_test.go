@@ -398,7 +398,7 @@ func TestEventProcessor_CountsHours(t *testing.T) {
 		var total, errors int64
 		db.Model(&events.Event{}).Where("api_key_id = ?", appID).Count(&total)
 		db.Model(&events.Event{}).Where("api_key_id = ? AND is_error = 1", appID).Count(&errors)
-		stats := events.GetStats(db, appID)
+		stats, _ := events.GetStats(db, appID)
 		if stats.Total != total || stats.Errors != errors {
 			t.Errorf("stats count %d events, %d errors; the table has %d and %d", stats.Total, stats.Errors, total, errors)
 		}
