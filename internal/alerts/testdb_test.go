@@ -7,7 +7,10 @@ import (
 	"github.com/karloscodes/cartridge/sqlite"
 	"gorm.io/gorm"
 
+	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
+	"lognorth/internal/settings"
+	"lognorth/internal/uptime"
 )
 
 // newTestDB returns a fresh database with the tables alerts reads and writes.
@@ -21,7 +24,8 @@ func newTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
-	if err := db.AutoMigrate(&events.Event{}, &events.IssueSeen{}, &events.EndpointStat{}, &SpikeState{}, &SecretSeen{}); err != nil {
+	if err := db.AutoMigrate(&events.Event{}, &events.IssueSeen{}, &events.EndpointStat{}, &events.Issue{}, &SpikeState{}, &SecretSeen{},
+		&Alert{}, &apikeys.APIKey{}, &settings.Settings{}, &uptime.Check{}, &uptime.Day{}); err != nil {
 		t.Fatalf("Failed to migrate: %v", err)
 	}
 	if err := AutoMigrateSPC(db); err != nil {
