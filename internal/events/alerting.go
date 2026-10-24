@@ -19,6 +19,10 @@ import (
 
 const (
 	RegressionQuietPeriod = 24 * time.Hour // How long error must be quiet to trigger regression
+
+	// occurrenceWriteInterval is the most often an issue's last occurrence
+	// is written.
+	occurrenceWriteInterval = time.Minute
 )
 
 // =============================================================================
@@ -110,6 +114,12 @@ func (e *AlertEngine) CheckNewErrorOrRegression(event *Event, appName string) er
 		sendErr = e.sendAlert(alertRegression, appName, event, time.Since(seen.LastOccurrenceAt))
 	}
 
+	// A regression needs a quiet day, so a minute of precision is plenty. An
+	// issue that fails on every request then costs one write a minute, not
+	// one per error, while ingest waits for the same write lock.
+	if now.Sub(seen.LastOccurrenceAt) < occurrenceWriteInterval {
+		return sendErr
+	}
 	if err := e.db.Model(&seen).Update("last_occurrence_at", now).Error; err != nil {
 		return err
 	}
