@@ -197,7 +197,7 @@ func firstIssuePaths(db *gorm.DB, hash string) ([]string, error) {
 	var paths []string
 	err := db.Raw(`SELECT path FROM (
 			SELECT CAST(json_extract(context, '$.path') AS TEXT) AS path, MIN(id) AS first
-			FROM events WHERE issue_hash = ? GROUP BY path
+			FROM events WHERE issue_hash = ? AND json_valid(context) GROUP BY path
 		) WHERE path IS NOT NULL AND TRIM(path) != ''
 		ORDER BY first LIMIT ?`, hash, maxIssuePaths).Scan(&paths).Error
 	return paths, err
