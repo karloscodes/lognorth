@@ -143,8 +143,7 @@ func Delete(db *gorm.DB, id uint) error {
 }
 
 // SetPingURL sets the URL the uptime checker pings. Clears any current
-// down state so the next probe starts fresh. Empty URL disables until
-// auto-discovery picks one up again on the next event.
+// down state so the next probe starts fresh. An empty URL stops the pings.
 func SetPingURL(db *gorm.DB, id uint, url string) error {
 	url = strings.TrimSpace(url)
 	return db.Model(&APIKey{}).Where("id = ?", id).Updates(map[string]any{
@@ -156,8 +155,7 @@ func SetPingURL(db *gorm.DB, id uint, url string) error {
 	}).Error
 }
 
-// SetPingDisabled flips the user's explicit opt-out. When disabled,
-// auto-discovery is also suppressed.
+// SetPingDisabled flips the user's explicit opt-out of the pings.
 func SetPingDisabled(db *gorm.DB, id uint, disabled bool) error {
 	updates := map[string]any{"ping_disabled": disabled}
 	if disabled {
@@ -181,9 +179,11 @@ func Rename(db *gorm.DB, id uint, newName string) error {
 	}
 
 	var dup int64
-	db.Model(&APIKey{}).
+	if err := db.Model(&APIKey{}).
 		Where("id != ? AND name = ? AND active = ?", id, trimmed, true).
-		Count(&dup)
+		Count(&dup).Error; err != nil {
+		return err
+	}
 	if dup > 0 {
 		return ErrNameDuplicate
 	}
