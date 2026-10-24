@@ -55,8 +55,9 @@ demo seed writes them, needs a recount.
 `issues` holds one row per issue: its error, first and last seen, count, and
 first 10 paths (`events.IssueBatch`, in the same transaction). The issue list
 pages it and counts only the last 14 days of errors of the issues on the page
-(24h, 7d, trend, sparkline). Retention recounts the issues it deleted events
-of (`events.RecountIssues`). The owner's state of an issue (seen, muted, the
+(24h, 7d, trend, sparkline). An issue's count and first seen are all-time:
+retention deletes an issue only when its last event goes, and the issue page
+reads the same record. The owner's state of an issue (seen, muted, the
 regression clock) stays in `issues_seen`: it is not derived from events.
 
 ### Agent Access

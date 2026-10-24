@@ -341,9 +341,11 @@ func DropIsErrorIndex(db *gorm.DB) error {
 }
 
 // DeleteOlderThan removes events older than the specified duration, their
-// hour counts, and recounts the issues they belonged to. It deletes whole hours, so app_hours still counts every
-// event that is left. It deletes in chunks, so ingest does not wait on one
-// long write lock.
+// hour counts, and the issues that have no event left. It deletes whole
+// hours, so app_hours still counts every event that is left. An issue keeps
+// its count and first seen: they say when it started, and retention does not
+// change that. It deletes in chunks, so ingest does not wait on one long
+// write lock.
 func DeleteOlderThan(db *gorm.DB, duration time.Duration) (int64, error) {
 	cutoff := time.Now().UTC().Add(-duration).Truncate(time.Hour)
 	var total int64
@@ -360,7 +362,7 @@ func DeleteOlderThan(db *gorm.DB, duration time.Duration) (int64, error) {
 	if err := db.Where("hour < ?", cutoff).Delete(&AppHour{}).Error; err != nil {
 		return total, err
 	}
-	return total, recountIssuesBefore(db, cutoff)
+	return total, db.Where("last_seen < ?", cutoff).Delete(&Issue{}).Error
 }
 
 // Stats holds event count statistics

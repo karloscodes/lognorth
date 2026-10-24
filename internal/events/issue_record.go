@@ -12,10 +12,10 @@ import (
 
 // Issue is one error of an app, grouped by its issue hash: a row of the
 // issue list. The processor keeps it as errors arrive, so the list reads one
-// row per issue instead of every error event. It is derived from the events
-// and RecountIssues rebuilds it. The owner's state of an issue (seen, muted,
-// the regression clock) stays in issues_seen: that state is not derived, and
-// it outlives the events.
+// row per issue instead of every error event. Its count and first seen are
+// all-time: retention deletes an issue only when its last event goes. The
+// owner's state of an issue (seen, muted, the regression clock) stays in
+// issues_seen: that state is not derived, and it outlives the events.
 type Issue struct {
 	ID           uint      `gorm:"primaryKey"`
 	APIKeyID     uint      `gorm:"index:idx_issues_app_last;not null"`
@@ -123,8 +123,7 @@ func findIssue(db *gorm.DB, hash string) (*Issue, error) {
 
 // RecountIssues builds the issues of the given hashes again from their error
 // events, and deletes those that have no event left. The data migration
-// fills the table with it, the processor builds a new issue with it, and
-// retention recounts the issues it deleted events of.
+// fills the table with it, and the processor builds a new issue with it.
 func RecountIssues(db *gorm.DB, hashes []string) error {
 	for start := 0; start < len(hashes); start += 500 {
 		chunk := hashes[start:min(start+500, len(hashes))]
@@ -205,16 +204,6 @@ func firstIssuePaths(db *gorm.DB, hash string) ([]string, error) {
 func RecountAllIssues(db *gorm.DB) error {
 	var hashes []string
 	if err := db.Model(&Event{}).Where("issue_hash != ''").Distinct("issue_hash").Pluck("issue_hash", &hashes).Error; err != nil {
-		return err
-	}
-	return RecountIssues(db, hashes)
-}
-
-// recountIssuesBefore recounts the issues that had an event before cutoff,
-// after retention deleted those events.
-func recountIssuesBefore(db *gorm.DB, cutoff time.Time) error {
-	var hashes []string
-	if err := db.Model(&Issue{}).Where("first_seen < ?", cutoff).Pluck("hash", &hashes).Error; err != nil {
 		return err
 	}
 	return RecountIssues(db, hashes)

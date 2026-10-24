@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -257,15 +258,45 @@ func TestListIssuesWithStateMatchesTheEvents(t *testing.T) {
 		compare(t)
 	})
 
-	t.Run("after retention deleted the events of 14 days ago and older", func(t *testing.T) {
+	t.Run("after retention, an issue keeps its all-time count and first seen", func(t *testing.T) {
+		before, _ := ListIssuesWithState(db, 1, 100)
+
 		if _, err := DeleteOlderThan(db, 14*day); err != nil {
 			t.Fatal(err)
 		}
+
 		var gone int64
 		db.Model(&Issue{}).Where("error_class = ?", "OldError").Count(&gone)
 		if gone != 0 {
 			t.Errorf("the issue whose events are all deleted is still listed")
 		}
-		compare(t)
+		after, _ := ListIssuesWithState(db, 1, 100)
+		if len(after) != len(before)-1 {
+			t.Fatalf("listed %d issues after retention, want %d", len(after), len(before)-1)
+		}
+		for _, issue := range after {
+			for _, was := range before {
+				if was.Hash == issue.Hash && (was.Count != issue.Count || was.FirstSeen != issue.FirstSeen) {
+					t.Errorf("%s: count %d first seen %s, want %d and %s from before retention",
+						issue.ErrorClass, issue.Count, issue.FirstSeen, was.Count, was.FirstSeen)
+				}
+			}
+			detail, err := GetIssueByHash(db, issue.Hash, 1)
+			if err != nil || detail == nil || detail.Count != issue.Count || detail.FirstSeen != issue.FirstSeen {
+				t.Errorf("%s: the issue page shows %+v, want the list's count %d and first seen %s",
+					issue.ErrorClass, detail, issue.Count, issue.FirstSeen)
+			}
+		}
 	})
+}
+
+// firstPaths, a helper of the oracle, splits a GROUP_CONCAT result and keeps the first 10 paths.
+func firstPaths(s string) []string {
+	paths := []string{}
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" && len(paths) < 10 {
+			paths = append(paths, p)
+		}
+	}
+	return paths
 }

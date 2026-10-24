@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -286,17 +285,6 @@ func ParseSQLiteTimestamp(s string) time.Time {
 	return time.Time{}
 }
 
-// firstPaths splits a GROUP_CONCAT result and keeps the first 10 paths.
-func firstPaths(s string) []string {
-	paths := []string{}
-	for _, p := range strings.Split(s, ",") {
-		if p = strings.TrimSpace(p); p != "" && len(paths) < 10 {
-			paths = append(paths, p)
-		}
-	}
-	return paths
-}
-
 // RelatedLocation represents another location where the same error occurs.
 //
 // SameFile is true when the related location is in the same file as the current issue
@@ -401,21 +389,16 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 		apiKeyID = entries[0].APIKeyID
 	}
 
-	var agg struct {
-		Count     int64  `gorm:"column:count"`
-		FirstSeen string `gorm:"column:first_seen"`
-		LastSeen  string `gorm:"column:last_seen"`
-		Paths     string `gorm:"column:paths"`
+	// The record holds the all-time count, first seen, and paths, as the
+	// issue list shows them.
+	var record Issue
+	if err := db.Where("hash = ? AND api_key_id = ?", hash, apiKeyID).Limit(1).Find(&record).Error; err != nil {
+		return nil, err
 	}
-	db.Raw(`
-		SELECT COUNT(*) as count, MIN(timestamp) as first_seen, MAX(timestamp) as last_seen,
-			GROUP_CONCAT(DISTINCT json_extract(context, '$.path')) as paths
-		FROM events
-		WHERE issue_hash = ? AND api_key_id = ?
-	`, hash, apiKeyID).Scan(&agg)
-
-	lastSeen := ParseSQLiteTimestamp(agg.LastSeen)
-	firstSeen := ParseSQLiteTimestamp(agg.FirstSeen)
+	if record.ID == 0 {
+		return nil, nil
+	}
+	lastSeen := record.LastSeen
 
 	var seen IssueSeen
 	db.Where("error_hash = ?", hash).First(&seen)
@@ -428,10 +411,10 @@ func GetIssueByHash(db *gorm.DB, hash string, apiKeyID uint) (*IssueDetail, erro
 			ErrorFile:  first.ErrorFile,
 			ErrorLine:  first.ErrorLine,
 			Hash:       hash,
-			Count:      agg.Count,
-			FirstSeen:  formatTimestampISO(firstSeen),
+			Count:      record.Count,
+			FirstSeen:  formatTimestampISO(record.FirstSeen),
 			LastSeen:   formatTimestampISO(lastSeen),
-			Paths:      firstPaths(agg.Paths),
+			Paths:      record.pathList(),
 			Unseen:     seen.ID == 0 || lastSeen.After(seen.SeenAt),
 			Active:     lastSeen.After(time.Now().Add(-7 * 24 * time.Hour)),
 			Muted:      seen.Muted,

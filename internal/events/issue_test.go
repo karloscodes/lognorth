@@ -90,40 +90,6 @@ func TestComputeErrorHashes(t *testing.T) {
 }
 
 // =============================================================================
-// firstPaths - Helper function
-// =============================================================================
-
-func TestFirstPaths(t *testing.T) {
-	t.Run("empty string", func(t *testing.T) {
-		result := firstPaths("")
-		if len(result) != 0 {
-			t.Errorf("expected empty slice, got %v", result)
-		}
-	})
-
-	t.Run("single path", func(t *testing.T) {
-		result := firstPaths("/api/users")
-		if len(result) != 1 || result[0] != "/api/users" {
-			t.Errorf("expected ['/api/users'], got %v", result)
-		}
-	})
-
-	t.Run("multiple paths", func(t *testing.T) {
-		result := firstPaths("/api/users,/api/orders,/api/products")
-		if len(result) != 3 {
-			t.Errorf("expected 3 paths, got %d", len(result))
-		}
-	})
-
-	t.Run("trims whitespace", func(t *testing.T) {
-		result := firstPaths("/api/users , /api/orders ")
-		if len(result) != 2 || result[0] != "/api/users" || result[1] != "/api/orders" {
-			t.Errorf("expected trimmed paths, got %v", result)
-		}
-	})
-}
-
-// =============================================================================
 // scoreIssue - Prioritization logic
 // =============================================================================
 
