@@ -85,7 +85,7 @@ func (j *DigestSender) buildDigestBody(db *gorm.DB, items []events.DigestItem, s
 			Count(&totalEvents)
 
 		db.Model(&events.Event{}).
-			Where("api_key_id = ? AND timestamp > ? AND is_error = ?", key.ID, yesterday, true).
+			Where("api_key_id = ? AND timestamp > ? AND is_error = 1", key.ID, yesterday).
 			Count(&totalErrors)
 
 		if totalEvents > 0 {

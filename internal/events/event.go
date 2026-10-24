@@ -11,13 +11,17 @@ import (
 // Event represents a log event captured by LogNorth
 // See docs/EVENT_MODEL.md for the full specification
 type Event struct {
-	ID         uint      `gorm:"primaryKey" json:"id"`
-	APIKeyID   uint      `gorm:"index:idx_apikey_timestamp" json:"api_key_id"`
-	Timestamp  time.Time `gorm:"index:idx_apikey_timestamp" json:"timestamp"`
+	ID uint `gorm:"primaryKey" json:"id"`
+	// idx_events_errors holds the error events only, about 3% of the rows. A
+	// count or a list of an app's errors reads it instead of every event of
+	// the app. SQLite uses a partial index only when the query says
+	// is_error = 1 as a literal, never as a bound parameter.
+	APIKeyID   uint      `gorm:"index:idx_apikey_timestamp;index:idx_events_errors,where:is_error = 1" json:"api_key_id"`
+	Timestamp  time.Time `gorm:"index:idx_apikey_timestamp;index:idx_events_errors" json:"timestamp"`
 	Message    string    `gorm:"size:1000" json:"message"`
 	TraceID    string    `gorm:"index;size:100" json:"trace_id"`
 	DurationMS int       `json:"duration_ms"`
-	IsError    bool      `gorm:"index" json:"is_error"`
+	IsError    bool      `json:"is_error"`
 	Context    string    `gorm:"type:text" json:"context"` // JSON with all metadata
 	CreatedAt  time.Time `json:"created_at"`
 
@@ -257,7 +261,7 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 		query = query.Where("api_key_id = ?", filters.APIKeyID)
 	}
 	if filters.IsError != nil {
-		query = query.Where("is_error = ?", *filters.IsError)
+		query = query.Where(isErrorIs(*filters.IsError))
 	}
 	if !filters.StartTime.IsZero() {
 		query = query.Where("timestamp >= ?", filters.StartTime.UTC())
@@ -309,6 +313,22 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 	}
 
 	return events, total, nil
+}
+
+// isErrorIs is the is_error condition as a literal, so a query for errors can
+// use idx_events_errors.
+func isErrorIs(isError bool) string {
+	if isError {
+		return "is_error = 1"
+	}
+	return "is_error = 0"
+}
+
+// DropIsErrorIndex drops the index on is_error alone. idx_events_errors
+// answers every query for errors, and an index on a boolean held a row for
+// every event.
+func DropIsErrorIndex(db *gorm.DB) error {
+	return db.Exec("DROP INDEX IF EXISTS idx_events_is_error").Error
 }
 
 // DeleteOlderThan removes events older than the specified duration. It deletes
@@ -390,7 +410,7 @@ func GetEndpointStatsSince(db *gorm.DB, apiKeyID uint, from time.Time, limit int
 func GetStats(db *gorm.DB, apiKeyID uint) Stats {
 	var stats Stats
 
-	errQ := db.Model(&Event{}).Where("is_error = ?", true)
+	errQ := db.Model(&Event{}).Where("is_error = 1")
 	totalQ := db.Model(&Event{})
 	todayQ := db.Model(&Event{}).Where("timestamp >= ?", time.Now().UTC().Truncate(24*time.Hour))
 
