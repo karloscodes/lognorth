@@ -249,7 +249,7 @@ func parseAppFilters(c *cartridge.Context, appID uint) events.ListFilters {
 	}
 
 	if limit, err := strconv.Atoi(c.Query("limit")); err == nil && limit > 0 {
-		filters.Limit = limit
+		filters.Limit = min(limit, 200)
 	}
 	if offset, err := strconv.Atoi(c.Query("offset")); err == nil && offset > 0 {
 		filters.Offset = offset
