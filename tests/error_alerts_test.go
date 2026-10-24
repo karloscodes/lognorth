@@ -60,6 +60,9 @@ func occur(t *testing.T, db *gorm.DB, context string) *events.Event {
 	if err := events.Create(db, event); err != nil {
 		t.Fatalf("create event: %v", err)
 	}
+	if err := events.RecountIssues(db, []string{event.IssueHash}); err != nil {
+		t.Fatalf("count the issue: %v", err)
+	}
 	engine, err := events.NewAlertEngine(db)
 	if err != nil {
 		t.Fatalf("alert engine: %v", err)

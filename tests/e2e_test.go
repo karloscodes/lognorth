@@ -282,6 +282,8 @@ func TestIssuesGrouping(t *testing.T) {
 		})
 		events.Create(db, event)
 	}
+	// The processor keeps the issues table; this test writes events directly.
+	events.RecountAllIssues(db)
 
 	issues, err := events.ListIssuesWithState(db, 0, 10) // 0 = all apps
 

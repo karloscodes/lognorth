@@ -334,6 +334,15 @@ func countHours(t *testing.T, db *gorm.DB) {
 	}
 }
 
+// countIssues builds the issues table from the stored error events, as the
+// processor does for the events it moves.
+func countIssues(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := RecountAllIssues(db); err != nil {
+		t.Fatalf("RecountAllIssues: %v", err)
+	}
+}
+
 func TestGetHistogram(t *testing.T) {
 	sum := func(buckets []HistogramBucket) (total, errors int64) {
 		for _, b := range buckets {

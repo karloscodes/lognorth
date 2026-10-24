@@ -961,6 +961,9 @@ func main() {
 	if err := events.RecountAppHours(tx, time.Time{}); err != nil {
 		log.Fatalf("Failed to count the hours: %v", err)
 	}
+	if err := events.RecountAllIssues(tx); err != nil {
+		log.Fatalf("Failed to count the issues: %v", err)
+	}
 	if err := tx.Commit().Error; err != nil {
 		log.Fatalf("Failed to save the demo data: %v", err)
 	}

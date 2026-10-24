@@ -90,103 +90,62 @@ type IssueWithState struct {
 // sparklineDays is how many days of daily counts each issue row carries.
 const sparklineDays = 14
 
-// issueRow is one issue as the aggregation query returns it.
-type issueRow struct {
-	Error      string `gorm:"column:error"`
-	ErrorClass string `gorm:"column:error_class"`
-	ErrorFile  string `gorm:"column:error_file"`
-	ErrorLine  int    `gorm:"column:error_line"`
-	IssueHash  string `gorm:"column:issue_hash"`
-	APIKeyID   uint   `gorm:"column:api_key_id"`
-	Count      int64  `gorm:"column:count"`
-	FirstSeen  string `gorm:"column:first_seen"` // SQLite returns string from MIN()
-	LastSeen   string `gorm:"column:last_seen"`  // SQLite returns string from MAX()
-	Paths      string `gorm:"column:paths"`      // Comma-separated from GROUP_CONCAT
-	Count24h   int64  `gorm:"column:count_24h"`
-	Count7d    int64  `gorm:"column:count_7d"`
-	Recent     int64  `gorm:"column:recent"`   // Last 2 hours, for the trend
-	Previous   int64  `gorm:"column:previous"` // 2 to 4 hours ago, for the trend
-}
-
-// ListIssuesWithState returns the most recent issues, one per issue_hash, with
-// their counts, trend, and seen state. An apiKeyID of 0 means every app.
+// ListIssuesWithState returns the most recent issues with their counts,
+// trend, and seen state. An apiKeyID of 0 means every app. The page comes
+// from the issues table; the windowed counts come from the last 14 days of
+// error events of the issues on the page.
 func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithState, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 
 	now := time.Now().UTC()
-	query := `
-		SELECT
-			error_message as error,
-			error_class,
-			error_file,
-			error_line,
-			issue_hash,
-			api_key_id,
-			COUNT(*) as count,
-			MIN(timestamp) as first_seen,
-			MAX(timestamp) as last_seen,
-			GROUP_CONCAT(DISTINCT json_extract(context, '$.path')) as paths,
-			SUM(CASE WHEN timestamp >= ? THEN 1 ELSE 0 END) as count_24h,
-			SUM(CASE WHEN timestamp >= ? THEN 1 ELSE 0 END) as count_7d,
-			SUM(CASE WHEN timestamp >= ? THEN 1 ELSE 0 END) as recent,
-			SUM(CASE WHEN timestamp >= ? AND timestamp < ? THEN 1 ELSE 0 END) as previous
-		FROM events
-		WHERE is_error = 1 AND issue_hash != ''
-	`
-	args := []any{
-		now.Add(-24 * time.Hour), now.Add(-7 * 24 * time.Hour),
-		now.Add(-2 * time.Hour), now.Add(-4 * time.Hour), now.Add(-2 * time.Hour),
-	}
+	query := db.Order("last_seen DESC").Limit(limit)
 	if apiKeyID > 0 {
-		query += " AND api_key_id = ?"
-		args = append(args, apiKeyID)
+		query = query.Where("api_key_id = ?", apiKeyID)
 	}
-	query += " GROUP BY issue_hash ORDER BY last_seen DESC LIMIT ?"
-	args = append(args, limit)
-
-	var rows []issueRow
-	if err := db.Raw(query, args...).Scan(&rows).Error; err != nil {
+	var page []Issue
+	if err := query.Find(&page).Error; err != nil {
 		return nil, err
 	}
 
-	hashes := make([]string, len(rows))
-	for i, row := range rows {
-		hashes[i] = row.IssueHash
+	hashes := make([]string, len(page))
+	for i, issue := range page {
+		hashes[i] = issue.Hash
 	}
 	seenMap := loadSeen(db, hashes)
-	daily := dailyCounts(db, apiKeyID, hashes, now, sparklineDays)
+	recent := recentCounts(db, apiKeyID, hashes, now)
 
-	issues := make([]IssueWithState, 0, len(rows))
-	for _, row := range rows {
-		lastSeen := ParseSQLiteTimestamp(row.LastSeen)
-		firstSeen := ParseSQLiteTimestamp(row.FirstSeen)
-
+	issues := make([]IssueWithState, 0, len(page))
+	for _, row := range page {
+		r := recent[row.Hash]
+		if r == nil {
+			r = &recentIssueCounts{} // no error in the last 14 days
+		}
 		issue := IssueWithState{
-			Error:      row.Error,
+			Error:      row.ErrorMessage,
 			ErrorClass: row.ErrorClass,
 			ErrorFile:  row.ErrorFile,
 			ErrorLine:  row.ErrorLine,
-			Hash:       row.IssueHash,
+			Hash:       row.Hash,
 			APIKeyID:   row.APIKeyID,
 			Count:      row.Count,
-			Count24h:   row.Count24h,
-			Count7d:    row.Count7d,
-			FirstSeen:  formatTimestampISO(firstSeen),
-			LastSeen:   formatTimestampISO(lastSeen),
-			Paths:      firstPaths(row.Paths),
-			Active:     lastSeen.After(now.Add(-7 * 24 * time.Hour)),
-			IsNew:      firstSeen.After(now.Add(-24 * time.Hour)),
-			Trend:      trend(row.Recent, row.Previous),
-			Daily:      daily[row.IssueHash],
+			Count24h:   r.count24h,
+			Count7d:    r.count7d,
+			FirstSeen:  formatTimestampISO(row.FirstSeen),
+			LastSeen:   formatTimestampISO(row.LastSeen),
+			Paths:      row.pathList(),
+			Active:     row.LastSeen.After(now.Add(-7 * 24 * time.Hour)),
+			IsNew:      row.FirstSeen.After(now.Add(-24 * time.Hour)),
+			Trend:      trend(r.recent, r.previous),
+			Daily:      r.daily,
 			Unseen:     true,
 		}
 		if issue.Daily == nil {
 			issue.Daily = make([]int64, sparklineDays)
 		}
-		if seen, ok := seenMap[row.IssueHash]; ok {
-			issue.Unseen = lastSeen.After(seen.SeenAt)
+		if seen, ok := seenMap[row.Hash]; ok {
+			issue.Unseen = row.LastSeen.After(seen.SeenAt)
 			issue.Muted = seen.Muted
 		}
 		issues = append(issues, issue)
@@ -204,22 +163,38 @@ func ListIssuesWithState(db *gorm.DB, apiKeyID uint, limit int) ([]IssueWithStat
 	return issues, nil
 }
 
-// dailyCounts returns each issue's error count per UTC day for the last `days`
-// days, oldest first. One grouped query covers the whole list, so no N+1.
-func dailyCounts(db *gorm.DB, apiKeyID uint, hashes []string, now time.Time, days int) map[string][]int64 {
-	counts := make(map[string][]int64, len(hashes))
+// recentIssueCounts are an issue's error counts over the recent windows.
+type recentIssueCounts struct {
+	count24h, count7d int64
+	recent, previous  int64   // the last 2 hours, and the 2 hours before, for the trend
+	daily             []int64 // per UTC day, last sparklineDays days, oldest first
+}
+
+// recentCounts counts the given issues' errors over the last sparklineDays
+// UTC days, in one grouped query, so no N+1.
+func recentCounts(db *gorm.DB, apiKeyID uint, hashes []string, now time.Time) map[string]*recentIssueCounts {
+	counts := make(map[string]*recentIssueCounts, len(hashes))
 	if len(hashes) == 0 {
 		return counts
 	}
-	start := now.UTC().Truncate(24*time.Hour).AddDate(0, 0, -(days - 1))
+	start := now.UTC().Truncate(24*time.Hour).AddDate(0, 0, -(sparklineDays - 1))
 
 	var rows []struct {
 		IssueHash string
 		Day       string
 		Count     int64
+		Count24h  int64
+		Count7d   int64
+		Recent    int64
+		Previous  int64
 	}
 	query := db.Table("events").
-		Select("issue_hash, date(timestamp) as day, COUNT(*) as count").
+		Select(`issue_hash, date(timestamp) AS day, COUNT(*) AS count,
+			SUM(CASE WHEN timestamp >= ? THEN 1 ELSE 0 END) AS count24h,
+			SUM(CASE WHEN timestamp >= ? THEN 1 ELSE 0 END) AS count7d,
+			SUM(CASE WHEN timestamp >= ? THEN 1 ELSE 0 END) AS recent,
+			SUM(CASE WHEN timestamp >= ? AND timestamp < ? THEN 1 ELSE 0 END) AS previous`,
+			now.Add(-24*time.Hour), now.Add(-7*24*time.Hour), now.Add(-2*time.Hour), now.Add(-4*time.Hour), now.Add(-2*time.Hour)).
 		Where("is_error = 1 AND issue_hash IN ? AND timestamp >= ?", hashes, start)
 	if apiKeyID > 0 {
 		query = query.Where("api_key_id = ?", apiKeyID)
@@ -229,18 +204,22 @@ func dailyCounts(db *gorm.DB, apiKeyID uint, hashes []string, now time.Time, day
 	}
 
 	for _, r := range rows {
+		c := counts[r.IssueHash]
+		if c == nil {
+			c = &recentIssueCounts{daily: make([]int64, sparklineDays)}
+			counts[r.IssueHash] = c
+		}
+		c.count24h += r.Count24h
+		c.count7d += r.Count7d
+		c.recent += r.Recent
+		c.previous += r.Previous
 		day, err := time.Parse("2006-01-02", r.Day)
 		if err != nil {
 			continue
 		}
-		i := int(day.Sub(start).Hours() / 24)
-		if i < 0 || i >= days {
-			continue
+		if i := int(day.Sub(start).Hours() / 24); i >= 0 && i < sparklineDays {
+			c.daily[i] = r.Count
 		}
-		if counts[r.IssueHash] == nil {
-			counts[r.IssueHash] = make([]int64, days)
-		}
-		counts[r.IssueHash][i] = r.Count
 	}
 	return counts
 }

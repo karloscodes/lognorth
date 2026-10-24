@@ -457,3 +457,34 @@ func TestEventProcessor_CountsHours(t *testing.T) {
 		countsMatch(t, db, key.ID)
 	})
 }
+
+func TestEventProcessor_KeepsIssues(t *testing.T) {
+	db := setupProcessorDB(t)
+	shop, _, _ := apikeys.Create(db, "Shop")
+	failing := func(class, path string, ago time.Duration) *events.IngestedEvent {
+		return &events.IngestedEvent{
+			APIKeyID: shop.ID, Message: "failed", IsError: true, Timestamp: time.Now().Add(-ago),
+			Context: fmt.Sprintf(`{"path":%q,"status":500,"error":"boom","error_class":%q,"error_file":"a.rb","error_line":1}`, path, class),
+		}
+	}
+	for run, seed := range [][]*events.IngestedEvent{
+		{failing("A", "/a", 3*time.Hour), failing("B", "/b", 2*time.Hour)},
+		{failing("A", "/a2", time.Hour), failing("A", "/a", 72*time.Hour), failing("C", "", time.Minute)},
+		{failing("B", "/b", 10*time.Second)},
+	} {
+		events.CreateIngested(db, seed)
+		if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
+			t.Fatalf("run %d: %v", run, err)
+		}
+	}
+
+	kept, _ := events.ListIssuesWithState(db, shop.ID, 100)
+	events.RecountAllIssues(db)
+	recounted, _ := events.ListIssuesWithState(db, shop.ID, 100)
+
+	keptJSON, _ := json.Marshal(kept)
+	recountedJSON, _ := json.Marshal(recounted)
+	if len(kept) != 3 || string(keptJSON) != string(recountedJSON) {
+		t.Errorf("kept by the processor:\n%s\nrecounted from the events:\n%s", keptJSON, recountedJSON)
+	}
+}

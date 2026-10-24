@@ -243,6 +243,7 @@ func TestMarkAllIssuesSeen_ClearsUnseenInListing(t *testing.T) {
 
 	makeErrorEvent(t, db, 1, "TypeError", "undefined is not a function", "app.ts", 42)
 	makeErrorEvent(t, db, 1, "RuntimeError", "boom", "worker.go", 10)
+	countIssues(t, db)
 
 	issues, err := ListIssuesWithState(db, 1, 50)
 	if err != nil {
@@ -275,6 +276,7 @@ func TestMarkAllIssuesSeen_ClearsUnseenInListing(t *testing.T) {
 func TestListIssuesWithState_TimestampsAreISO8601UTC(t *testing.T) {
 	db := setupIssueTestDB(t)
 	makeErrorEvent(t, db, 1, "TypeError", "boom", "app.ts", 1)
+	countIssues(t, db)
 
 	issues, err := ListIssuesWithState(db, 1, 50)
 	if err != nil {
@@ -301,6 +303,7 @@ func TestListIssuesWithState_TimestampsAreISO8601UTC(t *testing.T) {
 func TestGetIssueOccurrencesByHour_HourIsISO8601UTC(t *testing.T) {
 	db := setupIssueTestDB(t)
 	makeErrorEvent(t, db, 1, "TypeError", "boom", "app.ts", 1)
+	countIssues(t, db)
 
 	issues, err := ListIssuesWithState(db, 1, 50)
 	if err != nil || len(issues) != 1 {
@@ -333,6 +336,7 @@ func TestMarkIssueSeen_ClearsUnseenInListing(t *testing.T) {
 	db := setupIssueTestDB(t)
 
 	makeErrorEvent(t, db, 1, "TypeError", "undefined is not a function", "app.ts", 42)
+	countIssues(t, db)
 
 	issues, err := ListIssuesWithState(db, 1, 50)
 	if err != nil {
@@ -356,7 +360,7 @@ func TestMarkIssueSeen_ClearsUnseenInListing(t *testing.T) {
 	}
 }
 
-func TestDailyCounts(t *testing.T) {
+func TestRecentCounts(t *testing.T) {
 	now := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
 
 	at := func(t *testing.T, db *gorm.DB, when time.Time) string {
@@ -374,7 +378,7 @@ func TestDailyCounts(t *testing.T) {
 		at(t, db, now.Add(-3*time.Hour))
 		at(t, db, now.AddDate(0, 0, -3))
 
-		daily := dailyCounts(db, 1, []string{hash}, now, 14)[hash]
+		daily := recentCounts(db, 1, []string{hash}, now)[hash].daily
 
 		if len(daily) != 14 {
 			t.Fatalf("expected 14 days, got %d", len(daily))
@@ -391,16 +395,17 @@ func TestDailyCounts(t *testing.T) {
 		db := setupIssueTestDB(t)
 		hash := at(t, db, now.AddDate(0, 0, -20))
 
-		daily := dailyCounts(db, 1, []string{hash}, now, 14)
+		counts := recentCounts(db, 1, []string{hash}, now)
 
-		if daily[hash] != nil {
-			t.Errorf("expected no counts, got %v", daily[hash])
+		if counts[hash] != nil {
+			t.Errorf("expected no counts, got %+v", counts[hash])
 		}
 	})
 
 	t.Run("the issue list carries the counts", func(t *testing.T) {
 		db := setupIssueTestDB(t)
 		makeErrorEvent(t, db, 1, "TypeError", "boom", "app.ts", 1)
+		countIssues(t, db)
 
 		issues, err := ListIssuesWithState(db, 1, 50)
 

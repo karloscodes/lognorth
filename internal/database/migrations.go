@@ -28,6 +28,7 @@ var dataMigrations = []struct {
 	{"2026-09-22-drop-onboarding-sessions", func(db *gorm.DB) error { return db.Exec("DROP TABLE IF EXISTS onboarding_sessions").Error }},
 	{"2026-10-24-events-drop-is-error-index", events.DropIsErrorIndex},
 	{"2026-10-25-app-hours", func(db *gorm.DB) error { return events.RecountAppHours(db, time.Time{}) }},
+	{"2026-10-25-issues", events.RecountAllIssues},
 }
 
 // schemaMigration records one data migration that ran.

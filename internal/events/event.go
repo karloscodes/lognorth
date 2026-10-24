@@ -340,8 +340,8 @@ func DropIsErrorIndex(db *gorm.DB) error {
 	return db.Exec("DROP INDEX IF EXISTS idx_events_is_error").Error
 }
 
-// DeleteOlderThan removes events older than the specified duration, and
-// their hour counts. It deletes whole hours, so app_hours still counts every
+// DeleteOlderThan removes events older than the specified duration, their
+// hour counts, and recounts the issues they belonged to. It deletes whole hours, so app_hours still counts every
 // event that is left. It deletes in chunks, so ingest does not wait on one
 // long write lock.
 func DeleteOlderThan(db *gorm.DB, duration time.Duration) (int64, error) {
@@ -357,7 +357,10 @@ func DeleteOlderThan(db *gorm.DB, duration time.Duration) (int64, error) {
 			break
 		}
 	}
-	return total, db.Where("hour < ?", cutoff).Delete(&AppHour{}).Error
+	if err := db.Where("hour < ?", cutoff).Delete(&AppHour{}).Error; err != nil {
+		return total, err
+	}
+	return total, recountIssuesBefore(db, cutoff)
 }
 
 // Stats holds event count statistics
