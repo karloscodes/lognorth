@@ -277,8 +277,8 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 		query = query.Where("trace_id = ?", filters.TraceID)
 	}
 	if filters.Search != "" {
-		search := "%" + filters.Search + "%"
-		query = query.Where("message LIKE ? OR context LIKE ? OR trace_id LIKE ?", search, search, search)
+		search := "%" + likeEscaper.Replace(filters.Search) + "%"
+		query = query.Where(`message LIKE ? ESCAPE '\' OR context LIKE ? ESCAPE '\' OR trace_id LIKE ? ESCAPE '\'`, search, search, search)
 	}
 	if filters.AfterID > 0 {
 		query = query.Where("id > ?", filters.AfterID)
@@ -319,6 +319,10 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 
 	return events, total, nil
 }
+
+// likeEscaper makes a search term match itself: in LIKE, % and _ are
+// wildcards, so a search for "100%" would match "1000".
+var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
 
 // isErrorIs is the is_error condition as a literal, so a query for errors can
 // use idx_events_errors.

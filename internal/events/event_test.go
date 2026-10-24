@@ -167,6 +167,29 @@ func TestList_Filters(t *testing.T) {
 	})
 }
 
+func TestList_SearchMatchesTheTermAsWritten(t *testing.T) {
+	db := setupTestDB(t)
+	Create(db, &Event{APIKeyID: 1, Message: "disk at 100%"})
+	Create(db, &Event{APIKeyID: 1, Message: "1000 rows"})
+	Create(db, &Event{APIKeyID: 1, Message: "user_id missing"})
+	Create(db, &Event{APIKeyID: 1, Message: "userXid missing"})
+	Create(db, &Event{APIKeyID: 1, Message: `C:\temp full`})
+
+	for search, want := range map[string]string{
+		"100%":    "disk at 100%",
+		"user_id": "user_id missing",
+		`C:\temp`: `C:\temp full`,
+	} {
+		t.Run(search, func(t *testing.T) {
+			events, total, _ := List(db, ListFilters{APIKeyID: 1, Search: search})
+
+			if total != 1 || len(events) != 1 || events[0].Message != want {
+				t.Errorf("found %d: %+v, want only %q", total, events, want)
+			}
+		})
+	}
+}
+
 func TestList_Total(t *testing.T) {
 	db := setupTestDB(t)
 	for _, message := range []string{"one", "two", "three"} {
