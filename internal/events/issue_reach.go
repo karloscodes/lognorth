@@ -14,7 +14,10 @@ type IssueReach struct {
 }
 
 // GetIssueReach counts the distinct users and releases of an issue's errors,
-// and names the release it first and last appeared in.
+// and names the release it first and last appeared in. Only error events
+// have an issue hash, so the queries name no is_error: with it, SQLite reads
+// every error of the app through idx_events_errors instead of the issue's
+// rows through idx_events_issue_hash.
 func GetIssueReach(db *gorm.DB, hash string, apiKeyID uint) (IssueReach, error) {
 	var reach IssueReach
 	err := db.Raw(`
@@ -22,7 +25,7 @@ func GetIssueReach(db *gorm.DB, hash string, apiKeyID uint) (IssueReach, error) 
 			COUNT(DISTINCT json_extract(context, '$.user')) AS users,
 			COUNT(DISTINCT json_extract(context, '$.release')) AS releases
 		FROM events
-		WHERE issue_hash = ? AND api_key_id = ? AND is_error = 1
+		WHERE issue_hash = ? AND api_key_id = ?
 	`, hash, apiKeyID).Scan(&reach).Error
 	if err != nil || reach.Releases == 0 {
 		return reach, err
@@ -32,7 +35,7 @@ func GetIssueReach(db *gorm.DB, hash string, apiKeyID uint) (IssueReach, error) 
 		var r string
 		db.Raw(`
 			SELECT json_extract(context, '$.release') FROM events
-			WHERE issue_hash = ? AND api_key_id = ? AND is_error = 1 AND json_extract(context, '$.release') IS NOT NULL
+			WHERE issue_hash = ? AND api_key_id = ? AND json_extract(context, '$.release') IS NOT NULL
 			ORDER BY timestamp `+order+`, id `+order+` LIMIT 1
 		`, hash, apiKeyID).Scan(&r)
 		return r

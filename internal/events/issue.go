@@ -379,11 +379,13 @@ type PathCount struct {
 
 // GetIssuePaths returns where an issue happened: its errors grouped by request
 // path, most first. Events without a path (jobs, plain logs) are left out.
+// Only error events have an issue hash, so the query names no is_error (see
+// GetIssueReach).
 func GetIssuePaths(db *gorm.DB, hash string, apiKeyID uint, limit int) ([]PathCount, error) {
 	query := `
 		SELECT json_extract(context, '$.path') as path, COUNT(*) as count
 		FROM events
-		WHERE issue_hash = ? AND api_key_id = ? AND is_error = 1
+		WHERE issue_hash = ? AND api_key_id = ?
 			AND json_extract(context, '$.path') IS NOT NULL AND json_extract(context, '$.path') != ''
 		GROUP BY path
 		ORDER BY count DESC, path
