@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/karloscodes/cartridge"
@@ -47,7 +48,13 @@ const (
 	pingUserAgent   = "LogNorth Uptime/1.0 (+https://lognorth.com)"
 )
 
-// ProcessBatch probes the configured URL for all eligible apps.
+// maxParallelProbes caps the probes in flight. Each one can wait
+// probeTimeout, so one after another, twelve apps that time out would take
+// the whole minute between sweeps.
+const maxParallelProbes = 16
+
+// ProcessBatch probes the URL of every app at the same time, then applies
+// the results one app at a time.
 func (s *UptimeSweeper) ProcessBatch(ctx *cartridge.JobContext) error {
 	db := ctx.DB
 
@@ -58,33 +65,40 @@ func (s *UptimeSweeper) ProcessBatch(ctx *cartridge.JobContext) error {
 		return err
 	}
 
-	if len(keys) == 0 {
+	now := time.Now()
+	var due []*apikeys.APIKey
+	for i := range keys {
+		// Bootstrap grace: no probe in the first 10 minutes after an app is
+		// created, so an app that is not deployed yet does not page.
+		if keys[i].PingURL != "" && now.Sub(keys[i].CreatedAt) >= bootstrapWindow {
+			due = append(due, &keys[i])
+		}
+	}
+	if len(due) == 0 {
 		return nil
 	}
 
-	settingsRow, _ := settings.Get(db)
-	now := time.Now()
-
-	for i := range keys {
-		s.checkApp(db, &keys[i], settingsRow, now)
+	checks := make([]uptime.Check, len(due))
+	slots := make(chan struct{}, maxParallelProbes)
+	var wg sync.WaitGroup
+	for i, key := range due {
+		slots <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-slots }()
+			checks[i] = s.probe(key.PingURL)
+		})
 	}
+	wg.Wait()
 
+	settingsRow, _ := settings.Get(db)
+	for i, key := range due {
+		s.apply(db, key, checks[i], settingsRow, now)
+	}
 	return nil
 }
 
-// checkApp probes the configured URL and applies state transitions.
-func (s *UptimeSweeper) checkApp(db *gorm.DB, key *apikeys.APIKey, settingsRow *settings.Settings, now time.Time) {
-	// Bootstrap grace: don't alert during the first 10 minutes after an
-	// app is created. Avoids paging on apps that haven't been deployed.
-	if now.Sub(key.CreatedAt) < bootstrapWindow {
-		return
-	}
-
-	if key.PingURL == "" {
-		return // no URL set; user adds one via [edit]
-	}
-
-	check := s.probe(key.PingURL)
+// apply records a probe and applies the state transitions.
+func (s *UptimeSweeper) apply(db *gorm.DB, key *apikeys.APIKey, check uptime.Check, settingsRow *settings.Settings, now time.Time) {
 	check.APIKeyID = key.ID
 	check.CheckedAt = now
 	// Every probe is kept so the app can show response times and failures.
