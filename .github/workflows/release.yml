@@ -15,14 +15,11 @@ permissions:
 jobs:
   test:
     name: Run Tests (with SDKs)
-    runs-on: [self-hosted, Linux, X64, n100]
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: lognorth
     steps:
-      - name: Setup toolcache directory
-        run: sudo mkdir -p /opt/hostedtoolcache && sudo chown -R $USER:$USER /opt/hostedtoolcache
-        working-directory: /
 
       - name: Checkout LogNorth
         uses: actions/checkout@v7
@@ -31,27 +28,21 @@ jobs:
 
       - name: Checkout TypeScript SDK
         uses: actions/checkout@v7
-        continue-on-error: true
         with:
           repository: karloscodes/lognorth-sdk-ts
           path: lognorth-sdk-ts
-          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Checkout Go SDK
         uses: actions/checkout@v7
-        continue-on-error: true
         with:
           repository: karloscodes/lognorth-sdk-go
           path: lognorth-sdk-go
-          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Checkout Rails SDK
         uses: actions/checkout@v7
-        continue-on-error: true
         with:
           repository: karloscodes/lognorth-sdk-rails
           path: lognorth-sdk-rails
-          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -79,7 +70,7 @@ jobs:
 
   e2e-tests:
     name: E2E Tests
-    runs-on: [self-hosted, Linux, X64, n100]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -134,7 +125,7 @@ jobs:
 
   release:
     name: Build and Release
-    runs-on: [self-hosted, Linux, X64, n100]
+    runs-on: ubuntu-latest
     needs: [test, e2e-tests, chasen]
     steps:
       - uses: actions/checkout@v7
@@ -188,6 +179,9 @@ jobs:
             exit 1
           fi
 
+      # GitHub's runners are amd64. QEMU builds the arm64 image.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
