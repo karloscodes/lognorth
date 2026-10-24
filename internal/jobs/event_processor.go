@@ -25,7 +25,8 @@ const processBatchSize = 100
 // record endpoint stats, delete the staging row. A crash never processes an
 // event twice, and a row that fails rolls back alone and stays for the next
 // run without blocking the rows after it. Alerts go out after the commit, so
-// a slow email never holds the write lock.
+// a slow email never holds the write lock. The new and regressed issues of
+// one run go out as one alert per app.
 func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 	db := ctx.DB
 
@@ -35,6 +36,17 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		return err
 	}
 	appNames := map[uint]string{}
+	pending := map[uint][]events.ErrorAlert{}
+	var apps []uint
+	// Sent on every return: the issue state is already recorded, so an alert
+	// left unsent would never go out.
+	defer func() {
+		for _, appID := range apps {
+			if err := alerts.SendErrorAlerts(appID, appName(db, appNames, appID), pending[appID]); err != nil {
+				ctx.Logger.Error("Failed to send error alert", "app", appID, "error", err)
+			}
+		}
+	}()
 
 	var afterID uint
 	processed := 0
@@ -56,10 +68,18 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		processed += len(moved)
 
 		for _, event := range moved {
-			if event.IsError {
-				if err := alerts.CheckNewErrorOrRegression(event, appName(db, appNames, event.APIKeyID)); err != nil {
-					ctx.Logger.Error("Failed to send error alert", "issue", event.IssueHash, "error", err)
+			if !event.IsError {
+				continue
+			}
+			alert, err := alerts.RecordOccurrence(event)
+			if err != nil {
+				ctx.Logger.Error("Failed to record an issue occurrence", "issue", event.IssueHash, "error", err)
+			}
+			if alert != nil {
+				if pending[event.APIKeyID] == nil {
+					apps = append(apps, event.APIKeyID)
 				}
+				pending[event.APIKeyID] = append(pending[event.APIKeyID], *alert)
 			}
 		}
 		for _, leak := range leaks {

@@ -52,7 +52,8 @@ func setupErrorAlerts(t *testing.T) (*gorm.DB, *ntfyInbox) {
 	return db, inbox
 }
 
-// occur stores one error event and runs the per-error alert check on it.
+// occur stores one error event, records it, and sends its alert, as one
+// processor run with one error does.
 func occur(t *testing.T, db *gorm.DB, context string) *events.Event {
 	t.Helper()
 	event := &events.Event{APIKeyID: 1, Message: "POST /pay 500", IsError: true, Context: context}
@@ -63,8 +64,14 @@ func occur(t *testing.T, db *gorm.DB, context string) *events.Event {
 	if err != nil {
 		t.Fatalf("alert engine: %v", err)
 	}
-	if err := engine.CheckNewErrorOrRegression(event, "shop"); err != nil {
-		t.Fatalf("alert check: %v", err)
+	alert, err := engine.RecordOccurrence(event)
+	if err != nil {
+		t.Fatalf("record occurrence: %v", err)
+	}
+	if alert != nil {
+		if err := engine.SendErrorAlerts(event.APIKeyID, "shop", []events.ErrorAlert{*alert}); err != nil {
+			t.Fatalf("send alert: %v", err)
+		}
 	}
 	return event
 }

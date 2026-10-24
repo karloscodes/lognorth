@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -298,4 +299,93 @@ func webhookAlerts(t *testing.T, db *gorm.DB) func() []string {
 		defer mu.Unlock()
 		return slices.Clone(texts)
 	}
+}
+
+func TestEventProcessor_ErrorAlerts(t *testing.T) {
+	failing := func(appID uint, class string, line int) *events.IngestedEvent {
+		return &events.IngestedEvent{
+			APIKeyID: appID, Message: "POST /pay → 500", IsError: true,
+			Context: fmt.Sprintf(`{"method":"POST","path":"/pay","status":500,"error":"boom","error_class":%q,"error_file":"pay.rb","error_line":%d}`, class, line),
+		}
+	}
+	setup := func(t *testing.T) (*gorm.DB, uint, func() []string) {
+		db := setupProcessorDB(t)
+		key, _, _ := apikeys.Create(db, "Shop")
+		return db, key.ID, webhookAlerts(t, db)
+	}
+	process := func(t *testing.T, db *gorm.DB, seed ...*events.IngestedEvent) {
+		t.Helper()
+		events.CreateIngested(db, seed)
+		if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
+			t.Fatalf("ProcessBatch: %v", err)
+		}
+	}
+
+	t.Run("one new issue sends the alert it always sent", func(t *testing.T) {
+		db, appID, alerts := setup(t)
+
+		process(t, db, failing(appID, "PaymentError", 41))
+
+		got := alerts()
+		if len(got) != 1 || !strings.HasPrefix(got[0], "Shop — new: PaymentError: boom\n\nPaymentError: boom\nat pay.rb:41") {
+			t.Errorf("alerts = %q, want one alert for the new issue", got)
+		}
+	})
+
+	t.Run("three new issues in one run send one alert", func(t *testing.T) {
+		db, appID, alerts := setup(t)
+
+		process(t, db, failing(appID, "PaymentError", 41), failing(appID, "TimeoutError", 7), failing(appID, "PaymentError", 41), failing(appID, "ParseError", 3))
+
+		got := alerts()
+		if len(got) != 1 {
+			t.Fatalf("alerts = %d, want 1: %q", len(got), got)
+		}
+		for _, want := range []string{"Shop — 3 new errors", "new: PaymentError: boom\n  at pay.rb:41", "new: TimeoutError: boom", "new: ParseError: boom", "/lognorth:investigate "} {
+			if !strings.Contains(got[0], want) {
+				t.Errorf("alert lacks %q:\n%s", want, got[0])
+			}
+		}
+	})
+
+	t.Run("a new issue and one back after a quiet day share one alert", func(t *testing.T) {
+		db, appID, alerts := setup(t)
+		process(t, db, failing(appID, "PaymentError", 41))
+		db.Model(&events.IssueSeen{}).Where("1 = 1").Update("last_occurrence_at", time.Now().Add(-48*time.Hour))
+
+		process(t, db, failing(appID, "PaymentError", 41), failing(appID, "TimeoutError", 7))
+
+		got := alerts()
+		if len(got) != 2 || !strings.HasPrefix(got[1], "Shop — 1 new error, 1 back") || !strings.Contains(got[1], "back after 2d: PaymentError: boom") {
+			t.Errorf("alerts = %q, want the first alert, then one with the new and the returning issue", got)
+		}
+	})
+
+	t.Run("each app gets its own alert", func(t *testing.T) {
+		db, shop, alerts := setup(t)
+		blog, _, _ := apikeys.Create(db, "Blog")
+
+		process(t, db, failing(shop, "PaymentError", 41), failing(blog.ID, "TimeoutError", 7), failing(shop, "ParseError", 3))
+
+		got := alerts()
+		slices.Sort(got)
+		if len(got) != 2 || !strings.HasPrefix(got[0], "Blog — new: TimeoutError") || !strings.HasPrefix(got[1], "Shop — 2 new errors") {
+			t.Errorf("alerts = %q, want one for Blog and one for Shop", got)
+		}
+	})
+
+	t.Run("lists ten issues and links the rest", func(t *testing.T) {
+		db, appID, alerts := setup(t)
+		var seed []*events.IngestedEvent
+		for line := range 12 {
+			seed = append(seed, failing(appID, "PaymentError", line+1))
+		}
+
+		process(t, db, seed...)
+
+		got := alerts()
+		if len(got) != 1 || strings.Count(got[0], "new: ") != 10 || !strings.Contains(got[0], "And 2 more") {
+			t.Errorf("alerts = %q, want one alert that lists 10 and counts 2 more", got)
+		}
+	})
 }

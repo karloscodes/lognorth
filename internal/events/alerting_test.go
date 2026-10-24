@@ -36,15 +36,15 @@ func TestAlertBody(t *testing.T) {
 	})
 }
 
-func TestCheckNewErrorOrRegression(t *testing.T) {
+func TestRecordOccurrence(t *testing.T) {
 	recur := func(t *testing.T, lastOccurrence time.Time) time.Time {
 		t.Helper()
 		db := newTestDB(t)
 		db.Create(&IssueSeen{ErrorHash: "abc", LastOccurrenceAt: lastOccurrence})
 		engine := &AlertEngine{db: db, settings: &settings.Settings{}}
 
-		if err := engine.CheckNewErrorOrRegression(&Event{IsError: true, IssueHash: "abc"}, "shop"); err != nil {
-			t.Fatalf("CheckNewErrorOrRegression: %v", err)
+		if _, err := engine.RecordOccurrence(&Event{IsError: true, IssueHash: "abc"}); err != nil {
+			t.Fatalf("RecordOccurrence: %v", err)
 		}
 
 		var seen IssueSeen

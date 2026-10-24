@@ -86,6 +86,9 @@ up the old server from v0.28.1.
 ### Alerting
 
 Per-error alerts (new error, regression) are in `internal/events/alerting.go`.
+`RecordOccurrence` keeps the issue state per event; the processor collects
+the alerts of one run and `SendErrorAlerts` sends one per app ("shop — 3 new
+errors", at most 10 listed). One issue keeps its own subject and body.
 Rate alerts (spike, drift, silence) are SPC, run by `jobs/anomaly_checker.go`
 every 5 minutes on the last complete bucket of `endpoint_stats`:
 
