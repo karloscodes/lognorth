@@ -85,3 +85,47 @@ func TestStatBatchKeysOnTheEndpoint(t *testing.T) {
 		t.Errorf("rows = %+v, want one /users/:id row with 1000 requests and 500 errors", rows)
 	}
 }
+
+func TestListByEndpoint(t *testing.T) {
+	db := setupTestDB(t)
+	for _, path := range []string{"/users/1", "/users/22", "/users/3/orders", "/users", "/posts/hello", "/posts/a/b", "/files/a/b/c"} {
+		Create(db, &Event{APIKeyID: 1, Message: "GET " + path, Context: `{"path":"` + path + `"}`})
+	}
+
+	for _, c := range []struct {
+		endpoint string
+		want     int
+	}{
+		{"/users/:id", 2},
+		{"/users", 1},
+		{"/users/:id/orders", 1},
+		{"/posts/:slug", 1},
+		{"/files/*path", 1},
+		{"/nowhere/:id", 0},
+	} {
+		t.Run(c.endpoint, func(t *testing.T) {
+			found, total, err := List(db, ListFilters{APIKeyID: 1, Endpoint: c.endpoint})
+
+			if err != nil || total != int64(c.want) || len(found) != c.want {
+				t.Errorf("found %d (total %d, err %v), want %d", len(found), total, err, c.want)
+			}
+		})
+	}
+
+	// The Endpoints page and north open an endpoint by searching for its key.
+	t.Run("a search for an endpoint with a parameter reads as the endpoint", func(t *testing.T) {
+		found, total, err := List(db, ListFilters{APIKeyID: 1, Search: "/users/:id"})
+
+		if err != nil || total != 2 || len(found) != 2 {
+			t.Errorf("found %d (total %d, err %v), want /users/1 and /users/22", len(found), total, err)
+		}
+	})
+
+	t.Run("a search for a plain path stays a text search", func(t *testing.T) {
+		found, _, _ := List(db, ListFilters{APIKeyID: 1, Search: "/users"})
+
+		if len(found) != 4 {
+			t.Errorf("found %d, want the 4 events that mention /users", len(found))
+		}
+	})
+}

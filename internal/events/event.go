@@ -243,6 +243,7 @@ type ListFilters struct {
 	IsError   *bool  // nil = all, true = errors only, false = success only
 	ErrorHash string // filter by error hash (grouped issue)
 	TraceID   string // filter by trace ID
+	Endpoint  string // filter by endpoint (events.EndpointKey): the events whose path belongs to it
 	Search    string
 	StartTime time.Time
 	EndTime   time.Time
@@ -275,6 +276,16 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 	}
 	if filters.TraceID != "" {
 		query = query.Where("trace_id = ?", filters.TraceID)
+	}
+	// The Endpoints page and north open an endpoint by searching for its key.
+	// A key with a parameter (/users/:id) is in no URL as text, so it reads
+	// as the endpoint.
+	if filters.Endpoint == "" && IsEndpointPattern(filters.Search) {
+		filters.Endpoint, filters.Search = filters.Search, ""
+	}
+	if filters.Endpoint != "" {
+		condition, args := endpointCondition(filters.Endpoint)
+		query = query.Where(condition, args...)
 	}
 	if filters.Search != "" {
 		search := "%" + likeEscaper.Replace(filters.Search) + "%"

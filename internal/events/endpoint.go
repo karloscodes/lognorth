@@ -183,6 +183,12 @@ func endpointsOf(db *gorm.DB, appID uint, path string) ([]appEndpoint, error) {
 	return matches, nil
 }
 
+// IsEndpointPattern reports whether s is an endpoint key with a parameter,
+// such as /users/:id or /files/*path.
+func IsEndpointPattern(s string) bool {
+	return strings.HasPrefix(s, "/") && (strings.Contains(s, "/:") || strings.Contains(s, "/*"))
+}
+
 // endpointCondition matches the events whose path belongs to an endpoint:
 // its literal segments as written, one segment for each :x, and any rest
 // for a *x or a trailing /. It reads the path out of the context of each

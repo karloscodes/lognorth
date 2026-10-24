@@ -134,7 +134,7 @@ var Tools = []map[string]any{
 		"inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path":   map[string]any{"type": "string", "description": "Endpoint path, e.g. /api/checkout."},
+				"path":   map[string]any{"type": "string", "description": "Endpoint path, e.g. /api/checkout, or a URL of it, e.g. /users/123 for /users/:id."},
 				"app_id": map[string]any{"type": "integer", "description": "The app, from list_apps. Optional when only one app has this path."},
 				"since":  map[string]any{"type": "string", "description": "How far back: 30m, 6h, 7d. Default 6h."},
 			},
@@ -172,7 +172,7 @@ var Tools = []map[string]any{
 		"inputSchema": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"search":      map[string]any{"type": "string", "description": "Text to match in the message and context, e.g. a path or an error string."},
+				"search":      map[string]any{"type": "string", "description": "Text to match in the message and context, e.g. a path or an error string. An endpoint from list_endpoints with a parameter (/users/:id) matches the requests of that endpoint."},
 				"errors_only": map[string]any{"type": "boolean", "description": "Only requests that failed. Default false."},
 				"issue":       map[string]any{"type": "string", "description": "An issue hash from list_issues: only the events of that issue."},
 				"since":       map[string]any{"type": "string", "description": "Start of the window: 15m, 2h, 7d ago, or an RFC 3339 time. Default 1h."},
@@ -335,6 +335,14 @@ func endpointTimeline(db *gorm.DB, args map[string]any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A URL (/users/123) reads the traffic of its endpoint (/users/:id).
+	endpoint, err := events.EndpointOf(db, appID, path)
+	if err != nil {
+		return nil, fmt.Errorf("could not read the endpoints: %w", err)
+	}
+	if endpoint == "" {
+		endpoint = events.EndpointKey("", path)
+	}
 
 	since := argString(args, "since")
 	if since == "" {
@@ -352,17 +360,17 @@ func endpointTimeline(db *gorm.DB, args map[string]any) (any, error) {
 		step = time.Hour
 	}
 
-	points, err := events.GetTimeline(db, appID, path, from.UTC(), time.Now().UTC(), step)
+	points, err := events.GetTimeline(db, appID, endpoint, from.UTC(), time.Now().UTC(), step)
 	if err != nil {
 		return nil, fmt.Errorf("could not read the timeline: %w", err)
 	}
 	at := events.LastCompleteBucketTime()
-	errorRate, _ := alerts.GetErrorRateBaseline(db, appID, path, at)
-	volume, _ := alerts.GetVolumeBaseline(db, appID, path, at)
+	errorRate, _ := alerts.GetErrorRateBaseline(db, appID, endpoint, at)
+	volume, _ := alerts.GetVolumeBaseline(db, appID, endpoint, at)
 
 	return map[string]any{
 		"app_id":       appID,
-		"path":         path,
+		"path":         endpoint,
 		"step_minutes": int(step.Minutes()),
 		"normal": map[string]any{
 			"error_rate":       errorRate.Rate,

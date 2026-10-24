@@ -533,6 +533,31 @@ func TestEndpointTimeline(t *testing.T) {
 		}
 	})
 
+	t.Run("finds the endpoint of a URL", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		at := events.LastCompleteBucketTime()
+		record(db, appID, "/users/:id", at, 100, 50)
+
+		result := call(t, db, "tools/call", `{"name":"endpoint_timeline","arguments":{"path":"/users/123","since":"1h"}}`)
+
+		var payload struct {
+			Path   string                 `json:"path"`
+			Points []events.TimelinePoint `json:"points"`
+		}
+		json.Unmarshal([]byte(toolText(t, result)), &payload)
+		if payload.Path != "/users/:id" {
+			t.Errorf("path = %q, want the endpoint /users/:id", payload.Path)
+		}
+		var requests int64
+		for _, p := range payload.Points {
+			requests += p.Requests
+		}
+		if requests != 100 {
+			t.Errorf("requests = %d, want the endpoint's 100", requests)
+		}
+	})
+
 	t.Run("requires a path", func(t *testing.T) {
 		db := setupTestDB(t)
 
@@ -568,6 +593,18 @@ func TestListEndpoints(t *testing.T) {
 		}
 		if first := payload.Endpoints[0]; first.Path != "/pay" || first.Total != 100 || first.ErrorRate != 20 {
 			t.Errorf("first = %+v, want /pay at 20%%", first)
+		}
+	})
+
+	t.Run("names the endpoint, not each URL", func(t *testing.T) {
+		db := setupTestDB(t)
+		appID := seedApp(t, db, "checkout-prod")
+		record(db, appID, "/users/:id", events.LastCompleteBucketTime(), 300, 0)
+
+		result := call(t, db, "tools/call", `{"name":"list_endpoints","arguments":{}}`)
+
+		if text := toolText(t, result); !strings.Contains(text, `"path":"/users/:id"`) {
+			t.Errorf("text = %q, want the endpoint /users/:id in path", text)
 		}
 	})
 
