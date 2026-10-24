@@ -107,6 +107,7 @@ func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*eve
 	var leaks []events.Leak
 	err := ctx.WriteTx(func(tx *gorm.DB) error {
 		stats := events.NewStatBatch()
+		hours := events.HourBatch{}
 		for _, ie := range batch {
 			// Before anything reads the event, so no copy keeps a secret.
 			kinds := events.RedactSecrets(&ie)
@@ -121,12 +122,16 @@ func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*eve
 			if err := stats.Add(tx, ie.APIKeyID, path, ie.IsError, ie.DurationMS, event.Timestamp); err != nil {
 				return err
 			}
+			hours.Add(ie.APIKeyID, ie.IsError, event.Timestamp)
 			moved = append(moved, event)
 			for _, kind := range kinds {
 				leaks = append(leaks, events.Leak{Event: event, Kind: kind})
 			}
 		}
-		return stats.Flush(tx)
+		if err := stats.Flush(tx); err != nil {
+			return err
+		}
+		return hours.Flush(tx)
 	})
 	if err != nil {
 		return nil, nil, err

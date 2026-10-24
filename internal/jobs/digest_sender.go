@@ -75,18 +75,16 @@ func (j *DigestSender) buildDigestBody(db *gorm.DB, items []events.DigestItem, s
 	var keys []apikeys.APIKey
 	db.Where("active = ?", true).Find(&keys)
 
-	yesterday := time.Now().UTC().AddDate(0, 0, -1)
+	// The last 24 whole hours and the hour that runs now.
+	since := time.Now().UTC().Truncate(time.Hour).Add(-24 * time.Hour)
 	wroteStats := false
 	for _, key := range keys {
-		var totalEvents, totalErrors int64
-
-		db.Model(&events.Event{}).
-			Where("api_key_id = ? AND timestamp > ?", key.ID, yesterday).
-			Count(&totalEvents)
-
-		db.Model(&events.Event{}).
-			Where("api_key_id = ? AND timestamp > ? AND is_error = 1", key.ID, yesterday).
-			Count(&totalErrors)
+		var day struct{ Total, Errors int64 }
+		db.Model(&events.AppHour{}).
+			Select("COALESCE(SUM(total), 0) AS total, COALESCE(SUM(errors), 0) AS errors").
+			Where("api_key_id = ? AND hour >= ?", key.ID, since).
+			Scan(&day)
+		totalEvents, totalErrors := day.Total, day.Errors
 
 		if totalEvents > 0 {
 			errorRate := float64(totalErrors) / float64(totalEvents) * 100

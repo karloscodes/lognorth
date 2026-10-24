@@ -956,6 +956,11 @@ func main() {
 	if err := saveRequestStats(tx); err != nil {
 		log.Fatalf("Failed to save endpoint stats: %v", err)
 	}
+	// The processor counts each hour as events arrive; the seed wrote events
+	// directly, so it counts them here.
+	if err := events.RecountAppHours(tx, time.Time{}); err != nil {
+		log.Fatalf("Failed to count the hours: %v", err)
+	}
 	if err := tx.Commit().Error; err != nil {
 		log.Fatalf("Failed to save the demo data: %v", err)
 	}

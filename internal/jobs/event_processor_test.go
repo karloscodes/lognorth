@@ -389,3 +389,71 @@ func TestEventProcessor_ErrorAlerts(t *testing.T) {
 		}
 	})
 }
+
+func TestEventProcessor_CountsHours(t *testing.T) {
+	// countsMatch checks the home page counts and the 30-day histogram
+	// against the stored events.
+	countsMatch := func(t *testing.T, db *gorm.DB, appID uint) {
+		t.Helper()
+		var total, errors int64
+		db.Model(&events.Event{}).Where("api_key_id = ?", appID).Count(&total)
+		db.Model(&events.Event{}).Where("api_key_id = ? AND is_error = 1", appID).Count(&errors)
+		stats := events.GetStats(db, appID)
+		if stats.Total != total || stats.Errors != errors {
+			t.Errorf("stats count %d events, %d errors; the table has %d and %d", stats.Total, stats.Errors, total, errors)
+		}
+		var drawn int64
+		for _, b := range events.GetHistogram(db, appID, time.Now().AddDate(0, 0, -30), time.Time{}) {
+			drawn += b.Total
+		}
+		if drawn != total {
+			t.Errorf("the histogram draws %d events; the table has %d", drawn, total)
+		}
+	}
+	request := func(appID uint, at time.Time, failed bool) *events.IngestedEvent {
+		status := 200
+		if failed {
+			status = 500
+		}
+		return &events.IngestedEvent{
+			APIKeyID: appID, Message: "GET /", IsError: failed, Timestamp: at,
+			Context: fmt.Sprintf(`{"method":"GET","path":"/","status":%d}`, status),
+		}
+	}
+
+	t.Run("counts every moved event in its hour, a late one too", func(t *testing.T) {
+		db := setupProcessorDB(t)
+		key, _, _ := apikeys.Create(db, "Shop")
+		now := time.Now()
+		events.CreateIngested(db, []*events.IngestedEvent{request(key.ID, now, false), request(key.ID, now, true)})
+		NewEventProcessor().ProcessBatch(newJobCtx(db))
+		events.CreateIngested(db, []*events.IngestedEvent{request(key.ID, now, false), request(key.ID, now.Add(-72*time.Hour), true)})
+
+		err := NewEventProcessor().ProcessBatch(newJobCtx(db))
+
+		if err != nil {
+			t.Fatalf("ProcessBatch: %v", err)
+		}
+		countsMatch(t, db, key.ID)
+		var old events.AppHour
+		db.Where("api_key_id = ? AND hour = ?", key.ID, now.Add(-72*time.Hour).UTC().Truncate(time.Hour)).First(&old)
+		if old.Total != 1 || old.Errors != 1 {
+			t.Errorf("the hour 3 days ago counts %d (%d errors), want the late error", old.Total, old.Errors)
+		}
+	})
+
+	t.Run("cleanup counts the events an older LogNorth moved without counting", func(t *testing.T) {
+		db := setupProcessorDB(t)
+		key, _, _ := apikeys.Create(db, "Shop")
+		events.CreateIngested(db, []*events.IngestedEvent{request(key.ID, time.Now(), false)})
+		NewEventProcessor().ProcessBatch(newJobCtx(db))
+		events.Create(db, &events.Event{APIKeyID: key.ID, Message: "moved by the old version", IsError: true})
+
+		err := NewCleanupProcessor().ProcessBatch(newJobCtx(db))
+
+		if err != nil {
+			t.Fatalf("cleanup: %v", err)
+		}
+		countsMatch(t, db, key.ID)
+	})
+}

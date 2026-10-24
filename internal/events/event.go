@@ -340,10 +340,12 @@ func DropIsErrorIndex(db *gorm.DB) error {
 	return db.Exec("DROP INDEX IF EXISTS idx_events_is_error").Error
 }
 
-// DeleteOlderThan removes events older than the specified duration. It deletes
-// in chunks, so ingest does not wait on one long write lock.
+// DeleteOlderThan removes events older than the specified duration, and
+// their hour counts. It deletes whole hours, so app_hours still counts every
+// event that is left. It deletes in chunks, so ingest does not wait on one
+// long write lock.
 func DeleteOlderThan(db *gorm.DB, duration time.Duration) (int64, error) {
-	cutoff := time.Now().UTC().Add(-duration)
+	cutoff := time.Now().UTC().Add(-duration).Truncate(time.Hour)
 	var total int64
 	for {
 		result := db.Exec("DELETE FROM events WHERE id IN (SELECT id FROM events WHERE timestamp < ? LIMIT 5000)", cutoff)
@@ -352,9 +354,10 @@ func DeleteOlderThan(db *gorm.DB, duration time.Duration) (int64, error) {
 		}
 		total += result.RowsAffected
 		if result.RowsAffected < 5000 {
-			return total, nil
+			break
 		}
 	}
+	return total, db.Where("hour < ?", cutoff).Delete(&AppHour{}).Error
 }
 
 // Stats holds event count statistics
@@ -415,25 +418,20 @@ func GetEndpointStatsSince(db *gorm.DB, apiKeyID uint, from time.Time, limit int
 	return stats, err
 }
 
-// GetStats returns event counts
+// GetStats returns event counts. The counts come from app_hours; the last
+// event's time comes from the index on (api_key_id, timestamp).
 func GetStats(db *gorm.DB, apiKeyID uint) Stats {
 	var stats Stats
 
-	errQ := db.Model(&Event{}).Where("is_error = 1")
-	totalQ := db.Model(&Event{})
-	todayQ := db.Model(&Event{}).Where("timestamp >= ?", time.Now().UTC().Truncate(24*time.Hour))
-
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	counts := db.Model(&AppHour{}).Select(
+		"COALESCE(SUM(total), 0) AS total, COALESCE(SUM(errors), 0) AS errors, "+
+			"COALESCE(SUM(CASE WHEN hour >= ? THEN total ELSE 0 END), 0) AS today_total", today)
 	if apiKeyID > 0 {
-		errQ = errQ.Where("api_key_id = ?", apiKeyID)
-		totalQ = totalQ.Where("api_key_id = ?", apiKeyID)
-		todayQ = todayQ.Where("api_key_id = ?", apiKeyID)
+		counts = counts.Where("api_key_id = ?", apiKeyID)
 	}
+	counts.Scan(&stats)
 
-	errQ.Count(&stats.Errors)
-	totalQ.Count(&stats.Total)
-	todayQ.Count(&stats.TodayTotal)
-
-	// Get last event timestamp
 	var lastEvent Event
 	lastQ := db.Model(&Event{}).Order("timestamp DESC").Limit(1)
 	if apiKeyID > 0 {
@@ -496,38 +494,16 @@ func GetHistogram(db *gorm.DB, apiKeyID uint, startTime, endTime time.Time) []Hi
 		result[i].Timestamp = startTime.Add(time.Duration(i) * bucketDuration)
 	}
 
-	// Each bucket is two counts of an index range: the events from
-	// idx_apikey_timestamp, the errors from idx_events_errors. Neither reads
-	// a row of the table. Bucketing each row with strftime read the table,
-	// and took 1.2 s for 30 days of 1.2M events; this takes 50 ms.
-	app := ""
-	var args []any
-	if apiKeyID > 0 {
-		app = "api_key_id = ? AND "
-		args = append(args, apiKeyID, apiKeyID)
-	}
-	values := make([]string, buckets)
-	for i, b := range result {
-		values[i] = "(?, ?, ?)"
-		args = append(args, i, b.Timestamp, b.Timestamp.Add(bucketDuration))
-	}
-	query := `SELECT b.column1 AS bucket,
-		(SELECT COUNT(*) FROM events WHERE ` + app + `timestamp >= b.column2 AND timestamp < b.column3) AS total,
-		(SELECT COUNT(*) FROM events WHERE ` + app + `is_error = 1 AND timestamp >= b.column2 AND timestamp < b.column3) AS errors
-		FROM (VALUES ` + strings.Join(values, ", ") + `) AS b`
-
-	var counts []struct {
-		Bucket int
-		Total  int64
-		Errors int64
-	}
-	if err := db.Raw(query, args...).Scan(&counts).Error; err != nil {
+	// Every bucket is whole hours, so it adds up the app's stored hours.
+	hours, err := appHoursIn(db, apiKeyID, startTime, startTime.Add(time.Duration(buckets)*bucketDuration))
+	if err != nil {
 		return result
 	}
-	for _, c := range counts {
-		if c.Bucket >= 0 && c.Bucket < buckets {
-			result[c.Bucket].Total = c.Total
-			result[c.Bucket].Errors = c.Errors
+	for _, h := range hours {
+		i := int(h.Hour.Sub(startTime) / bucketDuration)
+		if i >= 0 && i < buckets {
+			result[i].Total += h.Total
+			result[i].Errors += h.Errors
 		}
 	}
 	return result

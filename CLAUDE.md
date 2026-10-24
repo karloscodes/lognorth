@@ -43,6 +43,15 @@ SDK → POST /api/v1/events → IngestedEvent table (fast write)
                           Aggregates (issues, stats)
 ```
 
+Counts are written as events move, never counted on a page load:
+`endpoint_stats` holds 5-minute buckets per path, and `app_hours` holds each
+app's events and errors per UTC hour (`events.HourBatch`, in the processor's
+transaction). The home page, the log histogram, and the digest read
+`app_hours`. Retention deletes whole hours, so the counts always match the
+events. The cleanup job recounts the last two hours from the events
+(`events.RecountAppHours`); an event written outside the processor, as the
+demo seed writes them, needs a recount.
+
 ### Agent Access
 
 Agents read the log through MCP only. `POST /mcp` speaks JSON-RPC over HTTP,

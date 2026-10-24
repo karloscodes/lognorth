@@ -255,6 +255,7 @@ func TestGetStats(t *testing.T) {
 	Create(db, &Event{APIKeyID: 1, Message: "success", IsError: false})
 	Create(db, &Event{APIKeyID: 1, Message: "error1", IsError: true})
 	Create(db, &Event{APIKeyID: 1, Message: "error2", IsError: true})
+	countHours(t, db)
 
 	stats := GetStats(db, 1)
 
@@ -324,6 +325,15 @@ func TestGetEndpointStats(t *testing.T) {
 	})
 }
 
+// countHours counts the stored events into app_hours, as the processor does
+// for the events it moves. The tests here write events directly.
+func countHours(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := RecountAppHours(db, time.Time{}); err != nil {
+		t.Fatalf("RecountAppHours: %v", err)
+	}
+}
+
 func TestGetHistogram(t *testing.T) {
 	sum := func(buckets []HistogramBucket) (total, errors int64) {
 		for _, b := range buckets {
@@ -337,6 +347,7 @@ func TestGetHistogram(t *testing.T) {
 		db := setupTestDB(t)
 		Create(db, &Event{APIKeyID: 1, Message: "now", Timestamp: time.Now()})
 		Create(db, &Event{APIKeyID: 1, Message: "failed now", IsError: true, Timestamp: time.Now()})
+		countHours(t, db)
 
 		buckets := GetHistogram(db, 1, time.Time{}, time.Time{})
 
@@ -350,6 +361,7 @@ func TestGetHistogram(t *testing.T) {
 		now := time.Now()
 		Create(db, &Event{APIKeyID: 1, Message: "now", Timestamp: now})
 		Create(db, &Event{APIKeyID: 1, Message: "29 days ago", Timestamp: now.Add(-29 * 24 * time.Hour)})
+		countHours(t, db)
 
 		buckets := GetHistogram(db, 1, now.Add(-30*24*time.Hour), time.Time{})
 
@@ -364,6 +376,7 @@ func TestGetHistogram(t *testing.T) {
 		Create(db, &Event{APIKeyID: 1, Message: "40 days ago", Timestamp: now.Add(-40 * 24 * time.Hour)})
 		Create(db, &Event{APIKeyID: 1, Message: "now", Timestamp: now})
 		Create(db, &Event{APIKeyID: 2, Message: "other app", Timestamp: now.Add(-90 * 24 * time.Hour)})
+		countHours(t, db)
 
 		buckets := GetHistogram(db, 1, time.Time{}, time.Time{})
 
@@ -377,6 +390,7 @@ func TestGetHistogram(t *testing.T) {
 		start := time.Now().UTC().Truncate(time.Hour).Add(-5 * time.Hour)
 		Create(db, &Event{APIKeyID: 1, Message: "first hour", Timestamp: start.Add(10 * time.Minute)})
 		Create(db, &Event{APIKeyID: 1, Message: "third hour", Timestamp: start.Add(2*time.Hour + 59*time.Minute)})
+		countHours(t, db)
 
 		buckets := GetHistogram(db, 1, start, time.Time{})
 

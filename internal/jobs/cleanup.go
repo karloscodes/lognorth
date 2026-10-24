@@ -41,6 +41,13 @@ func (p *CleanupProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 		}
 	}
 
+	// The last two hours are counted again from the events: during the
+	// upgrade deploy, the older LogNorth moved events without counting them.
+	if err := events.RecountAppHours(ctx.DB, time.Now().Add(-2*time.Hour)); err != nil {
+		ctx.Logger.Error("Failed to recount the last hours", "error", err)
+		return err
+	}
+
 	// An ingested event that fails to process stays in the backlog. Keep that
 	// backlog within the retention period (90 days when retention is "forever").
 	backlog := retention
