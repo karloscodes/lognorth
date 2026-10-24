@@ -22,8 +22,8 @@ func TestStatBatch(t *testing.T) {
 	}
 
 	add("/a", false, 200, bucket.Add(time.Minute))  // avg (100*2+200)/3 = 133
-	add("/a", true, 0, bucket.Add(2*time.Minute))   // counted, avg unchanged
-	add("/a", false, 10, bucket.Add(3*time.Minute)) // avg (133*4+10)/5 = 108
+	add("/a", true, 0, bucket.Add(2*time.Minute))   // a request under 1 ms: avg (133*3+0)/4 = 99
+	add("/a", false, 10, bucket.Add(3*time.Minute)) // avg (99*4+10)/5 = 81
 	add("/b", true, 0, bucket)                      // new row, avg 0
 	add("/b", false, 50, bucket)                    // avg (0*1+50)/2 = 25
 	add("/a", false, 7, next)                       // next bucket, new row
@@ -36,7 +36,7 @@ func TestStatBatch(t *testing.T) {
 	var rows []EndpointStat
 	db.Order("path, bucket").Find(&rows)
 	want := []EndpointStat{
-		{Path: "/a", Bucket: bucket, Total: 5, Errors: 1, AvgDuration: 108},
+		{Path: "/a", Bucket: bucket, Total: 5, Errors: 1, AvgDuration: 81},
 		{Path: "/a", Bucket: next, Total: 1, Errors: 0, AvgDuration: 7},
 		{Path: "/b", Bucket: bucket, Total: 2, Errors: 1, AvgDuration: 25},
 	}
@@ -52,5 +52,24 @@ func TestStatBatch(t *testing.T) {
 	}
 	if rows[0].ID != existing.ID {
 		t.Errorf("the existing row got a new ID %d, want %d (updated in place)", rows[0].ID, existing.ID)
+	}
+}
+
+func TestStatBatchAverageDoesNotDependOnOrder(t *testing.T) {
+	bucket := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	for _, durations := range [][]int{{100, 0, 200}, {0, 100, 200}, {200, 100, 0}} {
+		db := newTestDB(t)
+		batch := NewStatBatch()
+		for _, d := range durations {
+			batch.Add(db, 1, "/a", false, d, bucket)
+		}
+
+		batch.Flush(db)
+
+		var stat EndpointStat
+		db.First(&stat)
+		if stat.AvgDuration != 100 {
+			t.Errorf("durations %v: avg %d, want 100", durations, stat.AvgDuration)
+		}
 	}
 }

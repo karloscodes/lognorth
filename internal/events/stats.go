@@ -81,10 +81,10 @@ func (b *StatBatch) Add(tx *gorm.DB, apiKeyID uint, path string, isError bool, d
 	if isError {
 		stat.Errors++
 	}
-	// Running average for duration
-	if durationMS > 0 {
-		stat.AvgDuration = (stat.AvgDuration*(int(stat.Total)-1) + durationMS) / int(stat.Total)
-	}
+	// The average over every event of the bucket, as GetEndpointStatsSince
+	// weighs it. A 0 is a request that took under 1 ms: the SDKs send a
+	// duration with every request.
+	stat.AvgDuration = (stat.AvgDuration*(int(stat.Total)-1) + durationMS) / int(stat.Total)
 	b.stats[key] = stat
 	return nil
 }
