@@ -441,21 +441,6 @@ func TestEventProcessor_CountsHours(t *testing.T) {
 			t.Errorf("the hour 3 days ago counts %d (%d errors), want the late error", old.Total, old.Errors)
 		}
 	})
-
-	t.Run("cleanup counts the events an older LogNorth moved without counting", func(t *testing.T) {
-		db := setupProcessorDB(t)
-		key, _, _ := apikeys.Create(db, "Shop")
-		events.CreateIngested(db, []*events.IngestedEvent{request(key.ID, time.Now(), false)})
-		NewEventProcessor().ProcessBatch(newJobCtx(db))
-		events.Create(db, &events.Event{APIKeyID: key.ID, Message: "moved by the old version", IsError: true})
-
-		err := NewCleanupProcessor().ProcessBatch(newJobCtx(db))
-
-		if err != nil {
-			t.Fatalf("cleanup: %v", err)
-		}
-		countsMatch(t, db, key.ID)
-	})
 }
 
 func TestEventProcessor_KeepsIssues(t *testing.T) {

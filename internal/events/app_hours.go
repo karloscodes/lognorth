@@ -60,10 +60,8 @@ func (b HourBatch) Flush(tx *gorm.DB) error {
 
 // RecountAppHours counts the hours from `from` on again from the events; a
 // zero `from` counts them all. The data migration fills the table with it,
-// the demo seed counts what it wrote, and the cleanup job recounts the last
-// hours: during the upgrade deploy, the older LogNorth moves events without
-// counting them. SQLite writes the hour in the text Go writes for a UTC time,
-// so the processor's upserts find these rows.
+// and the demo seed counts what it wrote. SQLite writes the hour in the text
+// Go writes for a UTC time, so the processor's upserts find these rows.
 func RecountAppHours(db *gorm.DB, from time.Time) error {
 	from = from.UTC().Truncate(time.Hour)
 	return db.Transaction(func(tx *gorm.DB) error {

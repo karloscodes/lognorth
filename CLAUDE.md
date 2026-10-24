@@ -48,9 +48,8 @@ Counts are written as events move, never counted on a page load:
 app's events and errors per UTC hour (`events.HourBatch`, in the processor's
 transaction). The home page, the log histogram, and the digest read
 `app_hours`. Retention deletes whole hours, so the counts always match the
-events. The cleanup job recounts the last two hours from the events
-(`events.RecountAppHours`); an event written outside the processor, as the
-demo seed writes them, needs a recount.
+events. An event written outside the processor, as the demo seed writes
+them, needs a recount (`events.RecountAppHours`).
 
 `issues` holds one row per issue: its error, first and last seen, count, and
 first 10 paths (`events.IssueBatch`, in the same transaction). The issue list
