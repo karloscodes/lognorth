@@ -274,3 +274,68 @@ func TestGetEndpointStats(t *testing.T) {
 		}
 	})
 }
+
+func TestGetHistogram(t *testing.T) {
+	sum := func(buckets []HistogramBucket) (total, errors int64) {
+		for _, b := range buckets {
+			total += b.Total
+			errors += b.Errors
+		}
+		return total, errors
+	}
+
+	t.Run("counts the events of the hour that is not over yet", func(t *testing.T) {
+		db := setupTestDB(t)
+		Create(db, &Event{APIKeyID: 1, Message: "now", Timestamp: time.Now()})
+		Create(db, &Event{APIKeyID: 1, Message: "failed now", IsError: true, Timestamp: time.Now()})
+
+		buckets := GetHistogram(db, 1, time.Time{}, time.Time{})
+
+		if total, errors := sum(buckets); total != 2 || errors != 1 {
+			t.Errorf("total %d, errors %d; want 2 and 1", total, errors)
+		}
+	})
+
+	t.Run("counts the newest day of a 30-day range", func(t *testing.T) {
+		db := setupTestDB(t)
+		now := time.Now()
+		Create(db, &Event{APIKeyID: 1, Message: "now", Timestamp: now})
+		Create(db, &Event{APIKeyID: 1, Message: "29 days ago", Timestamp: now.Add(-29 * 24 * time.Hour)})
+
+		buckets := GetHistogram(db, 1, now.Add(-30*24*time.Hour), time.Time{})
+
+		if total, _ := sum(buckets); total != 2 {
+			t.Errorf("total %d, want 2", total)
+		}
+	})
+
+	t.Run("for all time starts at the first event of the app", func(t *testing.T) {
+		db := setupTestDB(t)
+		now := time.Now()
+		Create(db, &Event{APIKeyID: 1, Message: "40 days ago", Timestamp: now.Add(-40 * 24 * time.Hour)})
+		Create(db, &Event{APIKeyID: 1, Message: "now", Timestamp: now})
+		Create(db, &Event{APIKeyID: 2, Message: "other app", Timestamp: now.Add(-90 * 24 * time.Hour)})
+
+		buckets := GetHistogram(db, 1, time.Time{}, time.Time{})
+
+		if total, _ := sum(buckets); total != 2 {
+			t.Errorf("total %d, want 2", total)
+		}
+	})
+
+	t.Run("puts each event in the bucket of its time", func(t *testing.T) {
+		db := setupTestDB(t)
+		start := time.Now().UTC().Truncate(time.Hour).Add(-5 * time.Hour)
+		Create(db, &Event{APIKeyID: 1, Message: "first hour", Timestamp: start.Add(10 * time.Minute)})
+		Create(db, &Event{APIKeyID: 1, Message: "third hour", Timestamp: start.Add(2*time.Hour + 59*time.Minute)})
+
+		buckets := GetHistogram(db, 1, start, time.Time{})
+
+		if len(buckets) < 3 || buckets[0].Total != 1 || buckets[1].Total != 0 || buckets[2].Total != 1 {
+			t.Errorf("buckets = %+v, want 1, 0, 1 in the first three hours", buckets)
+		}
+		if !buckets[0].Timestamp.Equal(start) {
+			t.Errorf("first bucket at %s, want %s", buckets[0].Timestamp, start)
+		}
+	})
+}
