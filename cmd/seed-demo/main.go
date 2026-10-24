@@ -1014,7 +1014,9 @@ func countRequest(appID uint, path string, isError bool, durationMS int, at time
 	if path == "" {
 		return
 	}
-	key := statKey{appID, path, events.TruncateTo5Min(at.UTC())}
+	// Keyed on the endpoint, as the processor keys it: /projects/42 counts
+	// toward /projects/:id.
+	key := statKey{appID, events.EndpointKey("", path), events.TruncateTo5Min(at.UTC())}
 	sum := requestStats[key]
 	if sum == nil {
 		sum = &statSum{}

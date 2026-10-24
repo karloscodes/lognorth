@@ -45,7 +45,7 @@ SDK → POST /api/v1/events → IngestedEvent table (fast write)
 ```
 
 Counts are written as events move, never counted on a page load:
-`endpoint_stats` holds 5-minute buckets per path, and `app_hours` holds each
+`endpoint_stats` holds 5-minute buckets per endpoint, and `app_hours` holds each
 app's events and errors per UTC hour (`events.HourBatch`, in the processor's
 transaction). The home page, the log histogram, and the digest read
 `app_hours`. Retention deletes whole hours, so the counts always match the
@@ -57,6 +57,18 @@ The hash reads the message with its ids, numbers, UUIDs, emails, and hex
 addresses replaced (`events.normalizeMessage`), so "Couldn't find User with
 'id'=1001" and "'id'=1002" are one issue and one alert; the stored message
 keeps them.
+
+An endpoint is a route, not a URL (`events.EndpointKey`, `events/endpoint.go`):
+the route the SDK sends when it covers the path segment by segment (Express
+sends it relative to its router, so `/:id` under `/api/users` does not count;
+a Go pattern loses its method and host, and `{id}` reads `:id`), else the path
+with its ids replaced by `:id` (all digits, a UUID, or hex of 16 characters or
+more). So `/users/123` and `/users/124` share one history and one baseline.
+The pages, the MCP tools, and north show the key as the path.
+`endpoint_timeline` finds the endpoint of a URL (`events.EndpointOf`), and a
+log search for a key with a parameter (`/users/:id`, as the Endpoints page and
+north send it) reads as the endpoint. Issues keep the paths as sent.
+
 `issues` holds one row per issue: its error, first and last seen, count, and
 first 10 paths (`events.IssueBatch`, in the same transaction). The issue list
 pages it and counts only the last 14 days of errors of the issues on the page
