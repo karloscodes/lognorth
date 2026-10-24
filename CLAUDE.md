@@ -71,8 +71,8 @@ the `lognorth-releases` release, and lognorth.com/install redirects to the
 newest one. On Chasen the image needs no settings: it reads `PRIVATE_KEY` and
 `BASE_URL`, which Chasen sets. `e2e/chasen.sh`, `e2e/installer.sh`, and
 `e2e/move-to-chasen.sh` test the three paths; `.github/workflows/chasen.yml`
-runs them on GitHub's runners, never on the self-hosted one, because they
-install chasen-server on the machine.
+runs them on fresh GitHub runners, because they install chasen-server on the
+machine. A release runs them on the tag's commit before it publishes.
 
 The older installer (`cmd/manager`, the `lognorth` command, built on matcha)
 is gone since 22 October 2026 (user: remove matcha), and releases attach no
