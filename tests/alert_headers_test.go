@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/settings"
 )
 
@@ -68,7 +69,7 @@ func TestAlertSubjectCannotAddEmailHeaders(t *testing.T) {
 		SMTPFrom: "alerts@example.com", NotifyEmail: "owner@example.com"}
 	path := "/x\r\nReply-To: attacker@example.test\r\n\r\nforged body"
 
-	err := s.SendNotification("shop — spike: "+path+" at 50.0%", "body")
+	err := alerts.Send(s, "shop — spike: "+path+" at 50.0%", "body")
 
 	if err != nil {
 		t.Fatalf("send: %v", err)

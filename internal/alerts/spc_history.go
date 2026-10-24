@@ -1,6 +1,7 @@
-package events
+package alerts
 
 import (
+	"lognorth/internal/events"
 	"math"
 	"slices"
 	"strings"
@@ -95,8 +96,8 @@ func GetVolumeBaseline(db *gorm.DB, apiKeyID uint, path string, at time.Time) (V
 }
 
 // GetLastHour returns the pooled stats of the 12 buckets that end with `at`.
-func GetLastHour(db *gorm.DB, apiKeyID uint, path string, at time.Time) (EndpointStat, error) {
-	var stats []EndpointStat
+func GetLastHour(db *gorm.DB, apiKeyID uint, path string, at time.Time) (events.EndpointStat, error) {
+	var stats []events.EndpointStat
 	err := db.Where("api_key_id = ? AND path = ? AND bucket BETWEEN ? AND ?",
 		apiKeyID, path, at.Add(-55*time.Minute), at).Find(&stats).Error
 	return sumStats(stats), err
@@ -104,7 +105,7 @@ func GetLastHour(db *gorm.DB, apiKeyID uint, path string, at time.Time) (Endpoin
 
 // historyBuckets returns the buckets within HistoryWindow of `at`, one window
 // per step back in time, `count` steps.
-func historyBuckets(db *gorm.DB, apiKeyID uint, path string, at time.Time, step time.Duration, count int) ([]EndpointStat, error) {
+func historyBuckets(db *gorm.DB, apiKeyID uint, path string, at time.Time, step time.Duration, count int) ([]events.EndpointStat, error) {
 	var ranges []string
 	var args []any
 	for i := 1; i <= count; i++ {
@@ -113,7 +114,7 @@ func historyBuckets(db *gorm.DB, apiKeyID uint, path string, at time.Time, step 
 		args = append(args, center.Add(-HistoryWindow), center.Add(HistoryWindow))
 	}
 
-	var stats []EndpointStat
+	var stats []events.EndpointStat
 	err := db.Where("api_key_id = ? AND path = ?", apiKeyID, path).
 		Where("("+strings.Join(ranges, " OR ")+")", args...).
 		Find(&stats).Error
@@ -124,7 +125,7 @@ func historyBuckets(db *gorm.DB, apiKeyID uint, path string, at time.Time, step 
 // `rate` (Laney's σz). It uses the median absolute deviation of the z-scores,
 // so one past outage in the history does not hide the next one. The result is
 // at least 1.
-func dispersion(samples []EndpointStat, rate float64) float64 {
+func dispersion(samples []events.EndpointStat, rate float64) float64 {
 	var zs []float64
 	for _, s := range samples {
 		if s.Total < MinRequestsForErrorRate {
@@ -145,8 +146,8 @@ func dispersion(samples []EndpointStat, rate float64) float64 {
 }
 
 // hourBlocks pools buckets into clock hours.
-func hourBlocks(stats []EndpointStat) []EndpointStat {
-	byHour := map[time.Time]EndpointStat{}
+func hourBlocks(stats []events.EndpointStat) []events.EndpointStat {
+	byHour := map[time.Time]events.EndpointStat{}
 	for _, s := range stats {
 		hour := s.Bucket.Truncate(time.Hour)
 		block := byHour[hour]
@@ -155,15 +156,15 @@ func hourBlocks(stats []EndpointStat) []EndpointStat {
 		byHour[hour] = block
 	}
 
-	blocks := make([]EndpointStat, 0, len(byHour))
+	blocks := make([]events.EndpointStat, 0, len(byHour))
 	for _, block := range byHour {
 		blocks = append(blocks, block)
 	}
 	return blocks
 }
 
-func sumStats(stats []EndpointStat) EndpointStat {
-	var sum EndpointStat
+func sumStats(stats []events.EndpointStat) events.EndpointStat {
+	var sum events.EndpointStat
 	for _, s := range stats {
 		sum.Total += s.Total
 		sum.Errors += s.Errors

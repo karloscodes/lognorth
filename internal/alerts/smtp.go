@@ -1,4 +1,4 @@
-package settings
+package alerts
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"lognorth/internal/settings"
 	"mime"
 	"mime/quotedprintable"
 	"net"
@@ -21,7 +22,7 @@ import (
 const smtpTimeout = 30 * time.Second
 
 // sendViaSMTP sends notification via email
-func (s *Settings) sendViaSMTP(subject, body string) error {
+func sendViaSMTP(s *settings.Settings, subject, body string) error {
 	if !s.IsEmailConfigured() {
 		return fmt.Errorf("SMTP not configured")
 	}

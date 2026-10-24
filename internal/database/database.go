@@ -7,6 +7,7 @@ import (
 	"github.com/karloscodes/cartridge/sqlite"
 	"gorm.io/gorm"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/events"
@@ -94,9 +95,9 @@ func Migrate(db *gorm.DB) error {
 		&events.IngestedEvent{},
 		&events.IssueSeen{},
 		&events.EndpointStat{},
-		&events.SpikeState{},
+		&alerts.SpikeState{},
 		&events.Release{},
-		&events.SecretSeen{},
+		&alerts.SecretSeen{},
 		&events.AppHour{},
 		&events.Issue{},
 		&settings.Settings{},
@@ -108,7 +109,7 @@ func Migrate(db *gorm.DB) error {
 	); err != nil {
 		return err
 	}
-	if err := events.AutoMigrateSPC(db); err != nil {
+	if err := alerts.AutoMigrateSPC(db); err != nil {
 		return fmt.Errorf("failed to migrate SPC tables: %w", err)
 	}
 	return runDataMigrations(db)

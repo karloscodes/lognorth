@@ -10,6 +10,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/events"
 	"lognorth/internal/settings"
 )
@@ -63,7 +64,7 @@ func occur(t *testing.T, db *gorm.DB, context string) *events.Event {
 	if err := events.RecountIssues(db, []string{event.IssueHash}); err != nil {
 		t.Fatalf("count the issue: %v", err)
 	}
-	engine, err := events.NewAlertEngine(db)
+	engine, err := alerts.NewAlertEngine(db)
 	if err != nil {
 		t.Fatalf("alert engine: %v", err)
 	}
@@ -72,7 +73,7 @@ func occur(t *testing.T, db *gorm.DB, context string) *events.Event {
 		t.Fatalf("record occurrence: %v", err)
 	}
 	if alert != nil {
-		if err := engine.SendErrorAlerts(event.APIKeyID, "shop", []events.ErrorAlert{*alert}); err != nil {
+		if err := engine.SendErrorAlerts(event.APIKeyID, "shop", []alerts.ErrorAlert{*alert}); err != nil {
 			t.Fatalf("send alert: %v", err)
 		}
 	}

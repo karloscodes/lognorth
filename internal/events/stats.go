@@ -138,12 +138,58 @@ func (s EndpointStat) ErrorRate() float64 {
 	return float64(s.Errors) / float64(s.Total) * 100
 }
 
-// StatsRetention covers the longest SPC history (4 weeks of volume) plus a day.
-const StatsRetention = (VolumeHistoryWeeks*7 + 1) * 24 * time.Hour
+// StatsRetention covers the longest history an alert reads (4 weeks of
+// volume, in internal/alerts) plus a day. A test there checks it.
+const StatsRetention = 29 * 24 * time.Hour
 
 // CleanupOldStats removes stats older than StatsRetention.
 func CleanupOldStats(db *gorm.DB) (int64, error) {
 	cutoff := time.Now().UTC().Add(-StatsRetention)
 	result := db.Where("bucket < ?", cutoff).Delete(&EndpointStat{})
 	return result.RowsAffected, result.Error
+}
+
+// TimelinePoint is the traffic of one endpoint in one time step.
+type TimelinePoint struct {
+	At        time.Time `json:"at"`
+	Requests  int64     `json:"requests"`
+	Errors    int64     `json:"errors"`
+	ErrorRate float64   `json:"error_rate"`
+}
+
+// GetTimeline returns the traffic of an endpoint from `from` to `to`, one
+// point per `step`. Steps without traffic are included as zero, so a silence
+// shows up as a gap you can see.
+func GetTimeline(db *gorm.DB, apiKeyID uint, path string, from, to time.Time, step time.Duration) ([]TimelinePoint, error) {
+	from, to = from.Truncate(step), to.Truncate(step)
+
+	var stats []EndpointStat
+	err := db.Where("api_key_id = ? AND path = ? AND bucket BETWEEN ? AND ?", apiKeyID, path, from, to.Add(step-time.Nanosecond)).
+		Find(&stats).Error
+	if err != nil {
+		return nil, err
+	}
+
+	byStep := map[time.Time]EndpointStat{}
+	for _, s := range stats {
+		at := s.Bucket.UTC().Truncate(step)
+		sum := byStep[at]
+		sum.Total += s.Total
+		sum.Errors += s.Errors
+		byStep[at] = sum
+	}
+
+	var points []TimelinePoint
+	for at := from; !at.After(to); at = at.Add(step) {
+		s := byStep[at]
+		points = append(points, TimelinePoint{At: at, Requests: s.Total, Errors: s.Errors, ErrorRate: s.ErrorRate()})
+	}
+	return points, nil
+}
+
+// AppsWithPath returns the apps that sent traffic on a path in the stored history.
+func AppsWithPath(db *gorm.DB, path string) ([]uint, error) {
+	var ids []uint
+	err := db.Model(&EndpointStat{}).Where("path = ?", path).Distinct("api_key_id").Pluck("api_key_id", &ids).Error
+	return ids, err
 }

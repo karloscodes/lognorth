@@ -16,6 +16,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 	"lognorth/internal/uptime"
@@ -298,7 +299,7 @@ func searchLogs(db *gorm.DB, args map[string]any) (any, error) {
 func listAlerts(db *gorm.DB, args map[string]any) (any, error) {
 	appID := uint(argInt(args, "app_id"))
 
-	alerts, err := events.ListAlerts(db, appID)
+	alerts, err := alerts.ListAlerts(db, appID)
 	if err != nil {
 		return nil, fmt.Errorf("could not read the alerts: %w", err)
 	}
@@ -356,8 +357,8 @@ func endpointTimeline(db *gorm.DB, args map[string]any) (any, error) {
 		return nil, fmt.Errorf("could not read the timeline: %w", err)
 	}
 	at := events.LastCompleteBucketTime()
-	errorRate, _ := events.GetErrorRateBaseline(db, appID, path, at)
-	volume, _ := events.GetVolumeBaseline(db, appID, path, at)
+	errorRate, _ := alerts.GetErrorRateBaseline(db, appID, path, at)
+	volume, _ := alerts.GetVolumeBaseline(db, appID, path, at)
 
 	return map[string]any{
 		"app_id":       appID,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/karloscodes/cartridge"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 	"lognorth/internal/uptime"
@@ -212,9 +213,9 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 
 	// Endpoints alerting now, compared with their own history. The page marks
 	// these instead of coloring rows by a fixed error rate.
-	alerts, err := events.ListAlerts(db, app.ID)
+	endpointAlerts, err := alerts.ListAlerts(db, app.ID)
 	if err != nil {
-		alerts = []events.Alert{}
+		endpointAlerts = []alerts.Alert{}
 	}
 
 	return RenderPage(ctx, "Endpoints", Props{
@@ -222,7 +223,7 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 		"appName":      app.Name,
 		"applications": apps,
 		"endpoints":    endpoints,
-		"alerts":       alerts,
+		"alerts":       endpointAlerts,
 		"uptime":       uptime.ReportFor(db, *app, time.Now(), 24*time.Hour, 96),
 		"releases":     events.ReleasesBetween(db, app.ID, time.Now().Add(-24*time.Hour), time.Now()),
 	})

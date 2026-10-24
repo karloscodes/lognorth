@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"github.com/karloscodes/cartridge"
-	"gorm.io/gorm"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/apikeys"
-	"lognorth/internal/events"
 	"lognorth/internal/settings"
 	"lognorth/internal/uptime"
 )
@@ -92,54 +91,9 @@ func (s *UptimeSweeper) ProcessBatch(ctx *cartridge.JobContext) error {
 
 	settingsRow, _ := settings.Get(db)
 	for i, key := range due {
-		s.apply(db, key, checks[i], settingsRow, now)
+		alerts.ApplyPing(db, key, checks[i], settingsRow, now)
 	}
 	return nil
-}
-
-// apply records a probe and applies the state transitions.
-func (s *UptimeSweeper) apply(db *gorm.DB, key *apikeys.APIKey, check uptime.Check, settingsRow *settings.Settings, now time.Time) {
-	check.APIKeyID = key.ID
-	check.CheckedAt = now
-	// Every probe is kept so the app can show response times and failures.
-	_ = uptime.Record(db, &check)
-	up := check.Up
-	key.LastPingedAt = now
-
-	switch {
-	case !up:
-		key.ConsecutiveFails++
-		if key.ConsecutiveFails >= uptime.FailuresToDown && !key.IsDown {
-			key.IsDown = true
-			key.DownSince = now
-		}
-		// Retried every sweep until it goes out: an outage that starts in
-		// quiet hours alerts when they end.
-		if key.IsDown && !key.DownNotified {
-			key.DownNotified = s.notifyDown(settingsRow, key, surgesNow(db, key.ID, now))
-		}
-	case up && key.IsDown:
-		// Recovered.
-		downFor := now.Sub(key.DownSince)
-		key.IsDown = false
-		key.DownNotified = false
-		key.DownSince = time.Time{}
-		key.ConsecutiveFails = 0
-		s.notifyRecovered(settingsRow, key, downFor)
-	default:
-		// Healthy probe; reset the fail counter (handles flap).
-		key.ConsecutiveFails = 0
-	}
-
-	// Only the ping columns: a full Save would overwrite an edit made
-	// while the probe ran.
-	db.Model(key).Updates(map[string]any{
-		"last_pinged_at":    key.LastPingedAt,
-		"consecutive_fails": key.ConsecutiveFails,
-		"is_down":           key.IsDown,
-		"down_notified":     key.DownNotified,
-		"down_since":        key.DownSince,
-	})
 }
 
 // probe requests the URL once. It is up if the server answered with anything
@@ -175,57 +129,4 @@ func probeError(err error) string {
 		msg = msg[:200]
 	}
 	return msg
-}
-
-// surgesNow returns the issues that surged as the app went down, from the
-// outage that is running now.
-func surgesNow(db *gorm.DB, appID uint, now time.Time) []events.Surge {
-	outages, err := uptime.RecentOutages(db, appID, now.Add(-24*time.Hour), 1)
-	if err != nil || len(outages) == 0 || !outages[0].Ongoing {
-		return nil
-	}
-	return outages[0].Issues
-}
-
-// notifyDown reports whether the alert went out.
-func (s *UptimeSweeper) notifyDown(settingsRow *settings.Settings, key *apikeys.APIKey, surges []events.Surge) bool {
-	if settingsRow == nil || !settingsRow.CanNotify() {
-		return false
-	}
-	subject := fmt.Sprintf("%s — down: %s", key.Name, key.PingURL)
-	return settingsRow.SendNotification(subject, downBody(key, settingsRow.BaseURL, surges)) == nil
-}
-
-// downBody says the app is down and, when some issues surged as it went
-// down, names up to three of them. They are the likely cause, so the agent
-// command points at the first. With no surge it says nothing about errors.
-func downBody(key *apikeys.APIKey, baseURL string, surges []events.Surge) string {
-	body := fmt.Sprintf("%s isn't responding.\nURL: %s\n%d consecutive failures.\n", key.Name, key.PingURL, uptime.FailuresToDown)
-	if len(surges) > 0 {
-		body += "\nErrors that surged as it went down:\n"
-		for _, sg := range surges[:min(3, len(surges))] {
-			body += fmt.Sprintf("  %dx %s\n  %s/issues/%s\n", sg.Count, events.FormatHeadline(sg.ErrorClass, sg.Error), baseURL, sg.Hash)
-		}
-		body += "\nAsk your agent: /lognorth:investigate " + surges[0].Hash + "\n"
-	}
-	return body + fmt.Sprintf("\n%s/apps/%d/endpoints", baseURL, key.ID)
-}
-
-func (s *UptimeSweeper) notifyRecovered(settingsRow *settings.Settings, key *apikeys.APIKey, downFor time.Duration) {
-	if settingsRow == nil || !settingsRow.CanNotify() {
-		return
-	}
-	subject := fmt.Sprintf("%s — recovered after %s down", key.Name, events.FormatDuration(downFor))
-	body := fmt.Sprintf(`%s is responding again.
-URL: %s
-Was down for %s.
-
-%s/apps/%d/issues`,
-		key.Name,
-		key.PingURL,
-		events.FormatDuration(downFor),
-		settingsRow.BaseURL,
-		key.ID,
-	)
-	_ = settingsRow.SendNotification(subject, body)
 }

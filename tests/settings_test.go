@@ -3,6 +3,7 @@ package tests
 import (
 	"testing"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/settings"
 )
 
@@ -15,7 +16,7 @@ func TestSettings_CanNotify(t *testing.T) {
 	t.Run("empty settings cannot notify", func(t *testing.T) {
 		s := &settings.Settings{}
 
-		if s.CanNotify() {
+		if alerts.CanNotify(s) {
 			t.Error("empty settings should not be able to notify")
 		}
 	})
@@ -26,7 +27,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NtfyURL:       "https://ntfy.sh/my-topic",
 		}
 
-		if !s.CanNotify() {
+		if !alerts.CanNotify(s) {
 			t.Error("ntfy channel with URL should be able to notify")
 		}
 	})
@@ -37,7 +38,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NtfyURL:       "",
 		}
 
-		if s.CanNotify() {
+		if alerts.CanNotify(s) {
 			t.Error("ntfy channel without URL should not be able to notify")
 		}
 	})
@@ -51,7 +52,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NotifyEmail:   "user@example.com",
 		}
 
-		if !s.CanNotify() {
+		if !alerts.CanNotify(s) {
 			t.Error("email channel fully configured should be able to notify")
 		}
 	})
@@ -65,7 +66,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NotifyEmail:   "user@example.com",
 		}
 
-		if s.CanNotify() {
+		if alerts.CanNotify(s) {
 			t.Error("email channel without host should not be able to notify")
 		}
 	})
@@ -79,7 +80,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NotifyEmail:   "",
 		}
 
-		if s.CanNotify() {
+		if alerts.CanNotify(s) {
 			t.Error("email channel without notify email should not be able to notify")
 		}
 	})
@@ -90,7 +91,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NtfyURL:       "https://ntfy.sh/my-topic",
 		}
 
-		if s.CanNotify() {
+		if alerts.CanNotify(s) {
 			t.Error("unknown channel should not be able to notify")
 		}
 	})

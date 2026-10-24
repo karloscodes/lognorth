@@ -114,6 +114,7 @@ make test
 - **`internal/app.go`**: Application setup and route registration
 - **`internal/events/`**: Events context (ingestion, listing, issues, stats)
 - **`internal/apikeys/`**: API keys context
+- **`internal/alerts/`**: Alerts context: the detectors (errors, endpoints, uptime, leaks), the digest, quiet hours, and the channels
 - **`internal/mcp/`**: MCP protocol and the read-only tools agents call
 - **`web/`**: React SPA (shadcn/ui, Tailwind, Inertia.js)
 - **`cmd/lognorth/`**: Main binary

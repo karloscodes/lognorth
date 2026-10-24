@@ -12,6 +12,7 @@ import (
 	"github.com/karloscodes/cartridge/sqlite"
 	"gorm.io/gorm"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/database"
 	"lognorth/internal/events"
@@ -438,13 +439,13 @@ func TestListAlerts(t *testing.T) {
 	t.Run("returns the endpoints alerting now", func(t *testing.T) {
 		db := setupTestDB(t)
 		appID := seedApp(t, db, "checkout-prod")
-		db.Create(&events.SpikeState{APIKeyID: appID, Path: "/pay", Severity: "critical", SpikeStartAt: time.Now(), ErrorCount: 42})
-		db.Create(&events.SpikeState{APIKeyID: appID, Path: "/health"})
+		db.Create(&alerts.SpikeState{APIKeyID: appID, Path: "/pay", Severity: "critical", SpikeStartAt: time.Now(), ErrorCount: 42})
+		db.Create(&alerts.SpikeState{APIKeyID: appID, Path: "/health"})
 
 		result := call(t, db, "tools/call", `{"name":"list_alerts","arguments":{}}`)
 
 		var payload struct {
-			Alerts []events.Alert `json:"alerts"`
+			Alerts []alerts.Alert `json:"alerts"`
 		}
 		json.Unmarshal([]byte(toolText(t, result)), &payload)
 		if len(payload.Alerts) != 1 {

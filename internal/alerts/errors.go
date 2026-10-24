@@ -1,7 +1,7 @@
-// Package events provides per-error alerting (new errors + regressions).
-// Rate-based spike and silence detection lives in the SPC path — see
-// jobs/anomaly_checker.go and events/spc_detection.go.
-package events
+package alerts
+
+// New errors and regressions: the issue of an error event is new, or back
+// after a quiet day.
 
 import (
 	"fmt"
@@ -10,6 +10,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"lognorth/internal/events"
 	"lognorth/internal/settings"
 )
 
@@ -38,22 +39,6 @@ func IsRegression(lastOccurrence time.Time) bool {
 // STATE TRACKING
 // =============================================================================
 
-// SpikeState tracks spike alerting state per endpoint
-type SpikeState struct {
-	ID           uint   `gorm:"primaryKey"`
-	APIKeyID     uint   `gorm:"uniqueIndex:idx_spike_state_lookup"`
-	Path         string `gorm:"size:500;uniqueIndex:idx_spike_state_lookup"`
-	LastAlertAt  time.Time
-	SpikeStartAt time.Time
-	Severity     string `gorm:"size:20"` // "warning", "critical", or ""
-	ErrorCount   int    `gorm:"default:0"`
-	CleanChecks  int    `gorm:"default:0"` // Clean checks in a row since the last anomaly
-}
-
-func (SpikeState) TableName() string {
-	return "spike_states"
-}
-
 // =============================================================================
 // ALERT ENGINE
 // =============================================================================
@@ -75,7 +60,7 @@ func NewAlertEngine(db *gorm.DB) (*AlertEngine, error) {
 
 // CanNotify returns true if notifications are configured
 func (e *AlertEngine) CanNotify() bool {
-	return e.settings.CanNotify()
+	return CanNotify(e.settings)
 }
 
 // =============================================================================
@@ -85,7 +70,7 @@ func (e *AlertEngine) CanNotify() bool {
 // An ErrorAlert is an issue the owner hears about: a new one, or one back
 // after RegressionQuietPeriod.
 type ErrorAlert struct {
-	Event *Event
+	Event *events.Event
 	// QuietFor is how long a regression was quiet; 0 for a new issue.
 	QuietFor time.Duration
 }
@@ -96,18 +81,18 @@ type ErrorAlert struct {
 // state is tracked even without a notification channel, so setting one up
 // later does not alert on every existing issue. SendErrorAlerts sends the
 // alerts.
-func (e *AlertEngine) RecordOccurrence(event *Event) (*ErrorAlert, error) {
+func (e *AlertEngine) RecordOccurrence(event *events.Event) (*ErrorAlert, error) {
 	hash := event.IssueHash
 	if hash == "" {
 		return nil, nil
 	}
 	now := time.Now()
 
-	var seen IssueSeen
+	var seen events.IssueSeen
 	result := e.db.Where("error_hash = ?", hash).First(&seen)
 
 	if result.Error == gorm.ErrRecordNotFound {
-		if err := e.db.Create(&IssueSeen{ErrorHash: hash, LastOccurrenceAt: now}).Error; err != nil {
+		if err := e.db.Create(&events.IssueSeen{ErrorHash: hash, LastOccurrenceAt: now}).Error; err != nil {
 			return nil, err
 		}
 		return &ErrorAlert{Event: event}, nil
@@ -150,9 +135,9 @@ func (e *AlertEngine) SendErrorAlerts(appID uint, appName string, alerts []Error
 		return nil
 	}
 	if len(alerts) == 1 {
-		return e.settings.SendNotification(alertSubject(appName, alerts[0]), alertBody(alerts[0].Event, e.settings.BaseURL))
+		return Send(e.settings, alertSubject(appName, alerts[0]), alertBody(alerts[0].Event, e.settings.BaseURL))
 	}
-	return e.settings.SendNotification(groupSubject(appName, alerts), groupBody(appID, alerts, e.settings.BaseURL))
+	return Send(e.settings, groupSubject(appName, alerts), groupBody(appID, alerts, e.settings.BaseURL))
 }
 
 // alertSubject names one issue: new, or back after how long.
@@ -233,7 +218,7 @@ func plural(n int, one, many string) string {
 
 // alertBody names the error, where it is, the release it came in when the
 // SDK sent one, and the links to read more.
-func alertBody(event *Event, baseURL string) string {
+func alertBody(event *events.Event, baseURL string) string {
 	body := FormatHeadline(event.ErrorClass, event.ErrorMessage)
 	if loc := formatLocation(event.ErrorFile, event.ErrorLine); loc != "" {
 		body += "\nat " + loc

@@ -1,19 +1,20 @@
-package events
+package alerts
 
 import (
 	"strings"
 	"testing"
 	"time"
 
+	"lognorth/internal/events"
 	"lognorth/internal/settings"
 )
 
 func TestAlertBody(t *testing.T) {
-	newEvent := func(release string) *Event {
-		ctx := EventContext{ErrorClass: "TypeError", Error: "boom", ErrorFile: "app.ts", ErrorLine: 7, Release: release}
-		event := &Event{Message: "boom", IsError: true}
+	newEvent := func(release string) *events.Event {
+		ctx := events.EventContext{ErrorClass: "TypeError", Error: "boom", ErrorFile: "app.ts", ErrorLine: 7, Release: release}
+		event := &events.Event{Message: "boom", IsError: true}
 		event.SetContext(&ctx)
-		PopulateErrorFields(event, &ctx)
+		events.PopulateErrorFields(event, &ctx)
 		return event
 	}
 
@@ -40,14 +41,14 @@ func TestRecordOccurrence(t *testing.T) {
 	recur := func(t *testing.T, lastOccurrence time.Time) time.Time {
 		t.Helper()
 		db := newTestDB(t)
-		db.Create(&IssueSeen{ErrorHash: "abc", LastOccurrenceAt: lastOccurrence})
+		db.Create(&events.IssueSeen{ErrorHash: "abc", LastOccurrenceAt: lastOccurrence})
 		engine := &AlertEngine{db: db, settings: &settings.Settings{}}
 
-		if _, err := engine.RecordOccurrence(&Event{IsError: true, IssueHash: "abc"}); err != nil {
+		if _, err := engine.RecordOccurrence(&events.Event{IsError: true, IssueHash: "abc"}); err != nil {
 			t.Fatalf("RecordOccurrence: %v", err)
 		}
 
-		var seen IssueSeen
+		var seen events.IssueSeen
 		db.Where("error_hash = ?", "abc").First(&seen)
 		return seen.LastOccurrenceAt
 	}

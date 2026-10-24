@@ -1,4 +1,4 @@
-package settings
+package alerts
 
 import (
 	"bufio"

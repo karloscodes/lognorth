@@ -1,7 +1,8 @@
-package events
+package alerts
 
 import (
 	"fmt"
+	"lognorth/internal/events"
 	"slices"
 	"time"
 
@@ -23,7 +24,7 @@ type Alert struct {
 // ListAlerts returns the endpoints alerting now, critical first.
 // An apiKeyID of 0 means every app.
 func ListAlerts(db *gorm.DB, apiKeyID uint) ([]Alert, error) {
-	at := LastCompleteBucketTime()
+	at := events.LastCompleteBucketTime()
 	scope := func(q *gorm.DB) *gorm.DB {
 		if apiKeyID > 0 {
 			return q.Where("api_key_id = ?", apiKeyID)
@@ -43,7 +44,7 @@ func ListAlerts(db *gorm.DB, apiKeyID uint) ([]Alert, error) {
 	alerts := []Alert{}
 	for _, s := range spikes {
 		baseline, _ := GetErrorRateBaseline(db, s.APIKeyID, s.Path, at)
-		bucket, _ := GetLastCompleteBucket(db, s.APIKeyID, s.Path)
+		bucket, _ := events.GetLastCompleteBucket(db, s.APIKeyID, s.Path)
 		lastHour, _ := GetLastHour(db, s.APIKeyID, s.Path, at)
 		alerts = append(alerts, Alert{
 			AppID:    s.APIKeyID,
@@ -59,7 +60,7 @@ func ListAlerts(db *gorm.DB, apiKeyID uint) ([]Alert, error) {
 	}
 	for _, s := range silences {
 		baseline, _ := GetVolumeBaseline(db, s.APIKeyID, s.Path, at)
-		bucket, _ := GetLastCompleteBucket(db, s.APIKeyID, s.Path)
+		bucket, _ := events.GetLastCompleteBucket(db, s.APIKeyID, s.Path)
 		alerts = append(alerts, Alert{
 			AppID:    s.APIKeyID,
 			Path:     s.Path,
@@ -83,49 +84,4 @@ func ListAlerts(db *gorm.DB, apiKeyID uint) ([]Alert, error) {
 		return a.Since.Compare(b.Since)
 	})
 	return alerts, nil
-}
-
-// TimelinePoint is the traffic of one endpoint in one time step.
-type TimelinePoint struct {
-	At        time.Time `json:"at"`
-	Requests  int64     `json:"requests"`
-	Errors    int64     `json:"errors"`
-	ErrorRate float64   `json:"error_rate"`
-}
-
-// GetTimeline returns the traffic of an endpoint from `from` to `to`, one
-// point per `step`. Steps without traffic are included as zero, so a silence
-// shows up as a gap you can see.
-func GetTimeline(db *gorm.DB, apiKeyID uint, path string, from, to time.Time, step time.Duration) ([]TimelinePoint, error) {
-	from, to = from.Truncate(step), to.Truncate(step)
-
-	var stats []EndpointStat
-	err := db.Where("api_key_id = ? AND path = ? AND bucket BETWEEN ? AND ?", apiKeyID, path, from, to.Add(step-time.Nanosecond)).
-		Find(&stats).Error
-	if err != nil {
-		return nil, err
-	}
-
-	byStep := map[time.Time]EndpointStat{}
-	for _, s := range stats {
-		at := s.Bucket.UTC().Truncate(step)
-		sum := byStep[at]
-		sum.Total += s.Total
-		sum.Errors += s.Errors
-		byStep[at] = sum
-	}
-
-	var points []TimelinePoint
-	for at := from; !at.After(to); at = at.Add(step) {
-		s := byStep[at]
-		points = append(points, TimelinePoint{At: at, Requests: s.Total, Errors: s.Errors, ErrorRate: s.ErrorRate()})
-	}
-	return points, nil
-}
-
-// AppsWithPath returns the apps that sent traffic on a path in the stored history.
-func AppsWithPath(db *gorm.DB, path string) ([]uint, error) {
-	var ids []uint
-	err := db.Model(&EndpointStat{}).Where("path = ?", path).Distinct("api_key_id").Pluck("api_key_id", &ids).Error
-	return ids, err
 }

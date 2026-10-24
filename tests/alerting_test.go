@@ -6,6 +6,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 	"lognorth/internal/settings"
@@ -49,13 +50,13 @@ func (tdb *testDB) createEndpointStatsAt(bucket time.Time, apiKeyID uint, path s
 }
 
 // getAlertState returns the current persistent alert state
-func (tdb *testDB) getAlertState(apiKeyID uint, path string) *events.SpikeState {
-	return events.GetOrCreateSpikeState(tdb.db, apiKeyID, path)
+func (tdb *testDB) getAlertState(apiKeyID uint, path string) *alerts.SpikeState {
+	return alerts.GetOrCreateSpikeState(tdb.db, apiKeyID, path)
 }
 
 // getDigestQueue returns pending warnings for daily digest
-func (tdb *testDB) getDigestQueue() []events.DigestItem {
-	return events.GetPendingDigestItems(tdb.db)
+func (tdb *testDB) getDigestQueue() []alerts.DigestItem {
+	return alerts.GetPendingDigestItems(tdb.db)
 }
 
 // =============================================================================
@@ -69,8 +70,8 @@ func TestAlerting_Digest_WarningsQueuedForEmail(t *testing.T) {
 	apiKey, _, _ := apikeys.Create(tdb.db, "DigestApp")
 
 	// When: Warnings are queued
-	events.QueueDigestItem(tdb.db, apiKey.ID, "/api/slow", "Error rate elevated to 7%", "warning")
-	events.QueueDigestItem(tdb.db, apiKey.ID, "/api/flaky", "Drift detected", "warning")
+	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/api/slow", "Error rate elevated to 7%", "warning")
+	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/api/flaky", "Drift detected", "warning")
 
 	// Then: Items appear in digest queue
 	queue := tdb.getDigestQueue()
@@ -88,12 +89,12 @@ func TestAlerting_Digest_ClearedAfterSending(t *testing.T) {
 
 	// Given: Pending warnings
 	apiKey, _, _ := apikeys.Create(tdb.db, "DigestApp2")
-	events.QueueDigestItem(tdb.db, apiKey.ID, "/path1", "Issue 1", "warning")
-	events.QueueDigestItem(tdb.db, apiKey.ID, "/path2", "Issue 2", "warning")
+	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/path1", "Issue 1", "warning")
+	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/path2", "Issue 2", "warning")
 
 	// When: Digest is sent (items marked resolved)
 	items := tdb.getDigestQueue()
-	events.MarkDigestItemsResolved(tdb.db, items)
+	alerts.MarkDigestItemsResolved(tdb.db, items)
 
 	// Then: Queue is empty
 	remaining := tdb.getDigestQueue()

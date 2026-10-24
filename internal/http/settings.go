@@ -3,6 +3,7 @@ package http
 import (
 	"github.com/karloscodes/cartridge"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/config"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
@@ -177,11 +178,11 @@ func TestNotificationAction(ctx *cartridge.Context) error {
 		return ctx.Status(500).JSON(cartridge.Map{"error": "failed to load settings"})
 	}
 
-	if !s.CanNotify() {
+	if !alerts.CanNotify(s) {
 		return ctx.Status(400).JSON(cartridge.Map{"error": "notifications not configured"})
 	}
 
-	err = s.SendNotification("LogNorth Test", "This is a test notification. If you received this, notifications are working.")
+	err = alerts.Send(s, "LogNorth Test", "This is a test notification. If you received this, notifications are working.")
 	if err != nil {
 		return ctx.Status(400).JSON(cartridge.Map{"error": err.Error()})
 	}

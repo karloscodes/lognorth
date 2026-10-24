@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/settings"
 )
 
@@ -39,7 +40,7 @@ func TestWebhookAlerts(t *testing.T) {
 		url, inbox := webhookReceiver(t, http.StatusOK)
 		s := &settings.Settings{NotifyChannel: "webhook", WebhookURL: url, WebhookToken: "crsr_secret"}
 
-		err := s.SendNotification("[shop] Spike on /checkout", "8% errors, normally 1%.\n\n/lognorth:investigate /checkout")
+		err := alerts.Send(s, "[shop] Spike on /checkout", "8% errors, normally 1%.\n\n/lognorth:investigate /checkout")
 
 		if err != nil {
 			t.Fatalf("send: %v", err)
@@ -63,7 +64,7 @@ func TestWebhookAlerts(t *testing.T) {
 		url, inbox := webhookReceiver(t, http.StatusNoContent)
 		s := &settings.Settings{NotifyChannel: "webhook", WebhookURL: url}
 
-		err := s.SendNotification("title", "message")
+		err := alerts.Send(s, "title", "message")
 
 		if err != nil || inbox.auth[0] != "" {
 			t.Errorf("err = %v, Authorization = %q; want success and no header", err, inbox.auth[0])
@@ -74,7 +75,7 @@ func TestWebhookAlerts(t *testing.T) {
 		url, _ := webhookReceiver(t, http.StatusUnauthorized)
 		s := &settings.Settings{NotifyChannel: "webhook", WebhookURL: url, WebhookToken: "wrong"}
 
-		err := s.SendNotification("title", "message")
+		err := alerts.Send(s, "title", "message")
 
 		if err == nil || !strings.Contains(err.Error(), "401") {
 			t.Errorf("err = %v, want a failure that names the 401", err)
@@ -84,11 +85,11 @@ func TestWebhookAlerts(t *testing.T) {
 	t.Run("counts as configured only with a URL", func(t *testing.T) {
 		s := &settings.Settings{NotifyChannel: "webhook", WebhookToken: "crsr_secret"}
 
-		if s.CanNotify() {
+		if alerts.CanNotify(s) {
 			t.Error("CanNotify = true without a URL")
 		}
 		s.WebhookURL = "https://api2.cursor.sh/automations/webhook/abc"
-		if !s.CanNotify() {
+		if !alerts.CanNotify(s) {
 			t.Error("CanNotify = false with a URL")
 		}
 	})

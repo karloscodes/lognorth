@@ -23,6 +23,7 @@ internal/
 │   ├── event.go         # Event model (processed events)
 │   └── issues.go        # Issues aggregation
 ├── apikeys/             # Context: API keys
+├── alerts/              # Context: when to alert, and the channels that tell
 ├── mcp/                 # Context: MCP protocol + read-only agent tools
 ├── jobs/                # Context: Background jobs (Cartridge JobDispatcher)
 │   ├── event_processor.go
@@ -101,22 +102,24 @@ up the old server from v0.28.1.
 
 ### Alerting
 
-Per-error alerts (new error, regression) are in `internal/events/alerting.go`.
+Everything that decides or sends an alert is in `internal/alerts`, a context of
+its own. Per-error alerts (new error, regression) are in `alerts/errors.go`.
 `RecordOccurrence` keeps the issue state per event; the processor collects
 the alerts of one run and `SendErrorAlerts` sends one per app ("shop — 3 new
 errors", at most 10 listed). One issue keeps its own subject and body.
-Rate alerts (spike, drift, silence) are SPC, run by `jobs/anomaly_checker.go`
+Rate alerts (spike, drift, silence) are SPC (`alerts/endpoints.go`, run by
+`jobs/anomaly_checker.go`)
 every 5 minutes on the last complete bucket of `endpoint_stats`:
 
 - Baselines are computed from stored history, never learned or saved
-  (`internal/events/spc_history.go`). Stats are kept 29 days, in UTC.
+  (`internal/alerts/spc_history.go`). Stats are kept 29 days, in UTC.
 - Error rate: p-chart against the pooled rate at the same time of day over 7
   days, widened by measured dispersion. Drift: the same check on the last hour.
 - Volume: median and MAD at the same time of week over 4 weeks.
 - Warning (3σ) goes to the daily digest. Critical (5σ) sends one email per
   path per hour. An alert clears after 2 clean checks.
 
-Secrets (`internal/events/secrets.go`): `moveEvents` calls
+Secrets (`internal/events/secrets.go`, the alert in `alerts/leaks.go`): `moveEvents` calls
 `events.RedactSecrets` before it stores an event, so no stored event, email,
 or MCP answer holds one. A value under a secret name (password,
 authorization, cookie, api_key, *token) is redacted silently. A value in a
@@ -270,7 +273,7 @@ VT323 (bundled, OFL) and adds scanlines.
 
 - **No gray, no hex:** never `gray-*` or `text-[#...]`. Use the tokens above.
 - **Red means error.** Never decorative. An endpoint turns red only when it
-  alerts against its own history (`events.ListAlerts`), not by a fixed rate.
+  alerts against its own history (`alerts.ListAlerts`), not by a fixed rate.
 - **No rounded corners.** `--radius` is 0. Radios and checkboxes are squares.
 - **Table columns in px, not `ch`.** Header rows are 11px and data rows 13px,
   and `ch` would size the same column differently in each.
