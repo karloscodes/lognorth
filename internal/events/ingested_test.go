@@ -35,6 +35,29 @@ func TestCreateIngested(t *testing.T) {
 			t.Errorf("timestamp = %v, want about now", event.Timestamp)
 		}
 	})
+
+	t.Run("sets a timestamp from the future to now", func(t *testing.T) {
+		db := newTestDB(t)
+		event := &IngestedEvent{APIKeyID: 1, Message: "clock ahead", Timestamp: time.Now().Add(365 * 24 * time.Hour)}
+
+		CreateIngested(db, []*IngestedEvent{event})
+
+		if d := time.Since(event.Timestamp); d < 0 || d > time.Minute {
+			t.Errorf("timestamp = %v, want about now", event.Timestamp)
+		}
+	})
+
+	t.Run("keeps a timestamp within the clock skew", func(t *testing.T) {
+		db := newTestDB(t)
+		ahead := time.Now().Add(20 * time.Second).UTC()
+		event := &IngestedEvent{APIKeyID: 1, Message: "clock a little ahead", Timestamp: ahead}
+
+		CreateIngested(db, []*IngestedEvent{event})
+
+		if !event.Timestamp.Equal(ahead) {
+			t.Errorf("timestamp = %v, want %v", event.Timestamp, ahead)
+		}
+	})
 }
 
 func TestNextIngested(t *testing.T) {

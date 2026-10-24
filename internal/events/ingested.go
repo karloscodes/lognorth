@@ -42,6 +42,12 @@ func DropProcessedState(db *gorm.DB) error {
 	return nil
 }
 
+// maxClockSkew is how far ahead of the server an event's time can be. A
+// client whose clock runs further ahead gets the time the event arrived:
+// an event in the future would top the log for good, and retention, which
+// deletes by age, would never delete it.
+const maxClockSkew = time.Minute
+
 // CreateIngested stores events. Call it inside one write transaction, so it
 // stores all of them or none.
 func CreateIngested(tx *gorm.DB, events []*IngestedEvent) error {
@@ -50,7 +56,7 @@ func CreateIngested(tx *gorm.DB, events []*IngestedEvent) error {
 	}
 	now := time.Now().UTC()
 	for _, e := range events {
-		if e.Timestamp.IsZero() {
+		if e.Timestamp.IsZero() || e.Timestamp.After(now.Add(maxClockSkew)) {
 			e.Timestamp = now
 		}
 		e.Timestamp = e.Timestamp.UTC()
