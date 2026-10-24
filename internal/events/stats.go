@@ -186,10 +186,3 @@ func GetTimeline(db *gorm.DB, apiKeyID uint, path string, from, to time.Time, st
 	}
 	return points, nil
 }
-
-// AppsWithPath returns the apps that sent traffic on a path in the stored history.
-func AppsWithPath(db *gorm.DB, path string) ([]uint, error) {
-	var ids []uint
-	err := db.Model(&EndpointStat{}).Where("path = ?", path).Distinct("api_key_id").Pluck("api_key_id", &ids).Error
-	return ids, err
-}

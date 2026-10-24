@@ -113,7 +113,7 @@ func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*eve
 		for _, ie := range batch {
 			// Before anything reads the event, so no copy keeps a secret.
 			kinds := events.RedactSecrets(&ie)
-			event, path, err := moveEvent(tx, ie)
+			event, path, endpoint, err := moveEvent(tx, ie)
 			if errors.Is(err, errAlreadyMoved) {
 				continue
 			}
@@ -121,7 +121,7 @@ func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*eve
 				ctx.Logger.Error("Failed to process event", "ingested_id", ie.ID, "error", err)
 				continue
 			}
-			if err := stats.Add(tx, ie.APIKeyID, path, ie.IsError, ie.DurationMS, event.Timestamp); err != nil {
+			if err := stats.Add(tx, ie.APIKeyID, endpoint, ie.IsError, ie.DurationMS, event.Timestamp); err != nil {
 				return err
 			}
 			hours.Add(ie.APIKeyID, ie.IsError, event.Timestamp)
@@ -152,11 +152,11 @@ func moveEvents(ctx *cartridge.JobContext, batch []events.IngestedEvent) ([]*eve
 // read the same row before either deletes it.
 var errAlreadyMoved = errors.New("ingested event already moved")
 
-// moveEvent turns one staging row into an event and returns the event and its
-// endpoint path. Inside a transaction it runs under a savepoint, so a failure
+// moveEvent turns one staging row into an event and returns the event, its
+// path, and its endpoint (events.EndpointKey). Inside a transaction it runs under a savepoint, so a failure
 // undoes only this event. It deletes the staging row first: when that deletes
 // nothing, another processor has the event, and moveEvent stores no copy.
-func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, string, error) {
+func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, string, string, error) {
 	event := &events.Event{
 		APIKeyID:   ie.APIKeyID,
 		Message:    ie.Message,
@@ -189,11 +189,11 @@ func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, string, err
 		}
 		return nil
 	})
-	path := ""
+	path, endpoint := "", ""
 	if eventCtx != nil {
-		path = eventCtx.Path
+		path, endpoint = eventCtx.Path, events.EndpointKey(eventCtx.Route, eventCtx.Path)
 	}
-	return event, path, err
+	return event, path, endpoint, err
 }
 
 func appName(db *gorm.DB, cache map[uint]string, apiKeyID uint) string {
