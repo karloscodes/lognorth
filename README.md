@@ -1,61 +1,42 @@
 # LogNorth
 
-Know when things break. Self-hosted error tracking.
+Logs that alert. Logs you read. Self-hosted error tracking in one container
+and one SQLite file. Your data never leaves your server.
 
-## Quick Start
+- Groups errors into issues and alerts on new ones, regressions, and spikes,
+  measured against the baseline of your own traffic.
+- Pings your app every minute and alerts after three failures in a row.
+- Sends alerts by email, ntfy, Telegram, or webhook, with quiet hours.
+- Lets a coding agent read production logs over MCP, read-only.
 
-```bash
-make dev      # Run Go API + React dev server
-make seed     # Generate sample data with Mailpit config
-make build    # Build production binary
-```
+[Website](https://lognorth.com)
 
-## Development
+## Install
 
-### Email Testing (Mailpit)
-
-The seed command pre-configures Mailpit for local email testing.
-
-```bash
-# Start Mailpit
-docker compose -f docker-compose.dev.yml up -d
-
-# Seed database (includes Mailpit SMTP config)
-make seed
-
-# View emails
-open http://localhost:8025
-```
-
-**SMTP settings (already configured by seed):**
-- Host: `localhost`
-- Port: `1025`
-- From: `alerts@lognorth.local`
-- To: `dev@localhost`
-
-To test: Settings → Send test email → Check Mailpit UI.
-
-### Running Tests
+On your server, as root:
 
 ```bash
-make test
+curl -fsSL lognorth.com/install | sudo bash -s logs.example.com
 ```
 
-## Architecture
+It installs LogNorth with [Chasen](https://chasenhq.com): HTTPS, live backups
+of the database, and an update each night. Run it again to update now.
 
-See [AGENTS.md](./AGENTS.md) for details.
+Or run the image yourself: `karloscodes/lognorth` on Docker Hub, or
+`ghcr.io/karloscodes/lognorth-releases`.
 
+## Send events
+
+Use an SDK: [TypeScript](https://github.com/karloscodes/lognorth-sdk-ts),
+[Go](https://github.com/karloscodes/lognorth-sdk-go), or
+[Rails](https://github.com/karloscodes/lognorth-sdk-rails). Or point an
+OpenTelemetry SDK at it:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=https://logs.example.com/otel
 ```
-internal/
-├── http/       # HTTP handlers
-├── events/     # Events & issues
-├── apikeys/    # API key management
-├── mcp/        # MCP protocol + read-only agent tools
-├── settings/   # App configuration
-└── jobs/       # Background processing
-```
 
-## Event Ingestion
+Or post JSON:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/events \
@@ -87,4 +68,53 @@ claude mcp add --transport http lognorth http://localhost:8080/mcp \
 
 Tools: `list_apps`, `list_alerts`, `endpoint_timeline`, `list_issues`,
 `search_logs`, `get_event`. All read-only.
+
 The protocol lives in `internal/mcp`; the handler is `internal/http/mcp.go`.
+
+## Development
+
+```bash
+make dev      # Run Go API + React dev server
+make seed     # Generate sample data with Mailpit config
+make build    # Build production binary
+make test     # Run the Go tests
+```
+
+### Email testing (Mailpit)
+
+The seed command pre-configures Mailpit for local email testing.
+
+```bash
+# Start Mailpit
+docker compose -f docker-compose.dev.yml up -d
+# Seed database (includes Mailpit SMTP config)
+make seed
+# View emails
+open http://localhost:8025
+```
+
+**SMTP settings (already configured by seed):**
+- Host: `localhost`
+- Port: `1025`
+- From: `alerts@lognorth.local`
+- To: `dev@localhost`
+
+To test: Settings → Send test email → Check Mailpit UI.
+
+### Architecture
+
+See [AGENTS.md](./AGENTS.md) for details.
+
+```
+internal/
+├── http/       # HTTP handlers
+├── events/     # Events & issues
+├── apikeys/    # API key management
+├── mcp/        # MCP protocol + read-only agent tools
+├── settings/   # App configuration
+└── jobs/       # Background processing
+```
+
+## License
+
+[MIT](./LICENSE)
