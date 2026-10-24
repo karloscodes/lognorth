@@ -53,10 +53,15 @@ func setupErrorAlerts(t *testing.T) (*gorm.DB, *ntfyInbox) {
 	return db, inbox
 }
 
-// occur stores one error event, records it, and sends its alert, as one
-// processor run with one error does.
+// clock is the time of the next occurrence. Each one is an hour after the
+// last, so each alert is due when it is delivered.
+var clock = time.Now()
+
+// occur stores one error event, records its alert, and delivers the alerts
+// that wait, as one processor run with one error and the sender after it do.
 func occur(t *testing.T, db *gorm.DB, context string) *events.Event {
 	t.Helper()
+	clock = clock.Add(time.Hour)
 	event := &events.Event{APIKeyID: 1, Message: "POST /pay 500", IsError: true, Context: context}
 	if err := events.Create(db, event); err != nil {
 		t.Fatalf("create event: %v", err)
@@ -64,18 +69,17 @@ func occur(t *testing.T, db *gorm.DB, context string) *events.Event {
 	if err := events.RecountIssues(db, []string{event.IssueHash}); err != nil {
 		t.Fatalf("count the issue: %v", err)
 	}
-	engine, err := alerts.NewAlertEngine(db)
+	alert, err := alerts.CheckError(db, event, "", clock)
 	if err != nil {
-		t.Fatalf("alert engine: %v", err)
-	}
-	alert, err := engine.RecordOccurrence(event)
-	if err != nil {
-		t.Fatalf("record occurrence: %v", err)
+		t.Fatalf("check the error: %v", err)
 	}
 	if alert != nil {
-		if err := engine.SendErrorAlerts(event.APIKeyID, "shop", []alerts.ErrorAlert{*alert}); err != nil {
-			t.Fatalf("send alert: %v", err)
+		if err := alerts.Record(db, clock, alert); err != nil {
+			t.Fatalf("record the alert: %v", err)
 		}
+	}
+	if err := alerts.Deliver(db, clock.Add(time.Minute)); err != nil {
+		t.Fatalf("deliver: %v", err)
 	}
 	return event
 }
@@ -110,7 +114,7 @@ func TestErrorAlerts(t *testing.T) {
 		event := occur(t, db, cardDeclined)
 		events.MuteIssue(db, event.IssueHash)
 		db.Model(&events.IssueSeen{}).Where("error_hash = ?", event.IssueHash).
-			Update("last_occurrence_at", time.Now().Add(-48*time.Hour))
+			Update("last_occurrence_at", clock.Add(-47*time.Hour))
 
 		occur(t, db, cardDeclined)
 
@@ -123,7 +127,7 @@ func TestErrorAlerts(t *testing.T) {
 		db, inbox := setupErrorAlerts(t)
 		event := occur(t, db, cardDeclined)
 		db.Model(&events.IssueSeen{}).Where("error_hash = ?", event.IssueHash).
-			Update("last_occurrence_at", time.Now().Add(-48*time.Hour))
+			Update("last_occurrence_at", clock.Add(-47*time.Hour))
 
 		occur(t, db, cardDeclined)
 

@@ -89,9 +89,14 @@ func (s *UptimeSweeper) ProcessBatch(ctx *cartridge.JobContext) error {
 	}
 	wg.Wait()
 
-	settingsRow, _ := settings.Get(db)
+	baseURL := ""
+	if s, err := settings.Get(db); err == nil {
+		baseURL = s.BaseURL
+	}
 	for i, key := range due {
-		alerts.ApplyPing(db, key, checks[i], settingsRow, now)
+		if err := alerts.ApplyPing(db, key, checks[i], baseURL, now); err != nil {
+			ctx.Logger.Error("Failed to apply an uptime ping", "app", key.ID, "error", err)
+		}
 	}
 	return nil
 }

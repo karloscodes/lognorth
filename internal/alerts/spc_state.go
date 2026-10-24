@@ -24,7 +24,7 @@ func GetOrCreateSpikeState(db *gorm.DB, apiKeyID uint, path string) *SpikeState 
 
 // UpdateSPCSeverity applies one check result to the spike state.
 // An alert only escalates while active. It clears after RecoveryChecks clean checks in a row.
-func UpdateSPCSeverity(db *gorm.DB, state *SpikeState, severity string, errors int) {
+func UpdateSPCSeverity(db *gorm.DB, state *SpikeState, severity string, errors int, now time.Time) {
 	if severity == "" {
 		if state.Severity != "" {
 			state.CleanChecks++
@@ -40,7 +40,7 @@ func UpdateSPCSeverity(db *gorm.DB, state *SpikeState, severity string, errors i
 	}
 
 	if state.Severity == "" {
-		state.SpikeStartAt = time.Now().UTC()
+		state.SpikeStartAt = now.UTC()
 	}
 	state.Severity = MaxSeverity(state.Severity, severity)
 	state.ErrorCount += errors
@@ -50,27 +50,29 @@ func UpdateSPCSeverity(db *gorm.DB, state *SpikeState, severity string, errors i
 
 // GetUnnotifiedCriticalSpikes returns critical spikes that need an email.
 // A path gets at most one email per AlertCooldown, so a flapping endpoint does not flood the inbox.
-func GetUnnotifiedCriticalSpikes(db *gorm.DB) []SpikeState {
+func GetUnnotifiedCriticalSpikes(db *gorm.DB, now time.Time) []SpikeState {
 	var spikes []SpikeState
-	db.Where("severity = ? AND last_alert_at < spike_start_at AND last_alert_at < ?",
-		"critical", time.Now().UTC().Add(-AlertCooldown)).Find(&spikes)
+	// clean_checks = 0: the last check was still bad. A spike that is
+	// clearing (one clean check, waiting for the second) is not news.
+	db.Where("severity = ? AND clean_checks = 0 AND last_alert_at < spike_start_at AND last_alert_at < ?",
+		"critical", now.UTC().Add(-AlertCooldown)).Find(&spikes)
 	return spikes
 }
 
 // MarkSpikeNotified marks the spike as notified.
-func MarkSpikeNotified(db *gorm.DB, state *SpikeState) {
-	state.LastAlertAt = time.Now().UTC()
+func MarkSpikeNotified(db *gorm.DB, state *SpikeState, now time.Time) {
+	state.LastAlertAt = now.UTC()
 	db.Save(state)
 }
 
 // QueueDigestItem adds a warning to the daily digest queue.
-func QueueDigestItem(db *gorm.DB, apiKeyID uint, path, message, severity string) {
+func QueueDigestItem(db *gorm.DB, apiKeyID uint, path, message, severity string, now time.Time) {
 	item := DigestItem{
 		APIKeyID:  apiKeyID,
 		Path:      path,
 		Message:   message,
 		Severity:  severity,
-		CreatedAt: time.Now().UTC(),
+		CreatedAt: now.UTC(),
 	}
 	db.Create(&item)
 }
@@ -109,7 +111,7 @@ func GetOrCreateSilenceState(db *gorm.DB, apiKeyID uint, path string) *SilenceSt
 
 // UpdateSilenceSeverity applies one check result to the silence state.
 // It works like UpdateSPCSeverity.
-func UpdateSilenceSeverity(db *gorm.DB, state *SilenceState, severity string) {
+func UpdateSilenceSeverity(db *gorm.DB, state *SilenceState, severity string, now time.Time) {
 	if severity == "" {
 		if state.Severity != "" {
 			state.CleanChecks++
@@ -124,7 +126,7 @@ func UpdateSilenceSeverity(db *gorm.DB, state *SilenceState, severity string) {
 	}
 
 	if state.Severity == "" {
-		state.SilenceStartAt = time.Now().UTC()
+		state.SilenceStartAt = now.UTC()
 	}
 	state.Severity = MaxSeverity(state.Severity, severity)
 	state.CleanChecks = 0
@@ -132,15 +134,15 @@ func UpdateSilenceSeverity(db *gorm.DB, state *SilenceState, severity string) {
 }
 
 // GetUnnotifiedCriticalSilences returns critical silences that need an email.
-func GetUnnotifiedCriticalSilences(db *gorm.DB) []SilenceState {
+func GetUnnotifiedCriticalSilences(db *gorm.DB, now time.Time) []SilenceState {
 	var silences []SilenceState
-	db.Where("severity = ? AND last_alert_at < silence_start_at AND last_alert_at < ?",
-		"critical", time.Now().UTC().Add(-AlertCooldown)).Find(&silences)
+	db.Where("severity = ? AND clean_checks = 0 AND last_alert_at < silence_start_at AND last_alert_at < ?",
+		"critical", now.UTC().Add(-AlertCooldown)).Find(&silences)
 	return silences
 }
 
 // MarkSilenceNotified marks the silence as notified.
-func MarkSilenceNotified(db *gorm.DB, state *SilenceState) {
-	state.LastAlertAt = time.Now().UTC()
+func MarkSilenceNotified(db *gorm.DB, state *SilenceState, now time.Time) {
+	state.LastAlertAt = now.UTC()
 	db.Save(state)
 }

@@ -41,13 +41,17 @@ type APIKey struct {
 	// Uptime ping (active HTTP probe). The user provides the URL when
 	// adding the app (or via the [edit] UI). Pinged every minute, alert
 	// after 3 consecutive fails. Apps without a URL are skipped.
-	PingURL          string    `gorm:"size:500" json:"ping_url"`
-	PingDisabled     bool      `gorm:"default:false" json:"ping_disabled"`
-	IsDown           bool      `gorm:"default:false" json:"is_down"`
-	DownNotified     bool      `gorm:"default:false" json:"-"` // The down alert went out
-	ConsecutiveFails int       `gorm:"default:0" json:"consecutive_fails"`
-	DownSince        time.Time `json:"down_since,omitempty"`
-	LastPingedAt     time.Time `json:"last_pinged_at,omitempty"`
+	PingURL          string `gorm:"size:500" json:"ping_url"`
+	PingDisabled     bool   `gorm:"default:false" json:"ping_disabled"`
+	IsDown           bool   `gorm:"default:false" json:"is_down"`
+	DownNotified     bool   `gorm:"default:false" json:"-"` // The down alert went out
+	ConsecutiveFails int    `gorm:"default:0" json:"consecutive_fails"`
+	// While down: good pings in a row, and the time of the first. The app
+	// recovers after alerts.RecoveryPings of them.
+	ConsecutiveUps int       `gorm:"default:0" json:"-"`
+	UpSince        time.Time `json:"-"`
+	DownSince      time.Time `json:"down_since,omitempty"`
+	LastPingedAt   time.Time `json:"last_pinged_at,omitempty"`
 
 	// The public status page the app shows on (internal/status), or 0 for
 	// none. None until the owner picks one: the page names the app to anyone.

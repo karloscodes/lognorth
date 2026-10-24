@@ -11,101 +11,52 @@ import (
 	"gorm.io/gorm"
 
 	"lognorth/internal/events"
-	"lognorth/internal/settings"
 )
 
-// =============================================================================
-// ALERT THRESHOLDS - Tune these values to adjust sensitivity
-// =============================================================================
-
 const (
-	RegressionQuietPeriod = 24 * time.Hour // How long error must be quiet to trigger regression
+	// RegressionQuietPeriod is how long an issue must be quiet before its
+	// return alerts again.
+	RegressionQuietPeriod = 24 * time.Hour
 
 	// occurrenceWriteInterval is the most often an issue's last occurrence
 	// is written.
 	occurrenceWriteInterval = time.Minute
 )
 
-// =============================================================================
-// DETECTION RULES - Pure functions, no side effects
-// =============================================================================
-
-// IsRegression returns true if error has been quiet long enough to be a regression
-func IsRegression(lastOccurrence time.Time) bool {
-	return time.Since(lastOccurrence) >= RegressionQuietPeriod
+// IsRegression reports whether an issue last seen at lastOccurrence has been
+// quiet long enough to alert when it comes back at now.
+func IsRegression(lastOccurrence, now time.Time) bool {
+	return now.Sub(lastOccurrence) >= RegressionQuietPeriod
 }
 
-// =============================================================================
-// STATE TRACKING
-// =============================================================================
-
-// =============================================================================
-// ALERT ENGINE
-// =============================================================================
-
-// AlertEngine handles alert detection and sending
-type AlertEngine struct {
-	db       *gorm.DB
-	settings *settings.Settings
-}
-
-// NewAlertEngine creates a new alert engine
-func NewAlertEngine(db *gorm.DB) (*AlertEngine, error) {
-	s, err := settings.Get(db)
-	if err != nil {
-		return nil, err
-	}
-	return &AlertEngine{db: db, settings: s}, nil
-}
-
-// CanNotify returns true if notifications are configured
-func (e *AlertEngine) CanNotify() bool {
-	return CanNotify(e.settings)
-}
-
-// =============================================================================
-// ALERT CHECKS
-// =============================================================================
-
-// An ErrorAlert is an issue the owner hears about: a new one, or one back
-// after RegressionQuietPeriod.
-type ErrorAlert struct {
-	Event *events.Event
-	// QuietFor is how long a regression was quiet; 0 for a new issue.
-	QuietFor time.Duration
-}
-
-// RecordOccurrence records an occurrence of the event's issue, and returns
-// an alert when the issue is new, or back after RegressionQuietPeriod. It
-// keys on the same issue_hash the issue list, mute, and seen state use. The
-// state is tracked even without a notification channel, so setting one up
-// later does not alert on every existing issue. SendErrorAlerts sends the
-// alerts.
-func (e *AlertEngine) RecordOccurrence(event *events.Event) (*ErrorAlert, error) {
+// CheckError records an occurrence of the event's issue, and returns the
+// alert to record when the issue is new, or back after RegressionQuietPeriod.
+// It keys on the same issue_hash the issue list, mute, and seen state use. It
+// keeps the state with or without a channel, so setting one up later does not
+// alert on every existing issue.
+func CheckError(db *gorm.DB, event *events.Event, baseURL string, now time.Time) (*Alert, error) {
 	hash := event.IssueHash
 	if hash == "" {
 		return nil, nil
 	}
-	now := time.Now()
 
 	var seen events.IssueSeen
-	result := e.db.Where("error_hash = ?", hash).First(&seen)
-
-	if result.Error == gorm.ErrRecordNotFound {
-		if err := e.db.Create(&events.IssueSeen{ErrorHash: hash, LastOccurrenceAt: now}).Error; err != nil {
-			return nil, err
-		}
-		return &ErrorAlert{Event: event}, nil
-	}
+	result := db.Where("error_hash = ?", hash).Limit(1).Find(&seen)
 	if result.Error != nil {
 		return nil, result.Error
+	}
+	if seen.ID == 0 {
+		if err := db.Create(&events.IssueSeen{ErrorHash: hash, LastOccurrenceAt: now}).Error; err != nil {
+			return nil, err
+		}
+		return errorAlert(event, 0, baseURL), nil
 	}
 
 	// Zero LastOccurrenceAt means a row with no tracked occurrence yet; record
 	// it silently rather than claiming a 292-year regression.
-	var alert *ErrorAlert
-	if !seen.Muted && !seen.LastOccurrenceAt.IsZero() && IsRegression(seen.LastOccurrenceAt) {
-		alert = &ErrorAlert{Event: event, QuietFor: now.Sub(seen.LastOccurrenceAt)}
+	var alert *Alert
+	if !seen.Muted && !seen.LastOccurrenceAt.IsZero() && IsRegression(seen.LastOccurrenceAt, now) {
+		alert = errorAlert(event, now.Sub(seen.LastOccurrenceAt), baseURL)
 	}
 
 	// A regression needs a quiet day, so a minute of precision is plenty. An
@@ -114,99 +65,25 @@ func (e *AlertEngine) RecordOccurrence(event *events.Event) (*ErrorAlert, error)
 	if now.Sub(seen.LastOccurrenceAt) < occurrenceWriteInterval {
 		return alert, nil
 	}
-	if err := e.db.Model(&seen).Update("last_occurrence_at", now).Error; err != nil {
+	if err := db.Model(&seen).Update("last_occurrence_at", now).Error; err != nil {
 		return alert, err
 	}
 	return alert, nil
 }
 
-// =============================================================================
-// ALERT SENDING
-// =============================================================================
-
-// maxListedAlerts caps the issues one email lists. The rest are a link away.
-const maxListedAlerts = 10
-
-// SendErrorAlerts sends one notification for an app's new and regressed
-// issues of one processor run, so a deploy that breaks 20 things sends one
-// email, not 20. One issue gets the same subject and body as always.
-func (e *AlertEngine) SendErrorAlerts(appID uint, appName string, alerts []ErrorAlert) error {
-	if len(alerts) == 0 || !e.CanNotify() {
-		return nil
-	}
-	if len(alerts) == 1 {
-		return Send(e.settings, alertSubject(appName, alerts[0]), alertBody(alerts[0].Event, e.settings.BaseURL))
-	}
-	return Send(e.settings, groupSubject(appName, alerts), groupBody(appID, alerts, e.settings.BaseURL))
-}
-
-// alertSubject names one issue: new, or back after how long.
-func alertSubject(appName string, alert ErrorAlert) string {
-	short := firstLine(FormatHeadline(alert.Event.ErrorClass, alert.Event.ErrorMessage), 120)
-	if alert.QuietFor == 0 {
-		return fmt.Sprintf("%s — new: %s", appName, short)
-	}
-	if dur := FormatDuration(alert.QuietFor); dur != "" {
-		return fmt.Sprintf("%s — back after %s: %s", appName, dur, short)
-	}
-	return fmt.Sprintf("%s — back: %s", appName, short)
-}
-
-// groupSubject counts the issues: "shop — 3 new errors", "shop — 2 errors
-// back", or "shop — 2 new errors, 1 back".
-func groupSubject(appName string, alerts []ErrorAlert) string {
-	newCount := 0
-	for _, a := range alerts {
-		if a.QuietFor == 0 {
-			newCount++
+// errorAlert is the alert of a new issue (quietFor 0), or of one back after
+// quietFor.
+func errorAlert(event *events.Event, quietFor time.Duration, baseURL string) *Alert {
+	short := firstLine(FormatHeadline(event.ErrorClass, event.ErrorMessage), 120)
+	a := &Alert{APIKeyID: event.APIKeyID, Kind: KindNewError, Title: "new: " + short, Body: alertBody(event, baseURL)}
+	if quietFor > 0 {
+		a.Kind = KindRegression
+		a.Title = "back: " + short
+		if dur := FormatDuration(quietFor); dur != "" {
+			a.Title = fmt.Sprintf("back after %s: %s", dur, short)
 		}
 	}
-	back := len(alerts) - newCount
-	switch {
-	case back == 0:
-		return fmt.Sprintf("%s — %d new errors", appName, newCount)
-	case newCount == 0:
-		return fmt.Sprintf("%s — %d errors back", appName, back)
-	}
-	return fmt.Sprintf("%s — %d new %s, %d back", appName, newCount, plural(newCount, "error", "errors"), back)
-}
-
-// groupBody lists each issue as alertBody names one: the headline, where it
-// is, the release, and its link. It ends with the agent command for the
-// first.
-func groupBody(appID uint, alerts []ErrorAlert, baseURL string) string {
-	var body strings.Builder
-	for i, a := range alerts[:min(len(alerts), maxListedAlerts)] {
-		if i > 0 {
-			body.WriteString("\n\n")
-		}
-		label := "new"
-		if a.QuietFor > 0 {
-			label = "back"
-			if dur := FormatDuration(a.QuietFor); dur != "" {
-				label = "back after " + dur
-			}
-		}
-		body.WriteString(label + ": " + firstLine(FormatHeadline(a.Event.ErrorClass, a.Event.ErrorMessage), 200))
-		if loc := formatLocation(a.Event.ErrorFile, a.Event.ErrorLine); loc != "" {
-			body.WriteString("\n  at " + loc)
-		}
-		if ctx, err := a.Event.GetContext(); err == nil && ctx.Release != "" {
-			body.WriteString("\n  in release " + ctx.Release)
-		}
-		if baseURL != "" {
-			body.WriteString(fmt.Sprintf("\n  %s/issues/%s", baseURL, a.Event.IssueHash))
-		}
-	}
-	if more := len(alerts) - maxListedAlerts; more > 0 {
-		body.WriteString(fmt.Sprintf("\n\nAnd %d more", more))
-		if baseURL != "" {
-			body.WriteString(fmt.Sprintf(": %s/apps/%d/issues", baseURL, appID))
-		}
-		body.WriteString(".")
-	}
-	body.WriteString("\n\nAsk your agent: /lognorth:investigate " + alerts[0].Event.IssueHash)
-	return body.String()
+	return a
 }
 
 func plural(n int, one, many string) string {
@@ -272,10 +149,6 @@ func formatLocation(errorFile string, errorLine int) string {
 	}
 	return errorFile
 }
-
-// =============================================================================
-// HELPERS
-// =============================================================================
 
 // FormatDuration renders a duration as a compact "15m" / "2h" / "3d" string.
 // Returns "" for non-positive or absurd values (e.g. int64 overflow from a

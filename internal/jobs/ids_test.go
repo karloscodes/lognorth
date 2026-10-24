@@ -3,7 +3,9 @@ package jobs
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
 )
@@ -13,7 +15,7 @@ import (
 func TestEventProcessor_IDsInMessagesMakeOneIssue(t *testing.T) {
 	db := setupProcessorDB(t)
 	key, _, _ := apikeys.Create(db, "Shop")
-	alerts := webhookAlerts(t, db)
+	received := webhookAlerts(t, db)
 	var batch []*events.IngestedEvent
 	for id := 1000; id < 1050; id++ {
 		batch = append(batch, &events.IngestedEvent{
@@ -26,6 +28,9 @@ func TestEventProcessor_IDsInMessagesMakeOneIssue(t *testing.T) {
 	if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
 		t.Fatalf("ProcessBatch: %v", err)
 	}
+	if err := alerts.Deliver(db, time.Now().Add(time.Minute)); err != nil {
+		t.Fatalf("Deliver: %v", err)
+	}
 
 	var issues []events.Issue
 	db.Find(&issues)
@@ -37,7 +42,7 @@ func TestEventProcessor_IDsInMessagesMakeOneIssue(t *testing.T) {
 			return 0
 		}())
 	}
-	if got := alerts(); len(got) != 1 {
+	if got := received(); len(got) != 1 {
 		t.Errorf("alerts = %d, want 1: %q", len(got), got)
 	}
 }

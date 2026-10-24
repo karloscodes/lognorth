@@ -12,11 +12,11 @@ import (
 // Test the notification channel configuration logic
 // =============================================================================
 
-func TestSettings_CanNotify(t *testing.T) {
+func TestSettings_ChannelConfigured(t *testing.T) {
 	t.Run("empty settings cannot notify", func(t *testing.T) {
 		s := &settings.Settings{}
 
-		if alerts.CanNotify(s) {
+		if alerts.ChannelConfigured(s) {
 			t.Error("empty settings should not be able to notify")
 		}
 	})
@@ -27,7 +27,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NtfyURL:       "https://ntfy.sh/my-topic",
 		}
 
-		if !alerts.CanNotify(s) {
+		if !alerts.ChannelConfigured(s) {
 			t.Error("ntfy channel with URL should be able to notify")
 		}
 	})
@@ -38,7 +38,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NtfyURL:       "",
 		}
 
-		if alerts.CanNotify(s) {
+		if alerts.ChannelConfigured(s) {
 			t.Error("ntfy channel without URL should not be able to notify")
 		}
 	})
@@ -52,7 +52,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NotifyEmail:   "user@example.com",
 		}
 
-		if !alerts.CanNotify(s) {
+		if !alerts.ChannelConfigured(s) {
 			t.Error("email channel fully configured should be able to notify")
 		}
 	})
@@ -66,7 +66,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NotifyEmail:   "user@example.com",
 		}
 
-		if alerts.CanNotify(s) {
+		if alerts.ChannelConfigured(s) {
 			t.Error("email channel without host should not be able to notify")
 		}
 	})
@@ -80,7 +80,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NotifyEmail:   "",
 		}
 
-		if alerts.CanNotify(s) {
+		if alerts.ChannelConfigured(s) {
 			t.Error("email channel without notify email should not be able to notify")
 		}
 	})
@@ -91,7 +91,7 @@ func TestSettings_CanNotify(t *testing.T) {
 			NtfyURL:       "https://ntfy.sh/my-topic",
 		}
 
-		if alerts.CanNotify(s) {
+		if alerts.ChannelConfigured(s) {
 			t.Error("unknown channel should not be able to notify")
 		}
 	})

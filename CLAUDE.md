@@ -119,22 +119,61 @@ up the old server from v0.28.1.
 
 ### Alerting
 
-Everything that decides or sends an alert is in `internal/alerts`, a context of
-its own. Per-error alerts (new error, regression) are in `alerts/errors.go`.
-`RecordOccurrence` keeps the issue state per event; the processor collects
-the alerts of one run and `SendErrorAlerts` sends one per app ("shop — 3 new
-errors", at most 10 listed). One issue keeps its own subject and body.
-Rate alerts (spike, drift, silence) are SPC (`alerts/endpoints.go`, run by
-`jobs/anomaly_checker.go`)
-every 5 minutes on the last complete bucket of `endpoint_stats`:
+Alerting is the product's moat. Everything that decides or sends an alert is
+in `internal/alerts`, a context of its own. The detectors never send email:
+each records an `Alert` (`alerts/alert.go`), and `alerts.Deliver` (the
+`AlertSender` job, every 15 seconds) sends them. Time is a parameter
+everywhere, so the scenario tests replay days of traffic in seconds.
 
-- Baselines are computed from stored history, never learned or saved
-  (`internal/alerts/spc_history.go`). Stats are kept 29 days, in UTC.
-- Error rate: p-chart against the pooled rate at the same time of day over 7
-  days, widened by measured dispersion. Drift: the same check on the last hour.
-- Volume: median and MAD at the same time of week over 4 weeks.
-- Warning (3σ) goes to the daily digest. Critical (5σ) sends one email per
-  path per hour. An alert clears after 2 clean checks.
+**Who hears what, and when** (`Deliver`), per app:
+
+- An app's alerts go out together once the oldest waited 30 seconds, so a
+  burst (a deploy that breaks 20 things) lands in one email.
+- An app gets at most one email per 10 minutes. The first "down" of an
+  incident does not wait for it.
+- In quiet hours nothing goes out. When they end, the night's alerts go out
+  in one email per app ("while you were off"). Quiet hours, the digest hour,
+  and the times in an email are in the owner's zone (`settings.TimeZone`, saved
+  from the browser; UTC without one).
+- Without a channel, alerts are dropped, so setting one up later sends
+  nothing old. An alert that cannot go out for a day is dropped.
+- One alert keeps the subject it always had ("shop — new: TypeError: boom").
+  Several are counted ("shop — down, 15 endpoints failing, 1 new error") and
+  listed, at most 10.
+
+**The detectors:**
+
+- New errors and regressions (`alerts/errors.go`, `CheckError`): an issue is
+  new, or back after a quiet day. A muted issue stays quiet. The hash ignores
+  ids in the message (`events/issue.go`).
+- Endpoints (`alerts/endpoints.go`, every 5 minutes, on the bucket that ended
+  at least a minute ago). Baselines come from stored history, never learned
+  or saved (`alerts/spc_history.go`); stats are kept 29 days, in UTC, keyed on
+  the route.
+  - Spike: the bucket against the same time of day over 7 days, a p-chart
+    widened by measured dispersion. The normal rate drops past outages, so a
+    repeat still emails.
+  - Drift: the last hour, without its spike buckets, against the same hour on
+    the last 7 days. It holds only while the last 15 minutes are still above
+    normal, so it catches a slow rise and never echoes a spike that is over.
+  - Small endpoints, too small for the spike check: critical when the last 15
+    minutes have 5 errors and half the requests failed, the bucket just
+    checked fails as much, and the endpoint normally fails under 10%.
+  - Silence: median and MAD at the same time of week over 4 weeks.
+  - Warning (3σ) goes to the daily digest. Critical (5σ) also needs a real
+    change, at least double the normal rate and a point above it, and then
+    records one alert per path per hour, only while its last check was bad. An
+    alert clears after 2 clean checks. While the app is down, an endpoint's
+    alert waits: the down alert names the incident and the errors that surged.
+- Uptime (`alerts/uptime.go`, `ApplyPing`): down after 3 failed pings, timed
+  from the first; recovered after 5 good pings in a row, so a flapping app
+  sends one down.
+- Leaks (`alerts/leaks.go`): once per app and kind of secret.
+
+The scenario tests (`alerts/scenario_*_test.go`, the `world` in
+`world_test.go`) replay four weeks of history and the incident through the
+real detectors and sender, and count the emails a webhook gets. A change to
+when LogNorth alerts starts with a scenario.
 
 Secrets (`internal/events/secrets.go`, the alert in `alerts/leaks.go`): `moveEvents` calls
 `events.RedactSecrets` before it stores an event, so no stored event, email,
@@ -142,7 +181,7 @@ or MCP answer holds one. A value under a secret name (password,
 authorization, cookie, api_key, *token) is redacted silently. A value in a
 known format (Stripe live key, AWS, GitHub, Slack, Anthropic, OpenAI, private
 key) is redacted and alerts once per app and kind (`secrets_seen`). A leak
-that can't alert yet (no channel, quiet hours) tries again on the next one.
+seen before a channel exists tries again on the next one.
 
 ### Status Pages
 

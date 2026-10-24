@@ -99,16 +99,22 @@ func (b *StatBatch) Flush(tx *gorm.DB) error {
 	return nil
 }
 
-// LastCompleteBucketTime returns the start of the last complete 5-minute bucket.
-// The current bucket is still filling, so its counts are partial.
-func LastCompleteBucketTime() time.Time {
-	return TruncateTo5Min(time.Now().UTC()).Add(-5 * time.Minute)
+// LastCompleteBucket is the start of the 5-minute bucket that ended at least
+// a minute before now. The SDKs flush every few seconds and the processor
+// moves events every 5, so a bucket that ended a moment ago can still fill.
+func LastCompleteBucket(now time.Time) time.Time {
+	return TruncateTo5Min(now.UTC().Add(-time.Minute)).Add(-5 * time.Minute)
 }
 
-// GetActiveEndpoints returns the endpoints with traffic in the last day.
+// LastCompleteBucketTime is LastCompleteBucket now.
+func LastCompleteBucketTime() time.Time {
+	return LastCompleteBucket(time.Now())
+}
+
+// GetActiveEndpoints returns the endpoints with traffic in the day before now.
 // A day, not an hour, so the silence check keeps watching an endpoint that stopped.
-func GetActiveEndpoints(db *gorm.DB, apiKeyID uint) []string {
-	since := time.Now().UTC().Add(-24 * time.Hour)
+func GetActiveEndpoints(db *gorm.DB, apiKeyID uint, now time.Time) []string {
+	since := now.UTC().Add(-24 * time.Hour)
 
 	var paths []string
 	db.Model(&EndpointStat{}).
@@ -119,15 +125,12 @@ func GetActiveEndpoints(db *gorm.DB, apiKeyID uint) []string {
 	return paths
 }
 
-// GetLastCompleteBucket returns the stats for an endpoint in the last complete bucket.
-// It returns an empty stat when the endpoint had no traffic in that bucket.
-func GetLastCompleteBucket(db *gorm.DB, apiKeyID uint, path string) (EndpointStat, error) {
+// GetCompleteBucket returns the stats of an endpoint in the bucket that
+// starts at `at`, or an empty stat when the endpoint had no traffic then.
+func GetCompleteBucket(db *gorm.DB, apiKeyID uint, path string, at time.Time) (EndpointStat, error) {
 	var stat EndpointStat
-	result := db.Where("api_key_id = ? AND path = ? AND bucket = ?", apiKeyID, path, LastCompleteBucketTime()).First(&stat)
-	if result.Error == gorm.ErrRecordNotFound {
-		return EndpointStat{}, nil
-	}
-	return stat, result.Error
+	err := db.Where("api_key_id = ? AND path = ? AND bucket = ?", apiKeyID, path, at.UTC()).Limit(1).Find(&stat).Error
+	return stat, err
 }
 
 // ErrorRate returns the error percentage, or 0 when there is no traffic.

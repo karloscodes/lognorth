@@ -445,7 +445,7 @@ func TestListAlerts(t *testing.T) {
 		result := call(t, db, "tools/call", `{"name":"list_alerts","arguments":{}}`)
 
 		var payload struct {
-			Alerts []alerts.Alert `json:"alerts"`
+			Alerts []alerts.EndpointAlert `json:"alerts"`
 		}
 		json.Unmarshal([]byte(toolText(t, result)), &payload)
 		if len(payload.Alerts) != 1 {

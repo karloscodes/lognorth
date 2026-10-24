@@ -6,7 +6,7 @@ import (
 )
 
 // A baseline with enough history: 1% errors, buckets vary like binomial.
-var onePercent = alerts.ErrorRateBaseline{Rate: 1.0, Dispersion: 1, HourDispersion: 1, Buckets: 91}
+var onePercent = alerts.ErrorRateBaseline{Rate: 1.0, Dispersion: 1, Buckets: 91, HourRate: 1.0, HourDispersion: 1, HourBlocks: 7}
 
 func TestSPCIsSpike(t *testing.T) {
 	// At 1% over 1,000 requests, one binomial stddev is 0.31%.
@@ -88,15 +88,24 @@ func TestSPCIsSpike(t *testing.T) {
 
 func TestSPCIsDrift(t *testing.T) {
 	t.Run("catches a rise that one bucket cannot show", func(t *testing.T) {
-		// 1.5% on 1,000 requests is z = 1.6. Over 12,000 requests it is z = 5.5.
-		_, bucketSeverity := alerts.SPCIsSpike(1.5, 1000, onePercent)
-		_, hourSeverity := alerts.SPCIsDrift(1.5, 12000, onePercent)
+		// 2% on 1,000 requests is z = 3.2. Over 12,000 requests it is z = 11.
+		_, bucketSeverity := alerts.SPCIsSpike(2.0, 1000, onePercent)
+		_, hourSeverity := alerts.SPCIsDrift(2.0, 12000, onePercent)
 
-		if bucketSeverity != "" {
-			t.Errorf("expected no spike on one bucket, got %q", bucketSeverity)
+		if bucketSeverity == "critical" {
+			t.Errorf("expected no critical spike on one bucket, got %q", bucketSeverity)
 		}
 		if hourSeverity != "critical" {
 			t.Errorf("expected critical drift over the hour, got %q", hourSeverity)
+		}
+	})
+
+	t.Run("a certain rise that is not double the normal rate is a warning", func(t *testing.T) {
+		// 1.5% over 12,000 requests is z = 5.5, but 1% to 1.5% is no email.
+		_, severity := alerts.SPCIsDrift(1.5, 12000, onePercent)
+
+		if severity != "warning" {
+			t.Errorf("expected a warning for the digest, got %q", severity)
 		}
 	})
 

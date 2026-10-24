@@ -15,6 +15,7 @@ interface SettingsData {
   quiet_hours_enabled: boolean
   quiet_start: number
   quiet_end: number
+  time_zone: string
   base_url: string
   retention_days: number
 }
@@ -53,6 +54,9 @@ export default function SettingsAlerts({
     quiet_hours_enabled: settings?.quiet_hours_enabled || false,
     quiet_start: settings?.quiet_start ?? 23,
     quiet_end: settings?.quiet_end ?? 7,
+    // The browser's zone, saved with the settings: quiet hours and the
+    // digest hour are in it.
+    time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || settings?.time_zone || '',
     base_url: settings?.base_url || '',
   })
   const [saving, setSaving] = useState(false)
@@ -410,7 +414,10 @@ Content-Type: application/json
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-bold text-foreground">Quiet hours</h3>
-              <p className="text-subtle text-sm">No alerts during these hours. Times are UTC, the server's clock.</p>
+              <p className="text-subtle text-sm">
+                No alerts during these hours. They wait, and go out together when the hours end.
+                Times are in {form.time_zone || 'UTC'}.
+              </p>
             </div>
             <Switch
               checked={form.quiet_hours_enabled}

@@ -20,7 +20,7 @@ func SPCIsSpike(current float64, total int64, baseline ErrorRateBaseline) (bool,
 // SPCIsDrift checks the pooled last hour against the baseline. With 12 times
 // the requests of one bucket, it catches a slow rise the spike check misses.
 func SPCIsDrift(current float64, total int64, baseline ErrorRateBaseline) (bool, string) {
-	return errorRateSeverity(current, total, baseline.Rate, baseline.HourDispersion, baseline.Ready())
+	return errorRateSeverity(current, total, baseline.HourRate, baseline.HourDispersion, baseline.DriftReady())
 }
 
 func errorRateSeverity(current float64, total int64, rate, dispersion float64, ready bool) (bool, string) {
@@ -29,7 +29,15 @@ func errorRateSeverity(current float64, total int64, rate, dispersion float64, r
 	}
 
 	zScore := (current - rate) / (binomialStdDev(rate, total) * dispersion)
-	return severityAbove(zScore)
+	isAnomaly, severity := severityAbove(zScore)
+	// An email needs a change worth reading, not only a certain one: at a few
+	// thousand requests an hour, 2% to 3% is already 5σ. Critical needs at
+	// least CriticalMinRatio times the normal rate and CriticalMinPoints above
+	// it; a smaller shift goes to the digest.
+	if severity == "critical" && current < max(CriticalMinRatio*rate, rate+CriticalMinPoints) {
+		severity = "warning"
+	}
+	return isAnomaly, severity
 }
 
 // IsSilence checks if the current volume is abnormally low.

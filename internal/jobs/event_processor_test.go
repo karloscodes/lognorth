@@ -19,6 +19,7 @@ import (
 	"github.com/karloscodes/cartridge/sqlite"
 	"gorm.io/gorm"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/database"
 	"lognorth/internal/events"
@@ -217,6 +218,7 @@ func TestEventProcessor_Secrets(t *testing.T) {
 		}
 		return db, key.ID
 	}
+	clock := time.Now()
 	process := func(t *testing.T, db *gorm.DB, seed ...*events.IngestedEvent) {
 		t.Helper()
 		if err := events.CreateIngested(db, seed); err != nil {
@@ -224,6 +226,10 @@ func TestEventProcessor_Secrets(t *testing.T) {
 		}
 		if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
 			t.Fatalf("ProcessBatch: %v", err)
+		}
+		clock = clock.Add(time.Hour)
+		if err := alerts.Deliver(db, clock); err != nil {
+			t.Fatalf("Deliver: %v", err)
 		}
 	}
 
@@ -313,11 +319,16 @@ func TestEventProcessor_ErrorAlerts(t *testing.T) {
 		key, _, _ := apikeys.Create(db, "Shop")
 		return db, key.ID, webhookAlerts(t, db)
 	}
+	clock := time.Now()
 	process := func(t *testing.T, db *gorm.DB, seed ...*events.IngestedEvent) {
 		t.Helper()
 		events.CreateIngested(db, seed)
 		if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
 			t.Fatalf("ProcessBatch: %v", err)
+		}
+		clock = clock.Add(time.Hour)
+		if err := alerts.Deliver(db, clock); err != nil {
+			t.Fatalf("Deliver: %v", err)
 		}
 	}
 

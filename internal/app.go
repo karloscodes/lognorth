@@ -78,6 +78,9 @@ func NewApp() (*Application, error) {
 	// Uptime ping (passive silence detection at the app level).
 	uptimeSweeper := cartridge.NewJobDispatcher(logger, dbManager, 1*time.Minute, jobs.NewUptimeSweeper())
 
+	// The detectors record alerts; this sends them, grouped per app.
+	alertSender := cartridge.NewJobDispatcher(logger, dbManager, 15*time.Second, jobs.NewAlertSender())
+
 	// Configure server
 	serverConfig := cartridge.DefaultServerConfig()
 	// Sec-Fetch-Site (CSRF protection) stays on for every route. Routes that
@@ -115,7 +118,7 @@ func NewApp() (*Application, error) {
 		DBManager:         dbManager,
 		ServerConfig:      serverConfig,
 		RouteMountFunc:    MountRoutes,
-		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, anomalyChecker, digestSender, uptimeSweeper},
+		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, anomalyChecker, digestSender, uptimeSweeper, alertSender},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create application: %w", err)

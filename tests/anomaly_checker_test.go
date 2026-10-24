@@ -140,13 +140,29 @@ func TestAnomalyChecker_ErrorRate(t *testing.T) {
 		tdb.seedDays(apiKey.ID, "/api/checkout", 1000, 10)
 		at := events.LastCompleteBucketTime()
 		for b := at.Add(-55 * time.Minute); !b.After(at); b = b.Add(5 * time.Minute) {
-			tdb.createEndpointStatsAt(b, apiKey.ID, "/api/checkout", 1000, 15)
+			tdb.createEndpointStatsAt(b, apiKey.ID, "/api/checkout", 1000, 25)
 		}
 
 		tdb.runAnomalyChecker()
 
 		if state := tdb.getAlertState(apiKey.ID, "/api/checkout"); state.Severity != "critical" {
-			t.Errorf("1.5%% for an hour on a 1%% history → expected critical drift, got %q", state.Severity)
+			t.Errorf("2.5%% for an hour on a 1%% history → expected critical drift, got %q", state.Severity)
+		}
+	})
+
+	t.Run("with a small rise over the last hour", func(t *testing.T) {
+		tdb := setupAlertingTestDB(t)
+		apiKey, _, _ := apikeys.Create(tdb.db, "Shop")
+		tdb.seedDays(apiKey.ID, "/api/checkout", 1000, 10)
+		at := events.LastCompleteBucketTime()
+		for b := at.Add(-55 * time.Minute); !b.After(at); b = b.Add(5 * time.Minute) {
+			tdb.createEndpointStatsAt(b, apiKey.ID, "/api/checkout", 1000, 15)
+		}
+
+		tdb.runAnomalyChecker()
+
+		if state := tdb.getAlertState(apiKey.ID, "/api/checkout"); state.Severity != "warning" {
+			t.Errorf("1.5%% for an hour on a 1%% history → expected a warning for the digest, got %q", state.Severity)
 		}
 	})
 
@@ -236,7 +252,7 @@ func TestGetUnnotifiedCriticalSpikes(t *testing.T) {
 		tdb := setupAlertingTestDB(t)
 		tdb.db.Create(&alerts.SpikeState{Path: "/api/orders", Severity: "critical", SpikeStartAt: time.Now()})
 
-		spikes := alerts.GetUnnotifiedCriticalSpikes(tdb.db)
+		spikes := alerts.GetUnnotifiedCriticalSpikes(tdb.db, time.Now())
 
 		if len(spikes) != 1 {
 			t.Errorf("expected 1 spike to email, got %d", len(spikes))
@@ -252,7 +268,7 @@ func TestGetUnnotifiedCriticalSpikes(t *testing.T) {
 			LastAlertAt:  time.Now().Add(-10 * time.Minute),
 		})
 
-		spikes := alerts.GetUnnotifiedCriticalSpikes(tdb.db)
+		spikes := alerts.GetUnnotifiedCriticalSpikes(tdb.db, time.Now())
 
 		if len(spikes) != 0 {
 			t.Errorf("an email 10 min ago → expected no new email, got %d", len(spikes))
@@ -269,7 +285,7 @@ func TestGetUnnotifiedCriticalSpikes(t *testing.T) {
 			LastAlertAt:  start.Add(time.Minute),
 		})
 
-		spikes := alerts.GetUnnotifiedCriticalSpikes(tdb.db)
+		spikes := alerts.GetUnnotifiedCriticalSpikes(tdb.db, time.Now())
 
 		if len(spikes) != 0 {
 			t.Errorf("expected no second email for the same spike, got %d", len(spikes))

@@ -9,8 +9,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// Alert is one endpoint that is alerting now, as an agent or an email reads it.
-type Alert struct {
+// EndpointAlert is one endpoint that is alerting now, as the app's page and
+// the list_alerts tool show it.
+type EndpointAlert struct {
 	AppID    uint      `json:"app_id"`
 	Path     string    `json:"path"`
 	Kind     string    `json:"kind"`     // "error_rate" or "silence"
@@ -23,7 +24,7 @@ type Alert struct {
 
 // ListAlerts returns the endpoints alerting now, critical first.
 // An apiKeyID of 0 means every app.
-func ListAlerts(db *gorm.DB, apiKeyID uint) ([]Alert, error) {
+func ListAlerts(db *gorm.DB, apiKeyID uint) ([]EndpointAlert, error) {
 	at := events.LastCompleteBucketTime()
 	scope := func(q *gorm.DB) *gorm.DB {
 		if apiKeyID > 0 {
@@ -41,12 +42,12 @@ func ListAlerts(db *gorm.DB, apiKeyID uint) ([]Alert, error) {
 		return nil, err
 	}
 
-	alerts := []Alert{}
+	alerts := []EndpointAlert{}
 	for _, s := range spikes {
 		baseline, _ := GetErrorRateBaseline(db, s.APIKeyID, s.Path, at)
-		bucket, _ := events.GetLastCompleteBucket(db, s.APIKeyID, s.Path)
+		bucket, _ := events.GetCompleteBucket(db, s.APIKeyID, s.Path, at)
 		lastHour, _ := GetLastHour(db, s.APIKeyID, s.Path, at)
-		alerts = append(alerts, Alert{
+		alerts = append(alerts, EndpointAlert{
 			AppID:    s.APIKeyID,
 			Path:     s.Path,
 			Kind:     "error_rate",
@@ -60,8 +61,8 @@ func ListAlerts(db *gorm.DB, apiKeyID uint) ([]Alert, error) {
 	}
 	for _, s := range silences {
 		baseline, _ := GetVolumeBaseline(db, s.APIKeyID, s.Path, at)
-		bucket, _ := events.GetLastCompleteBucket(db, s.APIKeyID, s.Path)
-		alerts = append(alerts, Alert{
+		bucket, _ := events.GetCompleteBucket(db, s.APIKeyID, s.Path, at)
+		alerts = append(alerts, EndpointAlert{
 			AppID:    s.APIKeyID,
 			Path:     s.Path,
 			Kind:     "silence",
@@ -74,7 +75,7 @@ func ListAlerts(db *gorm.DB, apiKeyID uint) ([]Alert, error) {
 		})
 	}
 
-	slices.SortStableFunc(alerts, func(a, b Alert) int {
+	slices.SortStableFunc(alerts, func(a, b EndpointAlert) int {
 		if a.Severity != b.Severity {
 			if a.Severity == "critical" {
 				return -1

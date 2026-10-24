@@ -1,6 +1,8 @@
 package jobs
 
 import (
+	"time"
+
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/alerts"
@@ -16,5 +18,5 @@ func NewAnomalyChecker() *AnomalyChecker {
 
 // ProcessBatch checks every endpoint against its history.
 func (j *AnomalyChecker) ProcessBatch(ctx *cartridge.JobContext) error {
-	return alerts.CheckEndpoints(ctx.DB)
+	return alerts.CheckEndpoints(ctx.DB, time.Now())
 }

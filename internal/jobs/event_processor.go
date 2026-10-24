@@ -2,13 +2,14 @@ package jobs
 
 import (
 	"errors"
+	"time"
 
 	"github.com/karloscodes/cartridge"
 	"gorm.io/gorm"
 
 	"lognorth/internal/alerts"
-	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
+	"lognorth/internal/settings"
 )
 
 // EventProcessor moves ingested events into the events table
@@ -25,29 +26,17 @@ const processBatchSize = 100
 // transaction. Each event moves under its own savepoint: insert into events,
 // record endpoint stats, delete the staging row. A crash never processes an
 // event twice, and a row that fails rolls back alone and stays for the next
-// run without blocking the rows after it. Alerts go out after the commit, so
-// a slow email never holds the write lock. The new and regressed issues of
-// one run go out as one alert per app.
+// run without blocking the rows after it. After the commit, it records the
+// alerts of new and regressed issues and of leaked secrets; alerts.Deliver
+// sends them.
 func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 	db := ctx.DB
-
-	// Loaded once per run: settings for alerts, names for alert subjects.
-	engine, err := alerts.NewAlertEngine(db)
+	now := time.Now()
+	s, err := settings.Get(db)
 	if err != nil {
 		return err
 	}
-	appNames := map[uint]string{}
-	pending := map[uint][]alerts.ErrorAlert{}
-	var apps []uint
-	// Sent on every return: the issue state is already recorded, so an alert
-	// left unsent would never go out.
-	defer func() {
-		for _, appID := range apps {
-			if err := engine.SendErrorAlerts(appID, appName(db, appNames, appID), pending[appID]); err != nil {
-				ctx.Logger.Error("Failed to send error alert", "app", appID, "error", err)
-			}
-		}
-	}()
+	baseURL := s.BaseURL
 
 	var afterID uint
 	processed := 0
@@ -72,20 +61,23 @@ func (p *EventProcessor) ProcessBatch(ctx *cartridge.JobContext) error {
 			if !event.IsError {
 				continue
 			}
-			alert, err := engine.RecordOccurrence(event)
+			alert, err := alerts.CheckError(db, event, baseURL, now)
 			if err != nil {
 				ctx.Logger.Error("Failed to record an issue occurrence", "issue", event.IssueHash, "error", err)
 			}
 			if alert != nil {
-				if pending[event.APIKeyID] == nil {
-					apps = append(apps, event.APIKeyID)
+				if err := alerts.Record(db, now, alert); err != nil {
+					ctx.Logger.Error("Failed to record an error alert", "issue", event.IssueHash, "error", err)
 				}
-				pending[event.APIKeyID] = append(pending[event.APIKeyID], *alert)
 			}
 		}
 		for _, leak := range leaks {
-			if err := engine.CheckLeak(leak, appName(db, appNames, leak.Event.APIKeyID)); err != nil {
-				ctx.Logger.Error("Failed to send secret alert", "kind", leak.Kind, "error", err)
+			alert, err := alerts.CheckLeak(db, leak, s, now)
+			if err == nil && alert != nil {
+				err = alerts.Record(db, now, alert)
+			}
+			if err != nil {
+				ctx.Logger.Error("Failed to record a secret alert", "kind", leak.Kind, "error", err)
 			}
 		}
 
@@ -194,16 +186,4 @@ func moveEvent(db *gorm.DB, ie events.IngestedEvent) (*events.Event, string, str
 		path, endpoint = eventCtx.Path, events.EndpointKey(eventCtx.Route, eventCtx.Path)
 	}
 	return event, path, endpoint, err
-}
-
-func appName(db *gorm.DB, cache map[uint]string, apiKeyID uint) string {
-	if name, ok := cache[apiKeyID]; ok {
-		return name
-	}
-	name := "Unknown"
-	if key, err := apikeys.FindByID(db, apiKeyID); err == nil {
-		name = key.Name
-	}
-	cache[apiKeyID] = name
-	return name
 }

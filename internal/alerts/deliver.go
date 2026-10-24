@@ -12,36 +12,29 @@ import (
 	"lognorth/internal/settings"
 )
 
-// IsQuietHours reports whether the time is within the owner's quiet hours.
-func IsQuietHours(s *settings.Settings) bool {
+// Location is the owner's time zone: quiet hours, the digest hour, and the
+// times in an email are in it. The settings page saves the browser's zone.
+// Without one, UTC.
+func Location(s *settings.Settings) *time.Location {
+	if s.TimeZone != "" {
+		if loc, err := time.LoadLocation(s.TimeZone); err == nil {
+			return loc
+		}
+	}
+	return time.UTC
+}
+
+// IsQuietHours reports whether `at` is within the owner's quiet hours.
+func IsQuietHours(s *settings.Settings, at time.Time) bool {
 	if !s.QuietHoursEnabled {
 		return false
 	}
-	hour := time.Now().Hour()
+	hour := at.In(Location(s)).Hour()
 	if s.QuietStart > s.QuietEnd {
 		// Crosses midnight (e.g., 23-7)
 		return hour >= s.QuietStart || hour < s.QuietEnd
 	}
 	return hour >= s.QuietStart && hour < s.QuietEnd
-}
-
-// CanNotify reports whether a channel is configured and quiet hours are off.
-func CanNotify(s *settings.Settings) bool {
-	if IsQuietHours(s) {
-		return false
-	}
-	switch s.NotifyChannel {
-	case "ntfy":
-		return s.IsNtfyConfigured()
-	case "email":
-		return s.IsEmailConfigured()
-	case "telegram":
-		return s.IsTelegramConfigured()
-	case "webhook":
-		return s.IsWebhookConfigured()
-	default:
-		return false
-	}
 }
 
 // Send sends a notification through the configured channel.

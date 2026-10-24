@@ -43,6 +43,10 @@ type Settings struct {
 	QuietStart        int  `gorm:"default:23" json:"quiet_start"` // Hour (0-23), default 11pm
 	QuietEnd          int  `gorm:"default:7" json:"quiet_end"`    // Hour (0-23), default 7am
 
+	// The owner's IANA time zone (Europe/Madrid), from the browser that saves
+	// the settings. Quiet hours and the digest hour are in it.
+	TimeZone string `gorm:"size:64" json:"time_zone"`
+
 	// Base URL for links in notifications (e.g., https://lognorth.example.com)
 	BaseURL string `gorm:"size:255" json:"base_url"`
 

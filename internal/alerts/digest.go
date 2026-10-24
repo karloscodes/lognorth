@@ -12,8 +12,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// digestHour is the earliest hour the digest goes out, in server time: UTC in
-// the Docker image, or the zone in TZ, the same clock quiet hours use.
+// digestHour is the earliest hour the digest goes out, in the owner's zone
+// (Location), the clock quiet hours use too.
 const digestHour = 9
 
 // Digest sends the daily digest of warnings, once a day.
@@ -21,18 +21,17 @@ type Digest struct {
 	lastSentDate string
 }
 
-// Run sends the digest when it is due.
-func (j *Digest) Run(db *gorm.DB, logger *slog.Logger) error {
+// Run sends the digest when it is due: once a day, at the first hour from
+// digestHour that is outside quiet hours.
+func (j *Digest) Run(db *gorm.DB, logger *slog.Logger, now time.Time) error {
 	s, err := settings.Get(db)
-	if err != nil || !CanNotify(s) {
+	if err != nil || !ChannelConfigured(s) || IsQuietHours(s, now) {
 		return nil
 	}
 
-	// Once a day, at the first hour from digestHour that is outside quiet
-	// hours (CanNotify above already returned while they are on).
-	now := time.Now()
-	today := now.Format("2006-01-02")
-	if j.lastSentDate == today || now.Hour() < digestHour {
+	local := now.In(Location(s))
+	today := local.Format("2006-01-02")
+	if j.lastSentDate == today || local.Hour() < digestHour {
 		return nil
 	}
 
@@ -44,8 +43,8 @@ func (j *Digest) Run(db *gorm.DB, logger *slog.Logger) error {
 	}
 
 	// Build digest email
-	subject := fmt.Sprintf("Daily digest, %s", now.Format("Jan 2"))
-	body := j.buildDigestBody(db, items, s)
+	subject := fmt.Sprintf("Daily digest, %s", local.Format("Jan 2"))
+	body := j.buildDigestBody(db, items, s, now)
 
 	if err := Send(s, subject, body); err != nil {
 		logger.Error("Failed to send digest", "error", err)
@@ -60,7 +59,7 @@ func (j *Digest) Run(db *gorm.DB, logger *slog.Logger) error {
 	return nil
 }
 
-func (j *Digest) buildDigestBody(db *gorm.DB, items []DigestItem, s *settings.Settings) string {
+func (j *Digest) buildDigestBody(db *gorm.DB, items []DigestItem, s *settings.Settings, now time.Time) string {
 	var sb strings.Builder
 
 	sb.WriteString("Yesterday across your apps:\n\n")
@@ -69,7 +68,7 @@ func (j *Digest) buildDigestBody(db *gorm.DB, items []DigestItem, s *settings.Se
 	db.Where("active = ?", true).Find(&keys)
 
 	// The last 24 whole hours and the hour that runs now.
-	since := time.Now().UTC().Truncate(time.Hour).Add(-24 * time.Hour)
+	since := now.UTC().Truncate(time.Hour).Add(-24 * time.Hour)
 	wroteStats := false
 	for _, key := range keys {
 		var day struct{ Total, Errors int64 }

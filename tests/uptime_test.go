@@ -11,6 +11,7 @@ import (
 
 	"github.com/karloscodes/cartridge"
 
+	"lognorth/internal/alerts"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/jobs"
 	"lognorth/internal/settings"
@@ -30,8 +31,9 @@ func TestUptimeAlertsAfterQuietHours(t *testing.T) {
 	// Quiet hours cover the current hour.
 	s, _ := settings.Get(db)
 	s.QuietHoursEnabled = true
-	s.QuietStart = time.Now().Hour()
-	s.QuietEnd = (time.Now().Hour() + 1) % 24
+	s.TimeZone = "UTC"
+	s.QuietStart = time.Now().UTC().Hour()
+	s.QuietEnd = (time.Now().UTC().Hour() + 1) % 24
 	settings.Update(db, s)
 
 	sweeper := jobs.NewUptimeSweeper()
@@ -39,12 +41,14 @@ func TestUptimeAlertsAfterQuietHours(t *testing.T) {
 	for range 3 {
 		sweeper.ProcessBatch(ctx)
 	}
+	alerts.Deliver(db, time.Now().Add(time.Minute))
 	duringQuiet := inbox.received()
 
 	s.QuietHoursEnabled = false
 	settings.Update(db, s)
 	sweeper.ProcessBatch(ctx)
 	sweeper.ProcessBatch(ctx)
+	alerts.Deliver(db, time.Now().Add(2*time.Minute))
 
 	if len(duringQuiet) != 0 {
 		t.Errorf("alerts during quiet hours = %q, want none", duringQuiet)

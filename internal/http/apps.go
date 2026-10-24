@@ -215,7 +215,7 @@ func EndpointsPageAction(ctx *cartridge.Context) error {
 	// these instead of coloring rows by a fixed error rate.
 	endpointAlerts, err := alerts.ListAlerts(db, app.ID)
 	if err != nil {
-		endpointAlerts = []alerts.Alert{}
+		endpointAlerts = []alerts.EndpointAlert{}
 	}
 
 	return RenderPage(ctx, "Endpoints", Props{

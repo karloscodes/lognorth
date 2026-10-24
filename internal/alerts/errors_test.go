@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"lognorth/internal/events"
-	"lognorth/internal/settings"
 )
 
 func TestAlertBody(t *testing.T) {
@@ -37,15 +36,14 @@ func TestAlertBody(t *testing.T) {
 	})
 }
 
-func TestRecordOccurrence(t *testing.T) {
+func TestCheckError(t *testing.T) {
 	recur := func(t *testing.T, lastOccurrence time.Time) time.Time {
 		t.Helper()
 		db := newTestDB(t)
 		db.Create(&events.IssueSeen{ErrorHash: "abc", LastOccurrenceAt: lastOccurrence})
-		engine := &AlertEngine{db: db, settings: &settings.Settings{}}
 
-		if _, err := engine.RecordOccurrence(&events.Event{IsError: true, IssueHash: "abc"}); err != nil {
-			t.Fatalf("RecordOccurrence: %v", err)
+		if _, err := CheckError(db, &events.Event{IsError: true, IssueHash: "abc"}, "", time.Now()); err != nil {
+			t.Fatalf("CheckError: %v", err)
 		}
 
 		var seen events.IssueSeen

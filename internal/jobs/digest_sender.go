@@ -1,6 +1,8 @@
 package jobs
 
 import (
+	"time"
+
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/alerts"
@@ -18,5 +20,5 @@ func NewDigestSender() *DigestSender {
 
 // ProcessBatch sends the digest when it is due.
 func (j *DigestSender) ProcessBatch(ctx *cartridge.JobContext) error {
-	return j.digest.Run(ctx.DB, ctx.Logger)
+	return j.digest.Run(ctx.DB, ctx.Logger, time.Now())
 }

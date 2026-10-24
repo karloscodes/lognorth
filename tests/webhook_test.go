@@ -85,11 +85,11 @@ func TestWebhookAlerts(t *testing.T) {
 	t.Run("counts as configured only with a URL", func(t *testing.T) {
 		s := &settings.Settings{NotifyChannel: "webhook", WebhookToken: "crsr_secret"}
 
-		if alerts.CanNotify(s) {
-			t.Error("CanNotify = true without a URL")
+		if alerts.ChannelConfigured(s) {
+			t.Error("ChannelConfigured = true without a URL")
 		}
 		s.WebhookURL = "https://api2.cursor.sh/automations/webhook/abc"
-		if !alerts.CanNotify(s) {
+		if !alerts.ChannelConfigured(s) {
 			t.Error("CanNotify = false with a URL")
 		}
 	})

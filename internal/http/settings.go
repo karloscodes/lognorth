@@ -1,6 +1,8 @@
 package http
 
 import (
+	"time"
+
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/alerts"
@@ -92,6 +94,8 @@ type UpdateSettingsInput struct {
 	QuietHoursEnabled bool `json:"quiet_hours_enabled"`
 	QuietStart        int  `json:"quiet_start"`
 	QuietEnd          int  `json:"quiet_end"`
+	// The browser's IANA zone: quiet hours and the digest hour are in it.
+	TimeZone string `json:"time_zone"`
 
 	// General
 	BaseURL string `json:"base_url"`
@@ -145,6 +149,10 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 	s.QuietHoursEnabled = input.QuietHoursEnabled
 	s.QuietStart = input.QuietStart
 	s.QuietEnd = input.QuietEnd
+	// Only a zone Go knows; an empty or unknown one keeps the saved zone.
+	if _, err := time.LoadLocation(input.TimeZone); input.TimeZone != "" && err == nil {
+		s.TimeZone = input.TimeZone
+	}
 
 	// Only update password if provided
 	if input.SMTPPassword != "" {
@@ -178,7 +186,7 @@ func TestNotificationAction(ctx *cartridge.Context) error {
 		return ctx.Status(500).JSON(cartridge.Map{"error": "failed to load settings"})
 	}
 
-	if !alerts.CanNotify(s) {
+	if !alerts.ChannelConfigured(s) {
 		return ctx.Status(400).JSON(cartridge.Map{"error": "notifications not configured"})
 	}
 

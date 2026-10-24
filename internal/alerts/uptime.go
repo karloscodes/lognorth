@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"lognorth/internal/apikeys"
 	"lognorth/internal/events"
-	"lognorth/internal/settings"
 	"lognorth/internal/uptime"
 	"time"
 
@@ -12,39 +11,51 @@ import (
 )
 
 // An app that does not answer its uptime ping: down after FailuresToDown
-// failed pings in a row, and recovered on the next answer.
+// failed pings in a row, and recovered after RecoveryPings good ones.
 
-// ApplyPing records an uptime probe of an app and applies the state
-// transitions: down after FailuresToDown fails in a row, up again on the
-// next success. It alerts on each.
-func ApplyPing(db *gorm.DB, key *apikeys.APIKey, check uptime.Check, settingsRow *settings.Settings, now time.Time) {
+// RecoveryPings is how many good pings in a row a down app needs to count as
+// recovered. One answer between failures is a flap, not a recovery: a flapping
+// app stays down and sends one alert, not one per flap.
+const RecoveryPings = 5
+
+// ApplyPing records an uptime probe of an app, applies the state transitions,
+// and records an alert on each: down after FailuresToDown failed pings in a
+// row, recovered after RecoveryPings good ones.
+func ApplyPing(db *gorm.DB, key *apikeys.APIKey, check uptime.Check, baseURL string, now time.Time) error {
 	check.APIKeyID = key.ID
 	check.CheckedAt = now
 	// Every probe is kept so the app can show response times and failures.
-	_ = uptime.Record(db, &check)
-	up := check.Up
+	if err := uptime.Record(db, &check); err != nil {
+		return err
+	}
 	key.LastPingedAt = now
 
+	var alert *Alert
 	switch {
-	case !up:
+	case !check.Up:
+		key.ConsecutiveUps = 0
+		key.UpSince = time.Time{}
 		key.ConsecutiveFails++
 		if key.ConsecutiveFails >= uptime.FailuresToDown && !key.IsDown {
 			key.IsDown = true
-			key.DownSince = now
+			key.DownSince = firstFailedPing(db, key.ID, now)
+			key.DownNotified = true
+			alert = &Alert{APIKeyID: key.ID, Kind: KindDown, Title: "down: " + key.PingURL, Body: downBody(key, baseURL, surgesNow(db, key.ID, now))}
 		}
-		// Retried every sweep until it goes out: an outage that starts in
-		// quiet hours alerts when they end.
-		if key.IsDown && !key.DownNotified {
-			key.DownNotified = notifyDown(settingsRow, key, surgesNow(db, key.ID, now))
-		}
-	case up && key.IsDown:
-		// Recovered.
-		downFor := now.Sub(key.DownSince)
-		key.IsDown = false
-		key.DownNotified = false
-		key.DownSince = time.Time{}
+	case key.IsDown:
 		key.ConsecutiveFails = 0
-		notifyRecovered(settingsRow, key, downFor)
+		if key.ConsecutiveUps == 0 {
+			key.UpSince = now
+		}
+		key.ConsecutiveUps++
+		if key.ConsecutiveUps >= RecoveryPings {
+			alert = recoveredAlert(key, key.UpSince.Sub(key.DownSince), baseURL)
+			key.IsDown = false
+			key.DownNotified = false
+			key.DownSince = time.Time{}
+			key.ConsecutiveUps = 0
+			key.UpSince = time.Time{}
+		}
 	default:
 		// Healthy probe; reset the fail counter (handles flap).
 		key.ConsecutiveFails = 0
@@ -52,13 +63,19 @@ func ApplyPing(db *gorm.DB, key *apikeys.APIKey, check uptime.Check, settingsRow
 
 	// Only the ping columns: a full Save would overwrite an edit made
 	// while the probe ran.
-	db.Model(key).Updates(map[string]any{
+	err := db.Model(key).Updates(map[string]any{
 		"last_pinged_at":    key.LastPingedAt,
 		"consecutive_fails": key.ConsecutiveFails,
+		"consecutive_ups":   key.ConsecutiveUps,
+		"up_since":          key.UpSince,
 		"is_down":           key.IsDown,
 		"down_notified":     key.DownNotified,
 		"down_since":        key.DownSince,
-	})
+	}).Error
+	if err != nil || alert == nil {
+		return err
+	}
+	return Record(db, now, alert)
 }
 
 // surgesNow returns the issues that surged as the app went down, from the
@@ -69,15 +86,6 @@ func surgesNow(db *gorm.DB, appID uint, now time.Time) []events.Surge {
 		return nil
 	}
 	return outages[0].Issues
-}
-
-// notifyDown reports whether the alert went out.
-func notifyDown(settingsRow *settings.Settings, key *apikeys.APIKey, surges []events.Surge) bool {
-	if settingsRow == nil || !CanNotify(settingsRow) {
-		return false
-	}
-	subject := fmt.Sprintf("%s — down: %s", key.Name, key.PingURL)
-	return Send(settingsRow, subject, downBody(key, settingsRow.BaseURL, surges)) == nil
 }
 
 // downBody says the app is down and, when some issues surged as it went
@@ -95,11 +103,27 @@ func downBody(key *apikeys.APIKey, baseURL string, surges []events.Surge) string
 	return body + fmt.Sprintf("\n%s/apps/%d/endpoints", baseURL, key.ID)
 }
 
-func notifyRecovered(settingsRow *settings.Settings, key *apikeys.APIKey, downFor time.Duration) {
-	if settingsRow == nil || !CanNotify(settingsRow) {
-		return
+// firstFailedPing is when the run of failed pings that ends at now began: the
+// app was down from then, not from the ping that confirmed it.
+func firstFailedPing(db *gorm.DB, appID uint, now time.Time) time.Time {
+	var lastUp struct{ At string }
+	db.Model(&uptime.Check{}).Select("MAX(checked_at) AS at").
+		Where("api_key_id = ? AND up = ? AND checked_at <= ?", appID, true, now).Scan(&lastUp)
+	query := db.Model(&uptime.Check{}).Select("MIN(checked_at) AS at").
+		Where("api_key_id = ? AND up = ? AND checked_at <= ?", appID, false, now)
+	if since := parseTime(lastUp.At); !since.IsZero() {
+		query = query.Where("checked_at > ?", since)
 	}
-	subject := fmt.Sprintf("%s — recovered after %s down", key.Name, FormatDuration(downFor))
+	var first struct{ At string }
+	query.Scan(&first)
+	if at := parseTime(first.At); !at.IsZero() {
+		return at
+	}
+	return now
+}
+
+// recoveredAlert says the app answers again, and how long it was down.
+func recoveredAlert(key *apikeys.APIKey, downFor time.Duration, baseURL string) *Alert {
 	body := fmt.Sprintf(`%s is responding again.
 URL: %s
 Was down for %s.
@@ -108,8 +132,8 @@ Was down for %s.
 		key.Name,
 		key.PingURL,
 		FormatDuration(downFor),
-		settingsRow.BaseURL,
+		baseURL,
 		key.ID,
 	)
-	_ = Send(settingsRow, subject, body)
+	return &Alert{APIKeyID: key.ID, Kind: KindRecovered, Title: fmt.Sprintf("recovered after %s down", FormatDuration(downFor)), Body: body}
 }

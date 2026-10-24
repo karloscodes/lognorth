@@ -70,8 +70,8 @@ func TestAlerting_Digest_WarningsQueuedForEmail(t *testing.T) {
 	apiKey, _, _ := apikeys.Create(tdb.db, "DigestApp")
 
 	// When: Warnings are queued
-	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/api/slow", "Error rate elevated to 7%", "warning")
-	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/api/flaky", "Drift detected", "warning")
+	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/api/slow", "Error rate elevated to 7%", "warning", time.Now())
+	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/api/flaky", "Drift detected", "warning", time.Now())
 
 	// Then: Items appear in digest queue
 	queue := tdb.getDigestQueue()
@@ -89,8 +89,8 @@ func TestAlerting_Digest_ClearedAfterSending(t *testing.T) {
 
 	// Given: Pending warnings
 	apiKey, _, _ := apikeys.Create(tdb.db, "DigestApp2")
-	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/path1", "Issue 1", "warning")
-	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/path2", "Issue 2", "warning")
+	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/path1", "Issue 1", "warning", time.Now())
+	alerts.QueueDigestItem(tdb.db, apiKey.ID, "/path2", "Issue 2", "warning", time.Now())
 
 	// When: Digest is sent (items marked resolved)
 	items := tdb.getDigestQueue()
