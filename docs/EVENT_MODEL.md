@@ -116,9 +116,13 @@ LogNorth redacts secrets before it stores an event:
 
 ## Issues Grouping
 
-Events with `is_error=true` are grouped by `context.error` into issues.
+Events with `is_error=true` are grouped into issues by their error class,
+their message (`context.error`), and their file and line, per app.
 
-Same error message (per app) = same issue.
+The message is compared without the parts that change from one occurrence to
+the next: ids, numbers, UUIDs, emails, and hex addresses. "Couldn't find User
+with 'id'=1001" and "Couldn't find User with 'id'=1002" are one issue. Each
+event keeps its full message.
 
 ## Alerts
 

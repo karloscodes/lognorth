@@ -90,3 +90,84 @@ func NormalizeToUTC(db *gorm.DB, table, column string) error {
 		}
 	}
 }
+
+// RehashIssues moves the error events whose message holds an id, a number,
+// or an address to the issue of the message without it (normalizeMessage),
+// and merges the issues they leave. Before, each id made its own issue.
+// issues_seen merges too: the latest seen and last occurrence, and muted if
+// any was, so a muted noisy error stays muted, and the upgrade sends no "new
+// error" alert for an issue the owner knows. A second run changes nothing.
+func RehashIssues(db *gorm.DB) error {
+	var issues []Issue
+	if err := db.Find(&issues).Error; err != nil {
+		return err
+	}
+
+	moves := map[string][]string{} // the new issue hash, and the old ones it takes
+	for _, issue := range issues {
+		var event Event
+		event.ErrorHash1, event.ErrorHash2, event.ErrorHash3 = computeErrorHashes(
+			issue.ErrorClass, issue.ErrorMessage, issue.ErrorFile, issue.ErrorLine, issue.APIKeyID)
+		hash := event.mostSpecificHash()
+		if hash == "" || hash == issue.Hash {
+			continue
+		}
+		err := db.Model(&Event{}).Where("issue_hash = ?", issue.Hash).Updates(map[string]any{
+			"error_hash_1": event.ErrorHash1,
+			"error_hash_2": event.ErrorHash2,
+			"error_hash_3": event.ErrorHash3,
+			"issue_hash":   hash,
+		}).Error
+		if err != nil {
+			return err
+		}
+		moves[hash] = append(moves[hash], issue.Hash)
+	}
+
+	for hash, olds := range moves {
+		if err := mergeSeen(db, hash, olds); err != nil {
+			return err
+		}
+		for start := 0; start < len(olds); start += 500 {
+			chunk := olds[start:min(start+500, len(olds))]
+			if err := db.Where("hash IN ?", chunk).Delete(&Issue{}).Error; err != nil {
+				return err
+			}
+		}
+		if err := RecountIssues(db, []string{hash}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// mergeSeen folds the issues_seen rows of the old hashes into the row of the
+// new one.
+func mergeSeen(db *gorm.DB, hash string, olds []string) error {
+	merged := IssueSeen{ErrorHash: hash}
+	found := false
+	all := append([]string{hash}, olds...)
+	for start := 0; start < len(all); start += 500 {
+		var rows []IssueSeen
+		if err := db.Where("error_hash IN ?", all[start:min(start+500, len(all))]).Find(&rows).Error; err != nil {
+			return err
+		}
+		for _, row := range rows {
+			found = true
+			if row.SeenAt.After(merged.SeenAt) {
+				merged.SeenAt = row.SeenAt
+			}
+			if row.LastOccurrenceAt.After(merged.LastOccurrenceAt) {
+				merged.LastOccurrenceAt = row.LastOccurrenceAt
+			}
+			merged.Muted = merged.Muted || row.Muted
+		}
+		if err := db.Where("error_hash IN ?", all[start:min(start+500, len(all))]).Delete(&IssueSeen{}).Error; err != nil {
+			return err
+		}
+	}
+	if !found {
+		return nil
+	}
+	return db.Create(&merged).Error
+}

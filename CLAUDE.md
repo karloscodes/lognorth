@@ -52,6 +52,11 @@ transaction). The home page, the log histogram, and the digest read
 events. An event written outside the processor, as the demo seed writes
 them, needs a recount (`events.RecountAppHours`).
 
+An issue is one error of an app: its class, its message, its file and line.
+The hash reads the message with its ids, numbers, UUIDs, emails, and hex
+addresses replaced (`events.normalizeMessage`), so "Couldn't find User with
+'id'=1001" and "'id'=1002" are one issue and one alert; the stored message
+keeps them.
 `issues` holds one row per issue: its error, first and last seen, count, and
 first 10 paths (`events.IssueBatch`, in the same transaction). The issue list
 pages it and counts only the last 14 days of errors of the issues on the page
