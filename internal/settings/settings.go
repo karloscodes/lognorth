@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/smtp"
 	"strings"
 	"time"
 
@@ -207,26 +206,6 @@ func (s *Settings) sendViaNtfy(title, message string) error {
 	}
 
 	return nil
-}
-
-// sendViaSMTP sends notification via email
-func (s *Settings) sendViaSMTP(subject, body string) error {
-	if !s.IsEmailConfigured() {
-		return fmt.Errorf("SMTP not configured")
-	}
-
-	addr := fmt.Sprintf("%s:%d", s.SMTPHost, s.SMTPPort)
-
-	var auth smtp.Auth
-	if s.SMTPUsername != "" && s.SMTPPassword != "" {
-		auth = smtp.PlainAuth("", s.SMTPUsername, s.SMTPPassword, s.SMTPHost)
-	}
-
-	to := []string{s.NotifyEmail}
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s",
-		s.SMTPFrom, s.NotifyEmail, subject, body)
-
-	return smtp.SendMail(addr, auth, s.SMTPFrom, to, []byte(msg))
 }
 
 // sendViaTelegram sends notification via Telegram bot

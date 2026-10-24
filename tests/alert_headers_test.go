@@ -2,6 +2,7 @@ package tests
 
 import (
 	"bufio"
+	"mime"
 	"net"
 	"strings"
 	"testing"
@@ -77,7 +78,14 @@ func TestAlertSubjectCannotAddEmailHeaders(t *testing.T) {
 	if strings.Contains(headers, "\r\nReply-To:") {
 		t.Errorf("the path added a header:\n%s", headers)
 	}
-	if !strings.Contains(headers, "Subject: shop — spike: /x Reply-To: attacker@example.test  forged body at 50.0%") {
-		t.Errorf("headers = %q, want the whole path on the Subject line", headers)
+	// The subject is an encoded word (it holds an em dash): decode it.
+	var subject string
+	for _, line := range strings.Split(headers, "\r\n") {
+		if value, ok := strings.CutPrefix(line, "Subject: "); ok {
+			subject, _ = new(mime.WordDecoder).DecodeHeader(value)
+		}
+	}
+	if subject != "shop — spike: /x Reply-To: attacker@example.test  forged body at 50.0%" {
+		t.Errorf("subject = %q in headers %q, want the whole path on the Subject line", subject, headers)
 	}
 }
