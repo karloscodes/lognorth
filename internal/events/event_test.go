@@ -167,6 +167,32 @@ func TestList_Filters(t *testing.T) {
 	})
 }
 
+func TestList_Total(t *testing.T) {
+	db := setupTestDB(t)
+	for _, message := range []string{"one", "two", "three"} {
+		Create(db, &Event{APIKeyID: 1, Message: message})
+	}
+
+	for _, c := range []struct {
+		name          string
+		limit, offset int
+		page          int
+	}{
+		{"on a full page", 2, 0, 2},
+		{"on the last page, not full", 2, 2, 1},
+		{"on a page past the end", 2, 5, 0},
+		{"on one page that holds everything", 50, 0, 3},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			events, total, err := List(db, ListFilters{APIKeyID: 1, Limit: c.limit, Offset: c.offset})
+
+			if err != nil || len(events) != c.page || total != 3 {
+				t.Errorf("page %d, total %d, err %v; want page %d and total 3", len(events), total, err, c.page)
+			}
+		})
+	}
+}
+
 func TestDeleteOlderThan(t *testing.T) {
 	db := setupTestDB(t)
 

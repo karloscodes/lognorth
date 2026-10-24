@@ -284,22 +284,13 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 		query = query.Where("id > ?", filters.AfterID)
 	}
 
-	// Get total count before pagination
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
+	// The page and the count start from the same filters.
+	query = query.Session(&gorm.Session{})
 
-	// Apply pagination
-	if filters.Limit > 0 {
-		query = query.Limit(filters.Limit)
-	} else {
-		query = query.Limit(50)
+	limit := filters.Limit
+	if limit <= 0 {
+		limit = 50
 	}
-	if filters.Offset > 0 {
-		query = query.Offset(filters.Offset)
-	}
-
 	// Newest first by the time each event happened, not when it arrived. Events
 	// with the same time keep the order they were logged in: a client sends
 	// them oldest first, so the id breaks the tie. Following the log
@@ -308,9 +299,22 @@ func List(db *gorm.DB, filters ListFilters) ([]Event, int64, error) {
 	if filters.AfterID > 0 {
 		order = "id ASC"
 	}
+	page := query.Order(order).Limit(limit)
+	if filters.Offset > 0 {
+		page = page.Offset(filters.Offset)
+	}
 	var events []Event
-	if err := query.Order(order).Find(&events).Error; err != nil {
+	if err := page.Find(&events).Error; err != nil {
 		return nil, 0, err
+	}
+
+	// A page that is not full is the last one, so it gives the total. A search
+	// that no index helps then reads the table once, not twice.
+	total := int64(filters.Offset + len(events))
+	if len(events) == limit || (len(events) == 0 && filters.Offset > 0) {
+		if err := query.Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
 	}
 
 	return events, total, nil
