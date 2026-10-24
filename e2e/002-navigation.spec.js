@@ -94,22 +94,17 @@ test.describe("Navigation Tests", () => {
 	test("Settings is split into sub-pages with sidebar nav", async ({ page }) => {
 		helpers.log("Testing settings sub-pages");
 
-		// /settings redirects to /settings/license
+		// /settings redirects to /settings/alerts
 		await helpers.navigateTo("/settings");
-		await expect(page).toHaveURL(/\/settings\/license$/);
+		await expect(page).toHaveURL(/\/settings\/alerts$/);
 
-		// Sidebar with the four sub-pages
-		const nav = page.locator("nav").filter({ hasText: "License" });
-		await expect(nav.getByRole("link", { name: "License" })).toBeVisible();
+		// Sidebar with the sub-pages
+		const nav = page.locator("nav").filter({ hasText: "Developer" });
 		await expect(nav.getByRole("link", { name: "Alerts" })).toBeVisible();
 		await expect(nav.getByRole("link", { name: "Data" })).toBeVisible();
 		await expect(nav.getByRole("link", { name: "Developer" })).toBeVisible();
 
 		// Each sub-page renders its own h2
-		await expect(page.locator("h2", { hasText: "License" })).toBeVisible();
-
-		await page.getByRole("link", { name: "Alerts" }).click();
-		await expect(page).toHaveURL(/\/settings\/alerts$/);
 		await expect(page.locator("h2", { hasText: "Alerts" })).toBeVisible();
 
 		await page.getByRole("link", { name: "Data" }).click();

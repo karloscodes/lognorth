@@ -3,7 +3,6 @@ import { Link } from '@inertiajs/react'
 import { Layout } from '@/components/layout'
 
 const NAV = [
-  { path: '/settings/license', label: 'License' },
   { path: '/settings/alerts', label: 'Alerts' },
   { path: '/settings/data', label: 'Data' },
   { path: '/settings/developer', label: 'Developer' },

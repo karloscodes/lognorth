@@ -19,7 +19,6 @@ import (
 	"lognorth/internal/events"
 	lbhttp "lognorth/internal/http"
 	"lognorth/internal/jobs"
-	"lognorth/internal/license"
 	"lognorth/internal/settings"
 )
 
@@ -149,9 +148,6 @@ func (ta *mcpTestApp) ingest(t *testing.T, body string) {
 // the events table the MCP tools read.
 func (ta *mcpTestApp) process(t *testing.T) {
 	t.Helper()
-
-	license.SetConfigured(true)
-	t.Cleanup(func() { license.SetConfigured(false) })
 
 	ctx := &cartridge.JobContext{
 		Context: t.Context(),

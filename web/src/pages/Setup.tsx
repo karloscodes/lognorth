@@ -34,8 +34,6 @@ interface Flash {
 interface Props {
   apiKeys?: APIKey[]
   flash?: Flash
-  canAddApp?: boolean
-  licenseStatus?: string // the stored key's status: "valid", "invalid", "expired", or "" without a key
   statusPages?: StatusPage[]
 }
 
@@ -54,7 +52,7 @@ function CopyButton({ text, className = '' }: { text: string; className?: string
   )
 }
 
-export default function Setup({ apiKeys = [], flash, canAddApp = true, licenseStatus = '', statusPages = [] }: Props) {
+export default function Setup({ apiKeys = [], flash, statusPages = [] }: Props) {
   const newKey = flash?.type === 'newKey' ? flash.message : undefined
   const flashError = flash?.type === 'error' ? flash.message : undefined
   const activeApps = apiKeys.filter((k) => k.active)
@@ -91,7 +89,7 @@ export default function Setup({ apiKeys = [], flash, canAddApp = true, licenseSt
         {activeApps.map((app) => (
           <AppRow key={app.id} app={app} statusPages={statusPages} />
         ))}
-        {canAddApp ? <AddApp /> : <AddAppNeedsLicense licenseStatus={licenseStatus} />}
+        <AddApp />
       </div>
     </Layout>
   )
@@ -271,30 +269,6 @@ function StatusPagePicker({ app, pages }: { app: APIKey; pages: StatusPage[] }) 
         )}
       </span>
     </form>
-  )
-}
-
-// Another app needs a license. A key that Polar no longer accepts says so:
-// its owner checks the key, instead of buying one again.
-function AddAppNeedsLicense({ licenseStatus }: { licenseStatus: string }) {
-  if (licenseStatus === 'invalid' || licenseStatus === 'expired') {
-    return (
-      <p className="border-t border-dashed border-border px-[18px] py-3 text-[13px] text-subtle">
-        <span className="font-bold text-error">Your license {licenseStatus === 'expired' ? 'expired' : 'is no longer active'}.</span> Until it works, LogNorth
-        adds no more than one app.{' '}
-        <Link href="/settings/license" className="font-bold text-foreground underline hover:no-underline">
-          Check your license →
-        </Link>
-      </p>
-    )
-  }
-  return (
-    <p className="border-t border-dashed border-border px-[18px] py-3 text-[13px] text-subtle">
-      LogNorth is free for one app. A license adds unlimited apps.{' '}
-      <Link href="/settings/license" className="font-bold text-foreground underline hover:no-underline">
-        Add your license →
-      </Link>
-    </p>
   )
 }
 

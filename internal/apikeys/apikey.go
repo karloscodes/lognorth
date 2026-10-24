@@ -21,19 +21,6 @@ var (
 	ErrAppNotFound   = errors.New("Can't find that app")
 )
 
-// FreeApps is how many active apps LogNorth runs without a license.
-const FreeApps = 1
-
-// FreeAppTaken reports whether the free app is in use, so another app needs
-// a license. A revoked app does not count: an owner who revokes the free app
-// can add a new one. Apps that already exist are never touched, so an
-// install with more apps from before keeps them all.
-func FreeAppTaken(db *gorm.DB) bool {
-	var active int64
-	db.Model(&APIKey{}).Where("active = ?", true).Count(&active)
-	return active >= FreeApps
-}
-
 // KeyType distinguishes between key types
 type KeyType string
 

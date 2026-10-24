@@ -264,7 +264,7 @@ export function Layout({ children, currentPath, appId, appName, applications }: 
             <span>
               demo · read-only<span className="hidden md:inline">. Your install shows your own apps.</span>
             </span>
-            <a href="https://lognorth.com" className="whitespace-nowrap border-b border-border text-foreground">Buy LogNorth · $99</a>
+            <a href="https://lognorth.com" className="whitespace-nowrap border-b border-border text-foreground">Get LogNorth · free</a>
           </div>
         </div>
       )}

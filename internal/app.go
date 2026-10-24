@@ -22,8 +22,6 @@ import (
 	"lognorth/internal/database"
 	lbhttp "lognorth/internal/http"
 	"lognorth/internal/jobs"
-	"lognorth/internal/license"
-	"lognorth/internal/settings"
 	"lognorth/internal/users"
 )
 
@@ -80,9 +78,6 @@ func NewApp() (*Application, error) {
 	// Uptime ping (passive silence detection at the app level).
 	uptimeSweeper := cartridge.NewJobDispatcher(logger, dbManager, 1*time.Minute, jobs.NewUptimeSweeper())
 
-	// License revalidation: hits Polar once a day to catch revoked/expired keys.
-	licenseChecker := cartridge.NewJobDispatcher(logger, dbManager, 24*time.Hour, jobs.NewLicenseChecker())
-
 	// Configure server
 	serverConfig := cartridge.DefaultServerConfig()
 	// Sec-Fetch-Site (CSRF protection) stays on for every route. Routes that
@@ -120,15 +115,10 @@ func NewApp() (*Application, error) {
 		DBManager:         dbManager,
 		ServerConfig:      serverConfig,
 		RouteMountFunc:    MountRoutes,
-		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, anomalyChecker, digestSender, uptimeSweeper, licenseChecker},
+		BackgroundWorkers: []cartridge.BackgroundWorker{eventProcessor, cleanupProcessor, anomalyChecker, digestSender, uptimeSweeper},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create application: %w", err)
-	}
-
-	// Set initial license status from database
-	if s, err := settings.Get(dbManager.GetConnection()); err == nil {
-		license.SetConfigured(s.LicenseStatus == "valid")
 	}
 
 	return &Application{
@@ -355,9 +345,8 @@ func MountRoutes(server *cartridge.Server) {
 
 	// Settings — split into per-concern sub-pages. /settings redirects.
 	server.Get("/settings", func(ctx *cartridge.Context) error {
-		return ctx.Redirect("/settings/license")
+		return ctx.Redirect("/settings/alerts")
 	}, protectedConfig)
-	server.Get("/settings/license", lbhttp.SettingsLicensePageAction, protectedConfig)
 	server.Get("/settings/alerts", lbhttp.SettingsAlertsPageAction, protectedConfig)
 	server.Get("/settings/data", lbhttp.SettingsDataPageAction, protectedConfig)
 	server.Get("/settings/developer", lbhttp.SettingsDeveloperPageAction, protectedConfig)

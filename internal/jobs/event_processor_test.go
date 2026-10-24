@@ -21,7 +21,6 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/database"
 	"lognorth/internal/events"
-	"lognorth/internal/license"
 	"lognorth/internal/settings"
 )
 
@@ -63,13 +62,9 @@ func newJobCtx(db *gorm.DB) *cartridge.JobContext {
 	}
 }
 
-func TestEventProcessor_ProcessesWithoutLicense(t *testing.T) {
+func TestEventProcessor_MovesIngestedEvents(t *testing.T) {
 	db := setupProcessorDB(t)
 	seedIngested(t, db)
-
-	prev := license.IsConfigured()
-	license.SetConfigured(false)
-	t.Cleanup(func() { license.SetConfigured(prev) })
 
 	if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
 		t.Fatalf("ProcessBatch: %v", err)

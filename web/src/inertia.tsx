@@ -17,7 +17,7 @@ const pages = import.meta.glob<{ default: React.ComponentType<any> }>(
 // Map file paths to page component names and resolve them lazily
 const resolvePageComponent = async (name: string) => {
   // Convert page names like 'Home' to './pages/Home.tsx'
-  // or 'SettingsLicense' to './pages/settings/License.tsx'
+  // or 'SettingsAlerts' to './pages/settings/Alerts.tsx'
   let path = ''
 
   // Handle nested pages (Settings*)

@@ -15,9 +15,6 @@ interface SettingsData {
   quiet_start: number
   quiet_end: number
   base_url: string
-  license_key: string
-  license_status: string
-  license_email: string
 }
 
 interface Props {

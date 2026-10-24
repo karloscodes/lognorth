@@ -10,8 +10,6 @@ import (
 	"lognorth/internal/apikeys"
 	"lognorth/internal/config"
 	"lognorth/internal/events"
-	"lognorth/internal/license"
-	"lognorth/internal/settings"
 	"lognorth/internal/status"
 	"lognorth/internal/uptime"
 )
@@ -77,29 +75,15 @@ func SetupPageAction(ctx *cartridge.Context) error {
 		apps = append(apps, app)
 	}
 
-	// A key that Polar no longer accepts reads differently from no key: the
-	// owner checks it, instead of buying one again.
-	licenseStatus := ""
-	if s, err := settings.Get(db); err == nil && s.LicenseKey != "" {
-		licenseStatus = s.LicenseStatus
-	}
-
 	return RenderPage(ctx, "Setup", Props{
-		"apiKeys":       apps,
-		"canAddApp":     license.IsConfigured() || !apikeys.FreeAppTaken(db),
-		"licenseStatus": licenseStatus,
-		"statusPages":   status.Pages(db),
+		"apiKeys":     apps,
+		"statusPages": status.Pages(db),
 	})
 }
 
 // CreateAPIKeyAction handles POST /apps/api-keys (PRG pattern)
 func CreateAPIKeyAction(ctx *cartridge.Context) error {
 	db := ctx.DB()
-
-	if !license.IsConfigured() && apikeys.FreeAppTaken(db) {
-		setFlash(ctx, "error", "LogNorth is free for one app. A license adds unlimited apps.")
-		return ctx.Redirect("/apps", http.StatusFound)
-	}
 
 	name := ctx.FormValue("name")
 	if name == "" {

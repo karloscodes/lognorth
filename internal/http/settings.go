@@ -1,18 +1,15 @@
 package http
 
 import (
-	"context"
-
 	"github.com/karloscodes/cartridge"
 
 	"lognorth/internal/config"
-	"lognorth/internal/license"
 	"lognorth/internal/settings"
 	"lognorth/internal/users"
 )
 
 // renderSettingsPage loads the full settings + auxiliary props and
-// renders one of the four sub-page Inertia components. Each sub-page
+// renders one of the sub-page Inertia components. Each sub-page
 // only edits its own subset of fields but receives the full settings
 // object so saves don't clobber the others.
 func renderSettingsPage(ctx *cartridge.Context, component string) error {
@@ -43,11 +40,6 @@ func renderSettingsPage(ctx *cartridge.Context, component string) error {
 		"userEmail":        userEmail,
 		"agentKeyPrefix":   s.AgentKeyPrefix,
 	})
-}
-
-// SettingsLicensePageAction handles GET /settings/license
-func SettingsLicensePageAction(ctx *cartridge.Context) error {
-	return renderSettingsPage(ctx, "SettingsLicense")
 }
 
 // SettingsAlertsPageAction handles GET /settings/alerts
@@ -105,9 +97,6 @@ type UpdateSettingsInput struct {
 
 	// Data retention
 	RetentionDays int `json:"retention_days"`
-
-	// License key
-	LicenseKey string `json:"license_key"`
 }
 
 // UpdateSettingsAction handles POST /settings
@@ -172,36 +161,11 @@ func UpdateSettingsAction(ctx *cartridge.Context) error {
 		s.RetentionDays = input.RetentionDays
 	}
 
-	// Validate and update license key
-	if input.LicenseKey != s.LicenseKey {
-		s.LicenseKey = input.LicenseKey
-		if input.LicenseKey == "" {
-			s.LicenseStatus = ""
-			s.LicenseEmail = ""
-		} else {
-			status, email, err := license.Validate(context.Background(), input.LicenseKey)
-			if err != nil {
-				return ctx.Status(503).JSON(cartridge.Map{
-					"error": "Couldn't reach the license server. Try again in a moment.",
-				})
-			}
-			s.LicenseStatus = status
-			s.LicenseEmail = email
-		}
-	}
-
 	if err := settings.Update(db, s); err != nil {
 		return ctx.Status(500).JSON(cartridge.Map{"error": "failed to save settings"})
 	}
 
-	// Update cached license status
-	license.SetConfigured(s.LicenseStatus == "valid")
-
-	return ctx.JSON(cartridge.Map{
-		"success":        true,
-		"license_status": s.LicenseStatus,
-		"license_email":  s.LicenseEmail,
-	})
+	return ctx.JSON(cartridge.Map{"success": true})
 }
 
 // TestNotificationAction handles POST /settings/test

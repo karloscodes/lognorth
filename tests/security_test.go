@@ -395,7 +395,7 @@ func TestDemoHidesAPIKeys(t *testing.T) {
 
 func TestProtectedRoutesRequireLogin(t *testing.T) {
 	pages := []string{"/", "/apps", "/log", "/issues", "/apps/1/issues", "/apps/1/log", "/apps/1/log/1",
-		"/apps/1/endpoints", "/trace/abc", "/apps/1/issues/abc", "/issues/abc", "/settings", "/settings/license",
+		"/apps/1/endpoints", "/trace/abc", "/apps/1/issues/abc", "/issues/abc", "/settings",
 		"/settings/alerts", "/settings/data", "/settings/developer", "/api/v1/events"}
 	writes := []string{"/logout", "/apps/api-keys", "/apps/api-keys/1/rename", "/apps/api-keys/1/ping-url",
 		"/apps/api-keys/1/toggle-ping", "/apps/api-keys/1/revoke", "/apps/api-keys/1/delete", "/issues/seen",
