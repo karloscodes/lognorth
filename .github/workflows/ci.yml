@@ -30,8 +30,10 @@ jobs:
         working-directory: web
         run: npm ci && npm run build
 
+      - name: Vet
+        run: go vet ./...
       - name: Run Go tests
-        run: make test
+        run: go test -race ./...
 
   # E2E tests with Playwright
   e2e-tests:
