@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -26,15 +28,46 @@ func (IssueSeen) TableName() string {
 	return "issues_seen"
 }
 
+// The parts of an error message that change from one occurrence to the
+// next. The hashes read the message with each one replaced, so "Couldn't find
+// User with 'id'=1001" and "'id'=1002" are one issue, and one alert. The
+// stored message keeps them.
+var (
+	uuidInMessage  = regexp.MustCompile(`(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b`)
+	emailInMessage = regexp.MustCompile(`[\w.+-]+@[\w-]+(?:\.[\w-]+)+`)
+	// An address (0xc000123abc), or a run of 8 or more hex characters with
+	// a letter and a digit (a commit, a token). A word of hex letters, such
+	// as "cafebabe", stays.
+	hexInMessage    = regexp.MustCompile(`(?i)\b(?:0x[0-9a-f]+|[0-9a-f]{8,})\b`)
+	numberInMessage = regexp.MustCompile(`\d+(?:\.\d+)*`) // ids, counts, decimals, IPs
+)
+
+// normalizeMessage replaces the ids, addresses, and numbers of an error
+// message with placeholders, for the hashes.
+func normalizeMessage(message string) string {
+	message = uuidInMessage.ReplaceAllString(message, "<uuid>")
+	message = emailInMessage.ReplaceAllString(message, "<email>")
+	message = hexInMessage.ReplaceAllStringFunc(message, func(s string) string {
+		lower := strings.ToLower(s)
+		if strings.HasPrefix(lower, "0x") || (strings.ContainsAny(lower, "0123456789") && strings.ContainsAny(lower, "abcdef")) {
+			return "<hex>"
+		}
+		return s
+	})
+	return numberInMessage.ReplaceAllString(message, "<n>")
+}
+
 // computeErrorHashes returns three-tier hashes for error grouping.
 //
 //	h1: error_class + error_message (same error anywhere)
 //	h2: h1 + error_file (same error, same file)
 //	h3: h1 + error_file + error_line (exact location — primary grouping key)
 //
-// When error_class is empty, uses error_message only.
-// When error_file/error_line missing, h2 and h3 stay empty.
+// The message is normalized first (normalizeMessage). When error_class is
+// empty, uses error_message only. When error_file/error_line missing, h2 and
+// h3 stay empty.
 func computeErrorHashes(errorClass, errorMessage, errorFile string, errorLine int, apiKeyID uint) (h1, h2, h3 string) {
+	errorMessage = normalizeMessage(errorMessage)
 	// Build the identity part: class + message
 	identity := errorClass + ":" + errorMessage
 	if errorClass == "" {
