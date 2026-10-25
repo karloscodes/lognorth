@@ -14,15 +14,17 @@ import (
 // pages, the MCP tools, and north show it as one.
 
 // EndpointKey returns the endpoint of a request: the route the SDK sent when
-// it covers the path, else the path with its ids replaced by :id. Express
-// sends the route relative to its router (/:id under /api/users), so a route
-// counts only when it matches the path segment by segment.
+// it covers the path, else the path with its ids replaced by :id. Older SDKs
+// send an Express route relative to its router (/:id under /api/users), so a
+// route counts only when it matches the path segment by segment. Express
+// gives a router mounted on a parameter its value (/orgs/42/posts/:slug), so
+// a route has its ids replaced too.
 func EndpointKey(route, path string) string {
 	if path == "" {
 		return ""
 	}
 	if key := routeKey(route); key != "" && covers(key, path) {
-		return key
+		return normalizePath(key)
 	}
 	return normalizePath(path)
 }

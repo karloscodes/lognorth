@@ -25,6 +25,7 @@ func TestEndpointKey(t *testing.T) {
 		{"a Go subtree pattern", "/static/", "/static/css/app.css", "/static/"},
 		{"a Go exact-root pattern", "GET /{$}", "/", "/"},
 		{"a router-relative Express route does not cover the path", "/:id", "/api/users/7", "/api/users/:id"},
+		{"an Express route under a router mounted on an id", "/orgs/42/posts/:slug", "/orgs/42/posts/hello", "/orgs/:id/posts/:slug"},
 		{"a route with another literal does not cover the path", "/posts/:slug", "/pages/about", "/pages/about"},
 		{"no path, no key", "/x", "", ""},
 	} {

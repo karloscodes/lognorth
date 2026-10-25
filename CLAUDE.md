@@ -59,12 +59,13 @@ addresses replaced (`events.normalizeMessage`), so "Couldn't find User with
 keeps them.
 
 An endpoint is a route, not a URL (`events.EndpointKey`, `events/endpoint.go`):
-the route the SDK sends when it covers the path segment by segment (Express
-sends it relative to its router, so `/:id` under `/api/users` does not count;
-a Go pattern loses its method and host, and `{id}` reads `:id`), else the path
-with its ids replaced by `:id` (all digits, a UUID, or hex of 16 characters or
-more). So `/users/123` and `/users/124` share one history and one baseline.
-The pages, the MCP tools, and north show the key as the path.
+the route the SDK sends when it covers the path segment by segment (older
+Express SDKs send it relative to its router, so `/:id` under `/api/users` does
+not count; a Go pattern loses its method and host, and `{id}` reads `:id`),
+else the path. Either way its ids are replaced by `:id` (all digits, a UUID,
+or hex of 16 characters or more), so a router mounted on `/orgs/:orgId` keys
+as `/orgs/:id/...`. So `/users/123` and `/users/124` share one history and
+one baseline. The pages, the MCP tools, and north show the key as the path.
 `endpoint_timeline` finds the endpoint of a URL (`events.EndpointOf`), and a
 log search for a key with a parameter (`/users/:id`, as the Endpoints page and
 north send it) reads as the endpoint. Issues keep the paths as sent.
