@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ReleaseMarks, type Release } from '@/components/release-marks'
+import { ReleaseMarks, releasesIn, type Release } from '@/components/release-marks'
 import { format } from 'date-fns'
 import { uptimeLabel, percent, shortDuration, failureText, type UptimeReport, type UptimeCheck, type UptimeBar } from '@/lib/uptime'
 
@@ -43,7 +43,7 @@ export function UptimePane({ report, logPath, releases }: { report: UptimeReport
       )}
 
       <div className="relative" onMouseLeave={() => setHovered(null)}>
-        {hovered !== null && <BarTooltip bar={report.bars[hovered]} index={hovered} total={report.bars.length} barMs={barMs} />}
+        {hovered !== null && <BarTooltip bar={report.bars[hovered]} index={hovered} total={report.bars.length} barMs={barMs} releases={releases} />}
         <div className="relative flex h-7 items-stretch gap-px">
           {report.bars.length > 0 && (
             <ReleaseMarks
@@ -116,9 +116,10 @@ function errorsIn(logPath: string, bar: UptimeBar, barMs: number): string {
 }
 
 // What happened in one bar: shown above the strip while the mouse is on it.
-function BarTooltip({ bar, index, total, barMs }: { bar: UptimeBar; index: number; total: number; barMs: number }) {
+function BarTooltip({ bar, index, total, barMs, releases }: { bar: UptimeBar; index: number; total: number; barMs: number; releases?: Release[] | null }) {
   const start = new Date(bar.start)
   const end = new Date(start.getTime() + barMs)
+  const deploys = releasesIn(releases, start.getTime(), end.getTime())
   // Near the edges the box grows inward instead of centering on the bar.
   const pos = index < 8 ? { left: 0 } : index > total - 9 ? { right: 0 } : { left: `${((index + 0.5) / total) * 100}%`, transform: 'translateX(-50%)' }
 
@@ -144,6 +145,7 @@ function BarTooltip({ bar, index, total, barMs }: { bar: UptimeBar; index: numbe
           {bar.fails > 0 && <p className="mt-1 text-dim">click for the errors of these minutes</p>}
         </>
       )}
+      {deploys.length > 0 && <p className="text-foreground">▼ deployed {deploys.join(', ')}</p>}
     </div>
   )
 }

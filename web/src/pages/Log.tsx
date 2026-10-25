@@ -4,7 +4,7 @@ import { Layout } from '@/components/layout'
 import { statusColor, parseContext, PageHeader, Mono } from '@/lib/shared'
 import type { Application, LogEntry } from '@/lib/shared'
 import { pageKey } from '@/lib/keys'
-import { ReleaseMarks, type Release } from '@/components/release-marks'
+import { ReleaseMarks, releasesIn, type Release } from '@/components/release-marks'
 
 // Format as "Feb 25 20:15:07.152"
 const formatTime = (date: Date) => {
@@ -200,10 +200,12 @@ function LogHistogram({ buckets: rawBuckets, releases }: { buckets: HistogramBuc
   const from = new Date(buckets[0].timestamp).getTime()
   const bucketMs = rawBuckets.length > 1 ? new Date(rawBuckets[1].timestamp).getTime() - from : 3_600_000
   const to = new Date(buckets[buckets.length - 1].timestamp).getTime() + bucketMs
+  const hoveredStart = hoveredBucket ? new Date(hoveredBucket.timestamp).getTime() : 0
+  const hoveredDeploys = hoveredBucket ? releasesIn(releases, hoveredStart, hoveredStart + bucketMs) : []
 
   return (
     <div className="pane relative mb-7 px-[18px] pb-3 pt-6">
-      <span className="pane-title">requests · errors in red{releases?.length ? ' · deploys dashed' : ''}</span>
+      <span className="pane-title">requests · errors in red{releases?.length ? ' · ▼ deploys' : ''}</span>
       <div className="relative flex h-16 items-end gap-0.5">
         <ReleaseMarks releases={releases} from={from} to={to} />
         {buckets.map((bucket, i) => {
@@ -246,6 +248,11 @@ function LogHistogram({ buckets: rawBuckets, releases }: { buckets: HistogramBuc
             {hoveredBucket.errors > 0 && (
               <>
                 {' '}· <span className="text-error">{hoveredBucket.errors} errors</span>
+              </>
+            )}
+            {hoveredDeploys.length > 0 && (
+              <>
+                {' '}· <span className="text-foreground">▼ deployed {hoveredDeploys.join(', ')}</span>
               </>
             )}
           </span>
