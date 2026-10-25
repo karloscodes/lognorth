@@ -145,11 +145,15 @@ func (s EndpointStat) ErrorRate() float64 {
 // volume, in internal/alerts) plus a day. A test there checks it.
 const StatsRetention = 29 * 24 * time.Hour
 
-// CleanupOldStats removes stats older than StatsRetention.
+// CleanupOldStats removes stats and duration bins older than StatsRetention.
 func CleanupOldStats(db *gorm.DB) (int64, error) {
 	cutoff := time.Now().UTC().Add(-StatsRetention)
 	result := db.Where("bucket < ?", cutoff).Delete(&EndpointStat{})
-	return result.RowsAffected, result.Error
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	bins := db.Where("hour < ?", cutoff.Truncate(time.Hour)).Delete(&EndpointDuration{})
+	return result.RowsAffected + bins.RowsAffected, bins.Error
 }
 
 // TimelinePoint is the traffic of one endpoint in one time step.

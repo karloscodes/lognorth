@@ -13,6 +13,9 @@ interface EndpointStats {
   errors: number
   error_rate: number
   avg_duration: number
+  // Null until the endpoint has requests counted with their durations.
+  p95_duration: number | null
+  p99_duration: number | null
 }
 
 // An endpoint alerting now, judged against its own history (events.ListAlerts).
@@ -42,7 +45,13 @@ interface Props {
 
 // Widths in px, not ch: the header row is 11px and the rows 13px, and ch would
 // size the same column differently in each.
-const COLS = 'grid grid-cols-[1fr_72px_150px_64px_64px] items-center gap-4 max-md:grid-cols-[1fr_56px_56px]'
+const COLS = 'grid grid-cols-[1fr_72px_120px_64px_64px_64px_64px] items-center gap-4 max-md:grid-cols-[1fr_56px_56px]'
+
+// "85ms", or "12.4s" from 10 seconds on, so a slow p99 fits its column.
+function duration(ms: number | null): string {
+  if (ms === null) return '—'
+  return ms < 10_000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
+}
 
 function EndpointRow({ endpoint, alert, maxRate, appId }: { endpoint: EndpointStats; alert?: Alert; maxRate: number; appId: number }) {
   const [expanded, setExpanded] = useState(false)
@@ -91,7 +100,9 @@ function EndpointRow({ endpoint, alert, maxRate, appId }: { endpoint: EndpointSt
         <Mono className={`text-right ${spike ? 'font-bold text-error' : endpoint.errors ? 'text-text' : 'text-dim'}`}>
           {endpoint.errors ? `${rate.toFixed(1)}%` : '—'}
         </Mono>
-        <Mono className="text-right text-subtle max-md:hidden">{endpoint.avg_duration}ms</Mono>
+        <Mono className="text-right text-subtle max-md:hidden">{duration(endpoint.avg_duration)}</Mono>
+        <Mono className="text-right text-subtle max-md:hidden">{duration(endpoint.p95_duration)}</Mono>
+        <Mono className="text-right text-text max-md:hidden">{duration(endpoint.p99_duration)}</Mono>
       </button>
 
       {expanded && (
@@ -167,6 +178,8 @@ export default function Endpoints({ endpoints: endpointsProp, alerts = [], uptim
               <span className="max-md:hidden">errors</span>
               <span className="text-right">error %</span>
               <span className="text-right max-md:hidden">avg</span>
+              <span className="text-right max-md:hidden">p95</span>
+              <span className="text-right max-md:hidden">p99</span>
             </div>
             <div className="border-t border-line">
               {endpoints.map((endpoint) => (

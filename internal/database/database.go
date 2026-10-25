@@ -110,6 +110,9 @@ func Migrate(db *gorm.DB) error {
 	); err != nil {
 		return err
 	}
+	if err := db.Set("gorm:table_options", events.DurationTableOptions).AutoMigrate(&events.EndpointDuration{}); err != nil {
+		return err
+	}
 	if err := alerts.AutoMigrateSPC(db); err != nil {
 		return fmt.Errorf("failed to migrate SPC tables: %w", err)
 	}

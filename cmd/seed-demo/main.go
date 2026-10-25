@@ -1010,6 +1010,8 @@ type statSum struct {
 
 var requestStats = map[statKey]*statSum{}
 
+var requestDurations = events.DurationBatch{}
+
 func countRequest(appID uint, path string, isError bool, durationMS int, at time.Time) {
 	if path == "" {
 		return
@@ -1024,6 +1026,7 @@ func countRequest(appID uint, path string, isError bool, durationMS int, at time
 	}
 	sum.total++
 	sum.durationSum += int64(durationMS)
+	requestDurations.Add(appID, key.path, durationMS, at)
 	if isError {
 		sum.errors++
 	}
@@ -1041,7 +1044,10 @@ func saveRequestStats(db *gorm.DB) error {
 			AvgDuration: int(sum.durationSum / sum.total),
 		})
 	}
-	return db.CreateInBatches(rows, 500).Error
+	if err := db.CreateInBatches(rows, 500).Error; err != nil {
+		return err
+	}
+	return db.Transaction(requestDurations.Flush)
 }
 
 func createLinkedJob(db *gorm.DB, apiKeyID uint, traceID string, timestamp time.Time, jobName string, isInIncident bool) {

@@ -89,6 +89,35 @@ func TestEventProcessor_MovesIngestedEvents(t *testing.T) {
 	}
 }
 
+func TestEventProcessor_CountsDurations(t *testing.T) {
+	db := setupProcessorDB(t)
+	key, _, _ := apikeys.Create(db, "Test App")
+	var batch []*events.IngestedEvent
+	for i := range 100 {
+		duration := 40
+		if i >= 98 {
+			duration = 2000
+		}
+		batch = append(batch, &events.IngestedEvent{
+			APIKeyID: key.ID, Message: "GET /users/7", DurationMS: duration,
+			Context: fmt.Sprintf(`{"method":"GET","path":"/users/%d","route":"/users/:id","status":200}`, i),
+		})
+	}
+	events.CreateIngested(db, batch)
+
+	if err := NewEventProcessor().ProcessBatch(newJobCtx(db)); err != nil {
+		t.Fatalf("ProcessBatch: %v", err)
+	}
+
+	stats, _ := events.GetEndpointStats(db, key.ID, 10)
+	if len(stats) != 1 || stats[0].Path != "/users/:id" || stats[0].P95Duration == nil || stats[0].P99Duration == nil {
+		t.Fatalf("stats = %+v, want /users/:id with a p95 and a p99", stats)
+	}
+	if p95, p99 := *stats[0].P95Duration, *stats[0].P99Duration; p95 > 44 || p99 < 1800 {
+		t.Errorf("p95 = %dms, p99 = %dms; want about 40ms and 2000ms", p95, p99)
+	}
+}
+
 func TestEventProcessor_BatchWithFailingEvent(t *testing.T) {
 	db := setupProcessorDB(t)
 	key, _, err := apikeys.Create(db, "Test App")

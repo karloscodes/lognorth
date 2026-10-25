@@ -115,7 +115,7 @@ var Tools = []map[string]any{
 	},
 	{
 		"name": "list_endpoints",
-		"description": "Every endpoint of one app with its requests, errors, error rate, and average duration over a window, most broken first. " +
+		"description": "Every endpoint of one app with its requests, errors, error rate, and average, p95, and p99 duration in ms over a window, most broken first. p95 and p99 count whole UTC hours, within 10%; null for traffic from before the upgrade that counts them. " +
 			"Use it to see which endpoints fail right now before you drill into one with endpoint_timeline.",
 		"inputSchema": map[string]any{
 			"type": "object",

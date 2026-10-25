@@ -391,6 +391,9 @@ type EndpointStats struct {
 	Errors      int64   `json:"errors"`
 	ErrorRate   float64 `json:"error_rate"`
 	AvgDuration int     `json:"avg_duration"`
+	// Nil when the endpoint has no duration bins in the window (addPercentiles).
+	P95Duration *int `json:"p95_duration"`
+	P99Duration *int `json:"p99_duration"`
 }
 
 // EndpointStatsWindow is how far back the Endpoints page looks. It reads the
@@ -430,8 +433,10 @@ func GetEndpointStatsSince(db *gorm.DB, apiKeyID uint, from time.Time, limit int
 	args = append(args, limit)
 
 	var stats []EndpointStats
-	err := db.Raw(query, args...).Scan(&stats).Error
-	return stats, err
+	if err := db.Raw(query, args...).Scan(&stats).Error; err != nil {
+		return nil, err
+	}
+	return stats, addPercentiles(db, apiKeyID, from, stats)
 }
 
 // GetStats returns event counts. The counts come from app_hours; the last

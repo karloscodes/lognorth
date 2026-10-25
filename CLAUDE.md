@@ -47,7 +47,12 @@ SDK → POST /api/v1/events → IngestedEvent table (fast write)
 Counts are written as events move, never counted on a page load:
 `endpoint_stats` holds 5-minute buckets per endpoint, and `app_hours` holds each
 app's events and errors per UTC hour (`events.HourBatch`, in the processor's
-transaction). The home page, the log histogram, and the digest read
+transaction). `endpoint_durations` holds each endpoint's requests per UTC hour
+and duration bin, each bin 10% wider than the one before
+(`events.DurationBatch`), so the Endpoints page and `list_endpoints` read p95
+and p99 within 10%. It is WITHOUT ROWID, keyed in the order the percentile
+query groups, so the sum needs no sort. Traffic from before an install
+counted bins has no percentiles. The home page, the log histogram, and the digest read
 `app_hours`. Retention deletes whole hours, so the counts always match the
 events. An event written outside the processor, as the demo seed writes
 them, needs a recount (`events.RecountAppHours`).

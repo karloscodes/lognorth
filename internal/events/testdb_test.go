@@ -22,5 +22,8 @@ func newTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(&Event{}, &IngestedEvent{}, &IssueSeen{}, &EndpointStat{}, &Release{}, &AppHour{}, &Issue{}); err != nil {
 		t.Fatalf("Failed to migrate: %v", err)
 	}
+	if err := db.Set("gorm:table_options", DurationTableOptions).AutoMigrate(&EndpointDuration{}); err != nil {
+		t.Fatalf("Failed to migrate: %v", err)
+	}
 	return db
 }
