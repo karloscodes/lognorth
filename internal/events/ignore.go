@@ -17,6 +17,10 @@ func ShouldIgnorePath(p string) bool {
 	if p == "" {
 		return false
 	}
+	// RFC 8615 reserves this namespace for legitimate discovery endpoints.
+	if strings.HasPrefix(p, "/.well-known/") {
+		return false
+	}
 
 	p = strings.ToLower(p)
 
