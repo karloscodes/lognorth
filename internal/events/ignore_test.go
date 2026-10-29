@@ -51,4 +51,28 @@ func TestShouldIgnorePath(t *testing.T) {
 			t.Error("expected empty path to not be ignored")
 		}
 	})
+
+	t.Run("allows well-known discovery endpoints", func(t *testing.T) {
+		for _, p := range []string{
+			"/.well-known/oauth-protected-resource/mcp",
+			"/.well-known/oauth-authorization-server/api/auth",
+			"/.well-known/openid-configuration",
+		} {
+			if ShouldIgnorePath(p) {
+				t.Errorf("expected discovery endpoint %q to NOT be ignored", p)
+			}
+		}
+	})
+
+	t.Run("keeps similar dotfile prefixes ignored", func(t *testing.T) {
+		for _, p := range []string{
+			"/.well-known", "/.well-known.env", "/.well-known-backup/config",
+			"/.well-knownx/openid-configuration",
+			"/.WELL-KNOWN/openid-configuration",
+		} {
+			if !ShouldIgnorePath(p) {
+				t.Errorf("expected dotfile path %q to be ignored", p)
+			}
+		}
+	})
 }
