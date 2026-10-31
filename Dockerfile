@@ -40,8 +40,9 @@ LABEL org.opencontainers.image.source="https://github.com/karloscodes/lognorth-r
 
 WORKDIR /app
 
-# Install runtime dependencies and create directories
-RUN apk add --no-cache ca-certificates tzdata sqlite curl && \
+# Install runtime dependencies and create directories. Upgrade first so a
+# package fix in Alpine 3.24 is installed before the base image is rebuilt.
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates tzdata sqlite curl && \
   mkdir -p /app/logs /app/storage
 
 # Copy compiled binaries from builder (assets are embedded in the binary)
