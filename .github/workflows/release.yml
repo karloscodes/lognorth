@@ -304,9 +304,12 @@ jobs:
           VERSION: ${{ steps.version.outputs.VERSION }}
           RC: ${{ steps.version.outputs.RC }}
         run: |
-          # lognorth-releases gets each release too while it is phased out: see
-          # CLAUDE.md. install.sh is the install line: lognorth.com/install
-          # points to the newest one. No binary: see .goreleaser.yml.
+          # install.sh is the install line: lognorth.com/install points to the
+          # newest one here. GoReleaser attaches it from the tag's settings, and a
+          # rebuild of an older tag has older settings, so attach it here too.
+          gh release upload "v${VERSION}" ./install.sh --clobber --repo karloscodes/lognorth
+          # lognorth-releases stays a mirror: see CLAUDE.md. No binary: see
+          # .goreleaser.yml.
           PRERELEASE=""
           if [ "$RC" = "true" ]; then PRERELEASE="--prerelease"; fi
           gh release create "v${VERSION}" $PRERELEASE \
