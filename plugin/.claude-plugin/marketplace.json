@@ -1,0 +1,27 @@
+{
+  "name": "karloscodes",
+  "owner": {
+    "name": "Carlos Castellanos",
+    "url": "https://lognorth.com"
+  },
+  "metadata": {
+    "description": "LogNorth: self-hosted logging you own. Logs, errors, alerts, and uptime from one binary.",
+    "version": "0.24.0"
+  },
+  "plugins": [
+    {
+      "name": "lognorth",
+      "source": "./",
+      "description": "Read your production logs from inside your coding agent. MCP server plus the investigation and SDK integration skills.",
+      "version": "0.24.0",
+      "category": "observability",
+      "keywords": [
+        "logs",
+        "observability",
+        "error-tracking",
+        "debugging",
+        "self-hosted"
+      ]
+    }
+  ]
+}

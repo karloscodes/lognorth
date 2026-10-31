@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "lognorth": {
+      "command": "north",
+      "args": ["mcp"]
+    }
+  }
+}

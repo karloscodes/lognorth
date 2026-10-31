@@ -1,0 +1,18 @@
+{
+  "name": "karloscodes",
+  "owner": {
+    "name": "Carlos Castellanos"
+  },
+  "metadata": {
+    "description": "LogNorth: self-hosted logging you own.",
+    "version": "0.24.1"
+  },
+  "plugins": [
+    {
+      "name": "lognorth",
+      "source": "./",
+      "description": "Read your production logs from inside your coding agent: alerts, issues, failing requests, and traces from your self-hosted LogNorth. Read-only.",
+      "category": "observability"
+    }
+  ]
+}

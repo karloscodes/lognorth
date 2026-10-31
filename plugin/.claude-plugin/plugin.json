@@ -1,0 +1,21 @@
+{
+  "name": "lognorth",
+  "description": "Pull alerts, errors, and request traces from your self-hosted LogNorth. Read-only.",
+  "version": "0.24.1",
+  "author": {
+    "name": "Carlos Castellanos",
+    "url": "https://lognorth.com"
+  },
+  "homepage": "https://lognorth.com/docs/integrations/mcp/",
+  "repository": "https://github.com/karloscodes/lognorth-releases",
+  "license": "MIT",
+  "keywords": [
+    "logs",
+    "logging",
+    "observability",
+    "error-tracking",
+    "debugging",
+    "self-hosted",
+    "mcp"
+  ]
+}

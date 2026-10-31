@@ -1,0 +1,19 @@
+{
+  "name": "lognorth",
+  "version": "0.24.1",
+  "description": "Pull alerts, errors, and request traces from your self-hosted LogNorth. Read-only.",
+  "interface": {
+    "displayName": "LogNorth",
+    "shortDescription": "Read production logs from your coding agent.",
+    "longDescription": "Pull alerts, errors, failing requests, and full traces from your self-hosted LogNorth. Read-only.",
+    "developerName": "LogNorth",
+    "category": "Productivity",
+    "capabilities": ["Read"],
+    "websiteURL": "https://lognorth.com",
+    "defaultPrompt": [
+      "What is broken in production?",
+      "Show me the open alerts.",
+      "Find the failing requests for the worst endpoint."
+    ]
+  }
+}

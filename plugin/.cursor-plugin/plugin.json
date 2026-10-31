@@ -1,0 +1,53 @@
+{
+  "name": "lognorth",
+  "displayName": "LogNorth",
+  "description": "Read your production logs from inside your coding agent: alerts, issues, failing requests, and traces from your self-hosted LogNorth. Read-only.",
+  "version": "0.24.1",
+  "author": {
+    "name": "Carlos Castellanos"
+  },
+  "homepage": "https://lognorth.com/docs/integrations/mcp/",
+  "repository": "https://github.com/karloscodes/lognorth-releases",
+  "license": "MIT",
+  "logo": "assets/logo.png",
+  "category": "observability",
+  "keywords": [
+    "logs",
+    "observability",
+    "error-tracking",
+    "alerts",
+    "uptime",
+    "debugging",
+    "self-hosted",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "commands": "./commands/investigate.md",
+  "variables": {
+    "type": "object",
+    "properties": {
+      "LOGNORTH_URL": {
+        "type": "string",
+        "title": "LogNorth URL",
+        "description": "Your LogNorth address, for example https://logs.yoursite.com. No trailing slash."
+      },
+      "LOGNORTH_AGENT_KEY": {
+        "type": "string",
+        "title": "Agent key",
+        "description": "Read-only key from Settings > Developer in LogNorth. Starts with lgn-agent-."
+      }
+    },
+    "required": [
+      "LOGNORTH_URL",
+      "LOGNORTH_AGENT_KEY"
+    ]
+  },
+  "mcpServers": {
+    "lognorth": {
+      "url": "${LOGNORTH_URL}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${LOGNORTH_AGENT_KEY}"
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "lognorth",
+  "version": "0.24.0",
+  "description": "Read your production logs from inside your coding agent: alerts, issues, failing requests, and traces from your self-hosted LogNorth.",
+  "mcpServers": {
+    "lognorth": {
+      "command": "north",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

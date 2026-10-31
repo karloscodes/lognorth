@@ -1,0 +1,40 @@
+name: Plugin
+
+# plugin/ is the source of the agent plugin. Agents install it from the root of
+# karloscodes/lognorth-releases, and an installed plugin keeps that address, so
+# each change here is copied there. Never edit the plugin in that repo: this
+# job overwrites it. It releases and deploys nothing else.
+on:
+  push:
+    branches: [main]
+    paths:
+      - plugin/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  copy:
+    name: Copy to lognorth-releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Copy plugin/ to the root of lognorth-releases
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          gh auth setup-git
+          git clone --depth 1 https://github.com/karloscodes/lognorth-releases.git "$RUNNER_TEMP/releases"
+          rsync -a --delete --exclude=.git plugin/ "$RUNNER_TEMP/releases/"
+          cd "$RUNNER_TEMP/releases"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "lognorth-releases already has this plugin"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "Plugin: copy from karloscodes/lognorth@${GITHUB_SHA::7}"
+          git push

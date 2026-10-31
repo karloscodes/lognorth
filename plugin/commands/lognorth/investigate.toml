@@ -1,0 +1,21 @@
+description = "Investigate a LogNorth alert or issue, from the log to the commit that caused it"
+prompt = """
+Investigate `{{args}}` in production with the `lognorth` MCP tools, following the `lognorth` skill.
+
+The argument is what the alert email ended with:
+
+- **A path** such as `/api/checkout`: start with `list_alerts`, then `endpoint_timeline` for that path.
+- **An issue hash** (hex characters, no slash): start with `search_logs` with `issue` set to it and `since: 7d`, then `list_issues` for its counts and trend.
+- **Nothing**: start with `list_alerts`, then `list_issues`, and take the worst one.
+
+Then go through the rest of the skill's steps: the failing requests, one full trace, the code at `error_file:error_line`, and the commits just before the start time.
+
+End with:
+
+1. **What is wrong**: one sentence, with numbers against the normal level.
+2. **Since when**: the time it started, and what changed then.
+3. **The cause**: the event id, the file and line, and the commit if you found one. Say if it is a guess.
+4. **The fix**: the change you propose. Do not edit files unless the user asks.
+
+If there are no `lognorth` tools, use `north call` from the skill's "Without the MCP tools".
+"""

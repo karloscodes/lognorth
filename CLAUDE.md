@@ -99,16 +99,16 @@ those tools' output fields stable, or release north with the change. It shares
 the agent rate limit, 60 calls a minute per IP.
 
 Every alert email ends with `/lognorth:investigate <path or issue hash>`, a
-command in the plugin repo (`lognorth-releases`). Keep the tool names in sync
-with that plugin's skill and with the `lognorth` command.
+command of the agent plugin in `plugin/`. Keep the tool names in sync with that
+plugin's skill and with the `lognorth` command.
 
 ### Install
 
 New installs run on Chasen (chasenhq.com). `install.sh` is the script behind
 `curl -fsSL lognorth.com/install | bash`: it installs chasen-server and deploys
-`karloscodes/lognorth:latest` with nightly updates. Each release attaches it to
-the `lognorth-releases` release, and lognorth.com/install redirects to the
-newest one. On Chasen the image needs no settings: it reads `PRIVATE_KEY` and
+`karloscodes/lognorth:latest` with nightly updates. Each release attaches it in
+this repo and in `lognorth-releases`, and lognorth.com/install redirects to the
+newest one in `lognorth-releases`. On Chasen the image needs no settings: it reads `PRIVATE_KEY` and
 `BASE_URL`, which Chasen sets. `e2e/chasen.sh`, `e2e/installer.sh`, and
 `e2e/move-to-chasen.sh` test the three paths; `.github/workflows/chasen.yml`
 runs them on fresh GitHub runners, because they install chasen-server on the
@@ -122,6 +122,24 @@ last), and its nightly update still pulls each new image. Never attach a
 update themselves from the newest lognorth-releases release, and a binary
 without `update` would end their nightly update. `e2e/move-to-chasen.sh` sets
 up the old server from v0.28.1.
+
+### lognorth-releases
+
+`karloscodes/lognorth-releases` is phased out slowly, with no end date (user, 31
+October 2026). Until then each thing is in both places, and a change to one must
+reach the other:
+
+- **Releases:** each release is published here and there, with `install.sh`.
+- **Image:** `ghcr.io/karloscodes/lognorth` and
+  `ghcr.io/karloscodes/lognorth-releases` get the same tags.
+- **Agent plugin:** the source is `plugin/`. `.github/workflows/plugin.yml`
+  copies it to that repo's root, where agents install it. Never edit it there.
+- **Stats:** lognorth.com counts from both: the releases of both repos, each tag
+  once, and the pulls of both packages.
+
+Never delete that repo: it holds the plugin that agents installed and the
+binaries up to v0.28.1. A failed self-update of the older installer is only a
+warning, so stopping its releases does not stop those servers' image updates.
 
 ### Alerting
 
