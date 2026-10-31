@@ -11,6 +11,11 @@ on:
       - plugin/**
   workflow_dispatch:
 
+# Two changes close together must not push over each other.
+concurrency:
+  group: plugin
+  cancel-in-progress: false
+
 permissions:
   contents: read
 

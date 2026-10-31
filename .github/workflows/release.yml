@@ -312,6 +312,8 @@ jobs:
           # .goreleaser.yml.
           PRERELEASE=""
           if [ "$RC" = "true" ]; then PRERELEASE="--prerelease"; fi
+          # A rerun of a tag finds it there already.
+          gh release view "v${VERSION}" --repo karloscodes/lognorth-releases >/dev/null 2>&1 && exit 0
           gh release create "v${VERSION}" $PRERELEASE \
             --repo karloscodes/lognorth-releases \
             --title "LogNorth v${VERSION}" \
