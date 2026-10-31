@@ -150,4 +150,4 @@ Source: [karloscodes/lognorth-cli](https://github.com/karloscodes/lognorth-cli).
 
 ## Releases
 
-This repo also carries the LogNorth binary releases the installer downloads. See [Releases](https://github.com/karloscodes/lognorth-releases/releases).
+The source of this plugin is [`plugin/` in karloscodes/lognorth](https://github.com/karloscodes/lognorth/tree/main/plugin). This repo is its mirror, and it also holds the releases up to the move.

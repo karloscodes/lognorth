@@ -7,7 +7,7 @@
     "name": "Carlos Castellanos"
   },
   "homepage": "https://lognorth.com/docs/integrations/mcp/",
-  "repository": "https://github.com/karloscodes/lognorth-releases",
+  "repository": "https://github.com/karloscodes/lognorth",
   "license": "MIT",
   "logo": "assets/logo.png",
   "category": "observability",

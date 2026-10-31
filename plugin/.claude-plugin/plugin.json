@@ -7,7 +7,7 @@
     "url": "https://lognorth.com"
   },
   "homepage": "https://lognorth.com/docs/integrations/mcp/",
-  "repository": "https://github.com/karloscodes/lognorth-releases",
+  "repository": "https://github.com/karloscodes/lognorth",
   "license": "MIT",
   "keywords": [
     "logs",
