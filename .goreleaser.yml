@@ -47,6 +47,10 @@ release:
     owner: karloscodes
     name: lognorth
   prerelease: auto
+  # The install line. Each release also attaches it in lognorth-releases, where
+  # lognorth.com/install points for now.
+  extra_files:
+    - glob: ./install.sh
   mode: replace
   header: |
     ## LogNorth {{ .Tag }}

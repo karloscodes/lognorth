@@ -251,20 +251,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Pin the tag. GoReleaser's default sort (-version:refname) lists
-          # v0.29.0-rc.7 ahead of v0.29.0 when both point at HEAD, and
-          # prerelease: auto then follows that rc tag. Stable notes start at
-          # the previous stable tag, not at the rc that shares this commit.
-          GORELEASER_CURRENT_TAG: ${{ needs.tag.outputs.tag }}
-          GORELEASER_PREVIOUS_TAG: ${{ needs.tag.outputs.previous }}
-
       # A tag with a hyphen (v0.26.0-rc.1) is a release candidate: it never moves
       # `latest`, which every install pulls at night, and its release is a prerelease.
       # It moves `rc` instead: the newest candidate, which your own server follows.
@@ -284,14 +270,33 @@ jobs:
           push: true
           tags: |
             karloscodes/lognorth:${{ steps.version.outputs.VERSION }}
+            ghcr.io/karloscodes/lognorth:${{ steps.version.outputs.VERSION }}
             ghcr.io/karloscodes/lognorth-releases:${{ steps.version.outputs.VERSION }}
             ${{ steps.version.outputs.RC == 'false' && 'karloscodes/lognorth:latest' || '' }}
+            ${{ steps.version.outputs.RC == 'false' && 'ghcr.io/karloscodes/lognorth:latest' || '' }}
             ${{ steps.version.outputs.RC == 'false' && 'ghcr.io/karloscodes/lognorth-releases:latest' || '' }}
             ${{ steps.version.outputs.RC == 'true' && 'karloscodes/lognorth:rc' || '' }}
+            ${{ steps.version.outputs.RC == 'true' && 'ghcr.io/karloscodes/lognorth:rc' || '' }}
             ${{ steps.version.outputs.RC == 'true' && 'ghcr.io/karloscodes/lognorth-releases:rc' || '' }}
           # The image says its own version, so a tool that runs `latest` can name what runs.
           labels: |
             org.opencontainers.image.version=${{ steps.version.outputs.VERSION }}
+
+      # After the image: a public release always has its image, and
+      # releases/latest never points at a version nobody can pull yet.
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pin the tag. GoReleaser's default sort (-version:refname) lists
+          # v0.29.0-rc.7 ahead of v0.29.0 when both point at HEAD, and
+          # prerelease: auto then follows that rc tag. Stable notes start at
+          # the previous stable tag, not at the rc that shares this commit.
+          GORELEASER_CURRENT_TAG: ${{ needs.tag.outputs.tag }}
+          GORELEASER_PREVIOUS_TAG: ${{ needs.tag.outputs.previous }}
 
       - name: Publish to public releases repo
         env:
@@ -299,8 +304,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.VERSION }}
           RC: ${{ steps.version.outputs.RC }}
         run: |
-          # install.sh is the install line: lognorth.com/install points to the
-          # newest one. No binary: see .goreleaser.yml.
+          # lognorth-releases gets each release too while it is phased out: see
+          # CLAUDE.md. install.sh is the install line: lognorth.com/install
+          # points to the newest one. No binary: see .goreleaser.yml.
           PRERELEASE=""
           if [ "$RC" = "true" ]; then PRERELEASE="--prerelease"; fi
           gh release create "v${VERSION}" $PRERELEASE \

@@ -35,8 +35,8 @@ RUN mkdir -p dist && \
 # Final stage - minimal runtime image
 FROM alpine:3.24
 
-# Link GHCR package to public releases repo
-LABEL org.opencontainers.image.source="https://github.com/karloscodes/lognorth-releases"
+# Link the GHCR packages to this repo
+LABEL org.opencontainers.image.source="https://github.com/karloscodes/lognorth"
 
 WORKDIR /app
 
