@@ -108,7 +108,7 @@ New installs run on Chasen (chasenhq.com). `install.sh` is the script behind
 `curl -fsSL lognorth.com/install | bash`: it installs chasen-server and deploys
 `karloscodes/lognorth:latest` with nightly updates. Each release attaches it in
 this repo and in `lognorth-releases`, and lognorth.com/install redirects to the
-newest one in `lognorth-releases`. On Chasen the image needs no settings: it reads `PRIVATE_KEY` and
+newest one in this repo. On Chasen the image needs no settings: it reads `PRIVATE_KEY` and
 `BASE_URL`, which Chasen sets. `e2e/chasen.sh`, `e2e/installer.sh`, and
 `e2e/move-to-chasen.sh` test the three paths; `.github/workflows/chasen.yml`
 runs them on fresh GitHub runners, because they install chasen-server on the
@@ -125,8 +125,9 @@ up the old server from v0.28.1.
 
 ### lognorth-releases
 
-`karloscodes/lognorth-releases` is phased out slowly, with no end date (user, 31
-October 2026). Until then each thing is in both places, and a change to one must
+The move to this repo is done (user, 31 October 2026). This repo is the source,
+and `karloscodes/lognorth-releases` stays a mirror for the next months, with no
+end date. Until then each thing is in both places, and a change to one must
 reach the other:
 
 - **Releases:** each release is published here and there, with `install.sh`.

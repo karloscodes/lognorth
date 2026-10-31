@@ -47,8 +47,8 @@ release:
     owner: karloscodes
     name: lognorth
   prerelease: auto
-  # The install line. Each release also attaches it in lognorth-releases, where
-  # lognorth.com/install points for now.
+  # The install line: lognorth.com/install points at the newest one. Each
+  # release also attaches it in lognorth-releases, which stays as a mirror.
   extra_files:
     - glob: ./install.sh
   mode: replace
